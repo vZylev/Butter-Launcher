@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, contextBridge } from "electron";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -10,6 +10,9 @@ import { checkGameInstallation } from "./game/check";
 import { launchGame } from "./game/launch";
 
 const require = createRequire(import.meta.url);
+
+contextBridge.exposeInMainWorld("nodeRequire", require);
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 process.env.APP_ROOT = path.join(__dirname, "..");

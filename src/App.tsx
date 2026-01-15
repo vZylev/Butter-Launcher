@@ -1,9 +1,8 @@
-
 import { useUserContext } from "./hooks/userContext";
 import Launcher from "./components/Launcher";
 import Login from "./components/Login";
 import Loader from "./components/Loader";
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 export default function App() {
   const { ready, username, setUsername } = useUserContext();
