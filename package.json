@@ -1,7 +1,7 @@
 {
   "name": "butter-launcher",
   "private": false,
-  "version": "0.2.9",
+  "version": "0.3.0",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -55,7 +55,8 @@
       "dist-electron/**"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "src/assets/icon.ico"
     },
     "nsis": {
       "oneClick": false,
