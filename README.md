@@ -54,7 +54,7 @@ Grab the latest executable for your operating system from our **[Releases Page](
 | **Windows** | `.exe` / `.msi` | ✅ Stable |
 | **Linux** | `.AppImage` / `.deb` | ✅ Stable |
 | **macOS** | `.dmg` | 🚧 Experimental |
-
+ 
 ## 🛠️ Development
 
 If you want to contribute or build Butter Launcher yourself:
