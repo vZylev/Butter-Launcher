@@ -5,26 +5,22 @@ import {
   useEffect,
   useCallback,
 } from "react";
-
-type InstallProgress = {
-  phase: "download" | "extract";
-  percent: number;
-  total: number;
-  current: number;
-};
+import {
+  getGameVersions,
+  getInstalledGameVersions,
+  saveInstalledGameVersion,
+} from "../utils/game";
 
 interface GameContextType {
   gameDir: string | null;
-  isInstalled: boolean;
-  gameVersion: string | null;
-  latestVersion: string | null;
+  availableVersions: GameVersion[];
+  selectedVersion: number;
   installing: boolean;
   installProgress: InstallProgress;
   launching: boolean;
   gameLaunched: boolean;
-  installGame: () => void;
-  launchGame: (username: string) => void;
-  checkGameInstallation: (baseDir: string) => void;
+  installGame: (version: GameVersion) => void;
+  launchGame: (version: GameVersion, username: string) => void;
 }
 
 export const GameContext = createContext<GameContextType | null>(null);
@@ -35,9 +31,8 @@ export const GameContextProvider = ({
   children: React.ReactNode;
 }) => {
   const [gameDir, setGameDir] = useState<string | null>(null);
-  const [isInstalled, setIsInstalled] = useState(false);
-  const [gameVersion, setGameVersion] = useState<string | null>(null);
-  const [latestVersion, setLatestVersion] = useState<string | null>(null);
+  const [availableVersions, setAvailableVersions] = useState<GameVersion[]>([]);
+  const [selectedVersion, setSelectedVersion] = useState<number>(0);
 
   const [installing, setInstalling] = useState(false);
   const [installProgress, setInstallProgress] = useState<InstallProgress>({
@@ -49,68 +44,61 @@ export const GameContextProvider = ({
   const [launching, setLaunching] = useState(false);
   const [gameLaunched, setGameLaunched] = useState(false);
 
-  const installGame = useCallback(() => {
-    if (!gameDir) return;
-    setInstalling(true);
+  const installGame = useCallback(
+    (version: GameVersion) => {
+      if (!gameDir) return;
 
-    window.ipcRenderer.send("init-install", gameDir);
-
-    window.ipcRenderer.once("install-finished", () => {
-      setInstalling(false);
-      localStorage.setItem("gameVersion", latestVersion || "");
-      checkGameInstallation(gameDir);
-    });
-
-    window.ipcRenderer.once("install-error", (_, error) => {
-      setInstalling(false);
-      alert(`Installation failed: ${error}`);
-    });
-  }, [gameDir, latestVersion]);
+      window.ipcRenderer.send("install-game", gameDir, version);
+    },
+    [gameDir]
+  );
 
   const launchGame = useCallback(
-    (username: string) => {
-      if (!gameDir || !isInstalled) return;
+    (version: GameVersion, username: string) => {
+      if (!gameDir || !version.installed) return;
       setLaunching(true);
 
-      window.ipcRenderer.send("launch-game", gameDir, username);
+      window.ipcRenderer.send("launch-game", gameDir, version, username);
       window.ipcRenderer.once("launched", () => {
         setLaunching(false);
         setGameLaunched(true);
       });
+      window.ipcRenderer.once("launch-finished", () => {
+        setLaunching(false);
+        setGameLaunched(false);
+      });
+      window.ipcRenderer.once("launch-error", () => {
+        setLaunching(false);
+        setGameLaunched(false);
+      });
     },
-    [gameDir, isInstalled]
+    [gameDir]
   );
 
-  const checkGameInstallation = (baseDir: string) => {
-    const storedGameVersion = localStorage.getItem("gameVersion");
-    if (storedGameVersion) setGameVersion(storedGameVersion);
-    else setGameVersion(null);
+  const getAvailableVersions = async () => {
+    const local = getInstalledGameVersions();
+    setAvailableVersions(local); // set available from installed while loading remote
 
-    window.ipcRenderer
-      .invoke("check-game-installation", baseDir)
-      .then((data) => {
-        console.log(data);
-        setIsInstalled(data.client && data.server && data.jre);
-      });
-  };
+    let remote = await getGameVersions();
+    if (remote.length === 0) return;
 
-  const checkLatestVersion = () => {
-    const URL = import.meta.env.VITE_DOWNLOADS_API_URL;
-    if (!URL) throw new Error("VITE_DOWNLOADS_API_URL is not defined");
-
-    window.ipcRenderer.invoke("fetch:json", URL).then((data) => {
-      if (window.config.OS === "win32" && data.releases.windows) {
-        setLatestVersion(data.releases.windows.latest.version);
-      } else if (window.config.OS === "linux" && data.releases.linux) {
-        setLatestVersion(data.releases.linux.latest.version);
-      }
+    remote = remote.map((version) => {
+      const installed = local.find(
+        (v) => v.build_index === version.build_index
+      );
+      return {
+        ...version,
+        installed: !!installed,
+      };
     });
+
+    setAvailableVersions(remote);
   };
 
   useEffect(() => {
     if (!window.config) return;
 
-    const bounceTimeout = 500;
+    const bounceTimeout = 200;
     let lastUpdateProgress: number;
     window.ipcRenderer.on("install-progress", (_, progress) => {
       if (lastUpdateProgress && Date.now() - lastUpdateProgress < bounceTimeout)
@@ -119,31 +107,68 @@ export const GameContextProvider = ({
 
       setInstallProgress(progress);
     });
+    window.ipcRenderer.on("install-started", () => {
+      setInstalling(true);
+    });
+    window.ipcRenderer.on("install-finished", (_, version) => {
+      setInstalling(false);
+      saveInstalledGameVersion(version);
+    });
+    window.ipcRenderer.on("install-error", (_, error) => {
+      setInstalling(false);
+      alert(`Installation failed: ${error}`);
+    });
 
     (async () => {
       const defaultGameDirectory =
         await window.config.getDefaultGameDirectory();
 
       setGameDir(defaultGameDirectory);
-      checkGameInstallation(defaultGameDirectory);
-      checkLatestVersion();
     })();
+
+    getAvailableVersions();
   }, []);
+
+  useEffect(() => {
+    if (!availableVersions.length) return;
+    console.log("availableVersions", availableVersions);
+
+    try {
+      const buildIndex = localStorage.getItem("selectedVersionBuildIndex");
+      if (!buildIndex) throw new Error("No build index found");
+
+      const version = parseInt(buildIndex);
+      const found = availableVersions.findIndex(
+        (v) => v.build_index === version
+      );
+      if (found) setSelectedVersion(found);
+    } catch (e) {
+      setSelectedVersion(
+        availableVersions[availableVersions.length - 1].build_index
+      );
+    }
+  }, [availableVersions]);
+
+  useEffect(() => {
+    if (!selectedVersion) return;
+    localStorage.setItem(
+      "selectedVersionBuildIndex",
+      availableVersions[selectedVersion].build_index.toString()
+    );
+  }, [selectedVersion, availableVersions]);
 
   return (
     <GameContext.Provider
       value={{
         gameDir,
-        isInstalled,
-        gameVersion,
-        latestVersion,
+        availableVersions,
+        selectedVersion,
         installing,
         installProgress,
         launching,
         gameLaunched,
         installGame,
         launchGame,
-        checkGameInstallation,
       }}
     >
       {children}

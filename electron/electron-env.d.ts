@@ -25,7 +25,7 @@ declare namespace NodeJS {
 interface Window {
   ipcRenderer: import("electron").IpcRenderer;
   config: {
-    OS: string;
+    OS: NodeJS.Platform;
     getDefaultGameDirectory: () => Promise<string>;
   };
 }

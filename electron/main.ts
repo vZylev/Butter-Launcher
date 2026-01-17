@@ -2,17 +2,33 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import fs from "node:fs";
+import { autoUpdater } from "electron-updater";
+import { META_DIRECTORY } from "./utils/const";
 
-import { downloadGame } from "./game/download";
-import { checkGameInstallation } from "./game/check";
-import { launchGame } from "./game/launch";
+import { installGame } from "./utils/game/install";
+import { checkGameInstallation } from "./utils/game/check";
+import { launchGame } from "./utils/game/launch";
+import { connectRPC } from "./utils/discord";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 process.env.APP_ROOT = path.join(__dirname, "..");
 
+// autoUpdater config
+autoUpdater.setFeedURL({
+  owner: "vZylev",
+  repo: "Butter-Launcher",
+  provider: "github",
+});
+
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.autoRunAppAfterInstall = true;
+autoUpdater.forceDevUpdateConfig = false;
+
 app.on("ready", () => {
-  app.setAppUserModelId("Butter Launcher");
+  app.setAppUserModelId("com.butter.launcher");
+  autoUpdater.checkForUpdatesAndNotify();
 });
 
 export const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
@@ -37,6 +53,10 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, "preload.mjs"),
     },
+  });
+
+  win.on("ready-to-show", () => {
+    connectRPC();
   });
 
   if (VITE_DEV_SERVER_URL) {
@@ -78,32 +98,39 @@ ipcMain.handle("fetch:json", async (_, url, ...args) => {
   const response = await fetch(url, ...args);
   return await response.json();
 });
+ipcMain.handle("fetch:head", async (_, url, ...args) => {
+  const response = await fetch(url, ...args);
+  return response.status;
+});
 
 ipcMain.handle("get-default-game-directory", () => {
-  return path.join(app.getPath("userData"), "Hytale");
+  return path.join(META_DIRECTORY, "Hytale");
 });
 
-ipcMain.handle("check-game-installation", (_, baseDir: string) => {
-  return checkGameInstallation(baseDir);
-});
+ipcMain.handle(
+  "check-game-installation",
+  (_, baseDir: string, version: GameVersion) => {
+    return checkGameInstallation(baseDir, version);
+  }
+);
 
-ipcMain.on("init-install", (e, baseDir: string) => {
-  if (!fs.existsSync(baseDir)) {
-    fs.mkdirSync(baseDir, { recursive: true });
+ipcMain.on("install-game", (e, gameDir: string, version: GameVersion) => {
+  if (!fs.existsSync(gameDir)) {
+    fs.mkdirSync(gameDir, { recursive: true });
   }
 
   const win = BrowserWindow.fromWebContents(e.sender);
   if (win) {
-    downloadGame(baseDir, win);
+    installGame(gameDir, version, win);
   }
 });
 
 ipcMain.on(
   "launch-game",
-  (e, baseDir: string, username: string, releaseType: string) => {
+  (e, gameDir: string, version: GameVersion, username: string) => {
     const win = BrowserWindow.fromWebContents(e.sender);
     if (win) {
-      launchGame(baseDir, username, win, releaseType);
+      launchGame(gameDir, version, username, win);
     }
   }
 );

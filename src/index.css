@@ -1,7 +1,16 @@
 @import "tailwindcss";
 
-/* @theme {
-} */
+@theme {
+  @keyframes loading-horiz {
+    from {
+      transform: translateX(-100%) scaleX(0.6);
+    }
+    to {
+      transform: translateX(100%) scaleX(0.3);
+    }
+  }
+  --animate-loading-horiz: loading-horiz 1.3s ease-in-out infinite;
+}
 
 body::-webkit-scrollbar {
   width: 0px;

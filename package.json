@@ -13,57 +13,38 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@kostya-main/discord-rpc": "^1.2.1",
     "adm-zip": "^0.5.16",
     "electron-updater": "^6.7.3",
     "extract-zip": "^2.0.1",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "semver": "^7.7.3",
+    "tar": "^7.5.3",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
     "@types/adm-zip": "^0.5.7",
+    "@types/discord-rpc": "^4.0.10",
     "@types/react": "^18.2.64",
     "@types/react-dom": "^18.2.21",
+    "@types/semver": "^7.7.1",
+    "@types/tar": "^6.1.13",
     "@typescript-eslint/eslint-plugin": "^7.1.1",
     "@typescript-eslint/parser": "^7.1.1",
     "@vitejs/plugin-react": "^4.2.1",
-    "discord-rpc": "^4.0.1",
     "electron": "^30.0.1",
     "electron-builder": "^24.13.3",
     "eslint": "^8.57.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
     "lucide-react": "^0.562.0",
+    "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.2.2",
     "vite": "^5.1.6",
     "vite-plugin-electron": "^0.28.6",
     "vite-plugin-electron-renderer": "^0.14.5"
-  },
-  "build": {
-    "appId": "com.butter.launcher",
-    "productName": "Butter Launcher",
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "vZylev",
-        "repo": "Butter-Launcher"
-      }
-    ],
-    "files": [
-      "dist/**",
-      "dist-electron/**"
-    ],
-    "win": {
-      "target": "nsis",
-      "icon": "src/assets/icon.ico"
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
-      "deleteAppDataOnUninstall": true,
-      "allowElevation": true
-    }
   }
 }

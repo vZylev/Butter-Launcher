@@ -6,21 +6,33 @@ import butterLogo from "../assets/butter-logo.png";
 import SettingsModal from "./SettingsModal";
 import settingsIcon from "../assets/settings.svg";
 import DragBar from "./DragBar";
-import { formatBytes } from "../utils/formatNum";
+import ProgressBar from "./ProgressBar";
 
 const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
   const {
-    isInstalled,
-    gameVersion,
-    latestVersion,
+    availableVersions,
+    selectedVersion,
     installing,
     installProgress,
     installGame,
     launchGame,
+    launching,
+    gameLaunched,
   } = useGameContext();
   const { username } = useUserContext();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [isLaunching, setIsLaunching] = useState(false);
+
+  const handleLaunch = () => {
+    if (!selectedVersion || !availableVersions[selectedVersion]) return;
+    if (!username) return;
+
+    if (availableVersions[selectedVersion].installed) {
+      launchGame(availableVersions[selectedVersion], username);
+      return;
+    }
+
+    installGame(availableVersions[selectedVersion]);
+  };
 
   return (
     <div
@@ -63,64 +75,31 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
       <div className="w-full bg-black/60 backdrop-blur-md p-6 flex flex-row items-end justify-between gap-6">
         <div className="flex flex-col gap-3">
           {installing ? (
-            <div>
-              <div className="w-52 h-16 bg-white/10 rounded-lg shadow-inner flex flex-col justify-center p-4">
-                <div className="text-xs text-white font-semibold">
-                  {installProgress.phase === "download"
-                    ? "Downloading..."
-                    : "Installing..."}
-                </div>
-                <div className="flex items-center justify-between mt-1">
-                  <div className="text-[10px] text-gray-300">
-                    {installProgress.percent}%
-                  </div>
-                  <div className="text-[10px] text-gray-300">
-                    {installProgress.phase === "download" ? (
-                      <>
-                        {formatBytes(installProgress.current)} /{" "}
-                        {formatBytes(installProgress.total)}
-                      </>
-                    ) : (
-                      <>
-                        {installProgress.current} / {installProgress.total}
-                      </>
-                    )}
-                  </div>
-                </div>
-                <div className="relative mt-2">
-                  <div className="absolute inset-0 bg-white/20 rounded-full"></div>
-                  <div
-                    className="h-1 bg-linear-to-r from-[#3b82f6] to-[#60a5fa] rounded-full"
-                    style={{
-                      width: `${installProgress.percent}%`,
-                      transition: "width 0.3s ease",
-                    }}
-                  />
-                </div>
-              </div>
+            <div className="w-52 h-16 p-4 bg-white/10 rounded-lg shadow-inner flex items-center">
+              <ProgressBar progress={installProgress} />
             </div>
           ) : (
-              <button
-                className="min-w-52 bg-linear-to-r from-[#3b82f6] to-[#60a5fa] text-white text-xl font-bold px-12 py-3 rounded-lg shadow-lg hover:scale-105 transition"
-                onClick={async () => {
-                  if (!isInstalled) return installGame();
-                  if (!username) return;
-                  setIsLaunching(true);
-                  try {
-                    await launchGame(username);
-                  } catch (e) {
-                  }
-                  setTimeout(() => setIsLaunching(false), 10000);
-                }}
-                disabled={isLaunching}
-              >
-                {isInstalled ? (isLaunching ? "Running Game" : "Play") : "Install"}
-              </button>
+            <button
+              className="min-w-52 bg-linear-to-r from-[#3b82f6] to-[#60a5fa] text-white text-xl font-bold px-12 py-3 rounded-lg shadow-lg hover:scale-105 transition disabled:opacity-50"
+              onClick={handleLaunch}
+              disabled={launching || gameLaunched}
+            >
+              {availableVersions[selectedVersion]?.installed
+                ? gameLaunched
+                  ? "Running Game"
+                  : "Play"
+                : "Install"}
+            </button>
           )}
-          <div className="text-xs text-gray-200 font-mono opacity-80 flex flex-row gap-4 items-center">
-            <span>Latest Version: {latestVersion}</span>
-            {isInstalled && (
-              <span>Installed: {gameVersion}</span>
+          <div className="text-xs text-gray-200 font-mono opacity-80 flex flex-col">
+            <span>
+              Latest Version:{" "}
+              {availableVersions[availableVersions.length - 1]?.build_name}
+            </span>
+            {availableVersions[selectedVersion]?.installed && (
+              <span>
+                Installed: {availableVersions[selectedVersion]?.build_name}
+              </span>
             )}
           </div>
         </div>

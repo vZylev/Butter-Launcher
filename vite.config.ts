@@ -13,6 +13,11 @@ export default defineConfig({
       main: {
         // Shortcut of `build.lib.entry`.
         entry: "electron/main.ts",
+        vite: {
+          define: {
+            __filename: "import.meta.url",
+          },
+        },
       },
       preload: {
         // Shortcut of `build.rollupOptions.input`.

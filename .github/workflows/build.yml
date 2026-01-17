@@ -1,15 +1,44 @@
-name: Launcher Build (Windows)
+name: Release Build
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
 
 permissions:
   contents: write
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  # 1. Preparar Release: Verifica versión y crea el Tag
+  prepare-release:
+    runs-on: ubuntu-latest
+    outputs:
+      VERSION: ${{ steps.get_version.outputs.VERSION }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get version from package.json
+        id: get_version
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Create Git Tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag v${{ steps.get_version.outputs.VERSION }}
+          git push origin v${{ steps.get_version.outputs.VERSION }}
+        # Si el tag ya existe (ej. re-run), no fallamos, simplemente continuamos al build
+        continue-on-error: true
+
+  # 2. Compilar y Publicar para cada SO
+  build:
+    needs: prepare-release
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout repository
@@ -23,27 +52,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Get version from package.json
-        shell: pwsh
-        run: |
-          $version = node -p "require('./package.json').version"
-          echo "VERSION=$version" >> $env:GITHUB_ENV
-
-      - name: Create git tag
-        shell: pwsh
-        run: |
-          git tag v$env:VERSION
-          git push origin v$env:VERSION
-
-      - name: Build & Release Electron App
+      - name: Build & Publish (Electron Builder)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run release
-
-      - name: Upload EXE to Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ env.VERSION }}
-          files: dist/*.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -11,13 +11,12 @@
   "files": [
     "dist",
     "dist-electron"
-    "out"
   ],
   "mac": {
     "target": [
       "dmg"
     ],
-    "artifactName": "ButterLauncher.${ext}"
+    "artifactName": "${name}-installer.${ext}"
   },
   "win": {
     "target": [
@@ -28,7 +27,7 @@
         ]
       }
     ],
-    "artifactName": "ButterLauncher.${ext}"
+    "artifactName": "${name}-setup.${ext}"
   },
   "nsis": {
     "oneClick": false,
@@ -41,10 +40,10 @@
     "target": [
       "AppImage",
       "deb",
-      "snap",
+      "flatpak",
       "tar.gz"
     ],
-    "artifactName": "ButterLauncher.${ext}"
+    "artifactName": "${name}.${ext}",
     "category": "Game"
   }
 }

@@ -4,6 +4,8 @@ import React from "react";
 const Loader: React.FC = () => (
   <div
     style={{
+      // @ts-ignore
+      appRegion: "drag",
       position: "fixed",
       top: 0,
       left: 0,
@@ -14,7 +16,7 @@ const Loader: React.FC = () => (
       alignItems: "center",
       justifyContent: "center",
       background: `#181c23`,
-      flexDirection: "column"
+      flexDirection: "column",
     }}
   >
     <img
@@ -24,7 +26,7 @@ const Loader: React.FC = () => (
         width: 280,
         marginBottom: 32,
         userSelect: "none",
-        pointerEvents: "none"
+        pointerEvents: "none",
       }}
       draggable={false}
     />
@@ -59,13 +61,17 @@ const Loader: React.FC = () => (
         />
       </circle>
     </svg>
-    <span style={{
-      color: "#d1d5db",
-      fontSize: 18,
-      fontWeight: 500,
-      textShadow: "0 1px 4px #000a",
-      marginTop: 18
-    }}>Initializing Butter Launcher</span>
+    <span
+      style={{
+        color: "#d1d5db",
+        fontSize: 18,
+        fontWeight: 500,
+        textShadow: "0 1px 4px #000a",
+        marginTop: 18,
+      }}
+    >
+      Initializing Butter Launcher
+    </span>
   </div>
 );
 
