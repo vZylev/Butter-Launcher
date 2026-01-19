@@ -192,7 +192,7 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
     const os = useSystemOS();
     const arch = useSystemArch(os);
 
-    const maxScan = 200; // safety cap
+    const maxScan = 500; // safety cap
     const ids = await probeFromBuild1(versionType, maxScan);
     if (!ids.length) return [];
 
@@ -262,10 +262,10 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
     if (ok) existingListed.push(id);
   }
 
-  // 4) Probe latest+1, latest+2, ... until it stops being 200.
+  // 4) Probe latest+1, latest+2, ... until it stops being 500.
   // This catches new builds even when the versions list hasn't updated yet.
   const shouldProbe = typeof latestId === "number" && latestId > 0;
-  const maxExtra = 50; // safety cap
+  const maxExtra = 100; // safety cap
   const extras = shouldProbe
     ? await probeBeyondLatest(versionType, latestId + 1, maxExtra)
     : [];
