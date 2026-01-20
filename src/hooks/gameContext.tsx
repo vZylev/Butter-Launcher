@@ -174,8 +174,18 @@ export const GameContextProvider = ({
           gameDir,
         )) as Array<{ type: VersionType; build_index: number; isLatest?: boolean }>;
 
+        const releaseInstalledSet = new Set<number>();
+        const preReleaseInstalledSet = new Set<number>();
+        for (const item of installed) {
+          if (item.type === "release") {
+            releaseInstalledSet.add(item.build_index);
+          } else {
+            preReleaseInstalledSet.add(item.build_index);
+          }
+        }
+
         const isInstalled = (t: VersionType, idx: number) =>
-          installed.some((x) => x.type === t && x.build_index === idx);
+          t === "release" ? releaseInstalledSet.has(idx) : preReleaseInstalledSet.has(idx);
 
         const [remoteRelease, remotePre] = await Promise.all([
           getGameVersions("release"),
