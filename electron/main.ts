@@ -361,6 +361,19 @@ ipcMain.handle("fetch:head", async (_, url, ...args) => {
 });
 
 ipcMain.handle("get-default-game-directory", () => {
+  try {
+    if (process.platform === "linux") {
+      const xdgBase =
+        process.env["XDG_DATA_HOME"] && path.isAbsolute(process.env["XDG_DATA_HOME"]!)
+          ? process.env["XDG_DATA_HOME"]!
+          : path.join(os.homedir(), ".local", "share");
+      const newPath = path.join(xdgBase, "butter-launcher", "Hytale");
+      const legacyPath = path.join(META_DIRECTORY, "Hytale");
+      if (fs.existsSync(legacyPath) && !fs.existsSync(newPath)) return legacyPath;
+      return newPath;
+    }
+  } catch {
+  }
   return path.join(META_DIRECTORY, "Hytale");
 });
 
