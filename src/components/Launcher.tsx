@@ -7,7 +7,7 @@ import SettingsModal from "./SettingsModal";
 import settingsIcon from "../assets/settings.svg";
 import DragBar from "./DragBar";
 import ProgressBar from "./ProgressBar";
-import { IconBrandDiscord, IconChevronDown } from "@tabler/icons-react";
+import { IconChevronDown } from "@tabler/icons-react";
 
 type NewsItem = {
   title: string;
@@ -392,7 +392,11 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
           }}
           style={{ width: 40, height: 40 }}
         >
-          <IconBrandDiscord size={22} className="text-white" />
+        <img
+          src="src/assets/discord.svg"
+          alt="Discord"
+          className="w-5 h-5"
+        />
         </button>
       </div>
       <div className="flex items-start justify-between p-6">

@@ -11,6 +11,8 @@ const SettingsModal: React.FC<{
   const { gameDir, checkForUpdates, checkingUpdates } = useGameContext();
   const [customUUID, setCustomUUID] = useState<string>("");
 
+  const [closing, setClosing] = useState(false);
+
   const normalizedUUID = useMemo(() => {
     const raw = customUUID.trim();
     if (!raw) return "";
@@ -57,124 +59,167 @@ const SettingsModal: React.FC<{
     }
   }, [customUUID, normalizedUUID, open]);
 
-  if (!open) return null;
+  if (!open && !closing) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="relative w-full max-w-xs mx-auto rounded-2xl shadow-2xl bg-[#181c24e6] p-6 animate-fade-in border border-[#23293a] flex flex-col items-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md animate-fade-in">
+      <div
+        className={`
+          relative w-full max-w-4xl h-[400px] mx-auto
+          rounded-xl
+          bg-gradient-to-b from-[#1b2030]/95 to-[#141824]/95
+          border border-[#2a3146]
+          shadow-2xl
+          px-10 py-6
+          flex flex-col
+          ${closing ? "animate-settings-out" : "animate-settings-in"}
+        `}
+      >
         <button
-          className="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl font-bold"
-          onClick={onClose}
+          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-[#23293a] text-gray-400 hover:text-white hover:bg-[#2f3650] transition flex items-center justify-center"
+          onClick={() => {
+            setClosing(true);
+            setTimeout(() => {
+              setClosing(false);
+              onClose();
+            }, 160);
+          }}
           title="Cerrar"
         >
           ×
         </button>
-        <h2 className="text-2xl font-extrabold text-white mb-6 text-center tracking-wide drop-shadow">
-          SETTINGS
-        </h2>
-        <div className="w-full space-y-4">
-          {/* <div>
-            <label className="text-gray-200 text-sm font-semibold mb-1 block">
-              Patchline
-            </label>
-            <select className="w-full mt-1 p-2 rounded bg-[#23293a] text-white border border-[#3b82f6] focus:outline-none">
-              <option>release</option>
-              <option>snapshot</option>
-            </select>
-          </div> */}
-          <div>
-            <label className="text-gray-200 text-sm font-semibold mb-1 block">
-              Game Directory
-            </label>
-            <button
-              className="flex items-center gap-2 bg-[#23293a] border border-[#3b82f6] text-white px-4 py-2 rounded hover:bg-[#23293a]/80 transition"
-              onClick={handleOpenGameDir}
-            >
-              Open
-              <FolderOpen />
-            </button>
-          </div>
-          <div>
-            <label className="text-gray-200 text-sm font-semibold mb-1 block">
-              Launcher Version
-            </label>
-            <div className="text-xs text-gray-400 font-mono">
-              {LAUNCHER_BUILD_STRING}
-            </div>
-          </div>
 
-          <div>
-            <label className="text-gray-200 text-sm font-semibold mb-1 block">
-              Custom UUID
-            </label>
-            <input
-              value={customUUID}
-              onChange={(e) => setCustomUUID(e.target.value)}
-              placeholder="Leave empty for auto"
-              className="w-full mt-1 px-3 py-2 rounded bg-[#23293a] text-white border border-[#3b82f6] focus:outline-none"
-              spellCheck={false}
-              autoCapitalize="none"
-              autoCorrect="off"
-              inputMode="text"
-            />
-            <div className="flex items-center justify-between mt-1">
-              <div className="text-[10px] text-gray-400">
-                {customUUID.trim().length === 0
-                  ? "Uses auto UUID generation"
-                  : normalizedUUID === "__invalid__"
-                    ? "Invalid UUID (use 32 hex or UUID format)"
-                    : `Saved: ${normalizedUUID}`}
-              </div>
+        <h2 className="text-lg font-semibold text-white tracking-wide mb-4">
+          SYSTEM SETTINGS
+        </h2>
+
+        {/* CONTENT */}
+        <div className="flex-1 overflow-y-auto pr-2">
+          <div className="grid grid-cols-2 gap-6">
+
+            {/* <div>
+              <label className="text-gray-200 text-sm font-semibold mb-1 block">
+                Patchline
+              </label>
+              <select className="w-full mt-1 p-2 rounded bg-[#23293a] text-white border border-[#3b82f6] focus:outline-none">
+                <option>release</option>
+                <option>snapshot</option>
+              </select>
+            </div> */}
+
+            <div className="space-y-2">
+              <label className="text-xs uppercase tracking-widest text-gray-400">
+                Game Directory
+              </label>
               <button
-                type="button"
-                className="text-[10px] text-red-300 hover:text-red-200"
-                onClick={() => {
-                  setCustomUUID("");
-                  localStorage.removeItem("customUUID");
-                }}
+                className="w-full flex items-center justify-between bg-[#1f2538] hover:bg-[#262d44] border border-[#2a3146] rounded-lg px-4 py-2 text-white transition"
+                onClick={handleOpenGameDir}
               >
-                Clear
+                <span className="text-sm">Open Folder</span>
+                <FolderOpen size={18} />
               </button>
             </div>
-          </div>
-          {/* <div>
-            <label className="text-gray-200 text-sm font-semibold mb-1 block">
-              Previous Version{" "}
-              <span className="text-xs text-gray-400 font-normal">
-                (Not available)
-              </span>
-            </label>
-            <button className="w-full bg-[#23293a] text-gray-400 px-4 py-2 rounded mt-1 cursor-not-allowed" disabled>
-              LAUNCH
-            </button>
-          </div> */}
-          <button
-            className="w-full border border-[#3b82f6] text-[#3b82f6] font-bold py-2 rounded-lg hover:bg-[#23293a]/80 transition disabled:opacity-60 disabled:hover:bg-transparent"
-            disabled={checkingUpdates}
-            onClick={() => checkForUpdates("manual")}
-          >
-            {checkingUpdates ? "CHECKING..." : "CHECK FOR UPDATES"}
-          </button>
-          {/* <button className="w-full border border-red-500 text-red-400 font-bold py-2 rounded-lg hover:bg-red-900/60 transition">
-            UNINSTALL...
-          </button> */}
-          {onLogout && (
-            <button
-              className="w-full border-none text-white font-bold py-2 rounded-lg bg-linear-to-r from-[#3b82f6] to-[#60a5fa] hover:from-[#2563eb] hover:to-[#3b82f6] transition mt-2 shadow-lg"
-              onClick={onLogout}
-            >
-              LOGOUT
-            </button>
-          )}
 
-          <div className="pt-4 mt-2 border-t border-[#23293a] w-full text-center">
-            <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Credits</span>
-            <div className="mt-2 space-y-1">
-              <p className="text-xs text-gray-400">Online Fix: <span className="text-blue-400">vZyle</span></p>
-              <p className="text-xs text-gray-400">System Launcher: <span className="text-blue-400">Fitzxel</span></p>
-              <p className="text-xs text-gray-400">Design Launcher: <span className="text-blue-400">primeisonline</span></p>
+            <div className="space-y-2">
+              <label className="text-xs uppercase tracking-widest text-gray-400">
+                Launcher Version
+              </label>
+              <div className="text-xs font-mono text-gray-300 bg-[#1f2538] border border-[#2a3146] rounded px-3 py-2">
+                {LAUNCHER_BUILD_STRING}
+              </div>
             </div>
+
+            <div className="col-span-2 space-y-2">
+              <label className="text-xs uppercase tracking-widest text-gray-400">
+                Custom UUID
+              </label>
+              <input
+                value={customUUID}
+                onChange={(e) => setCustomUUID(e.target.value)}
+                placeholder="Auto generated if empty"
+                className="w-full px-3 py-2 rounded-lg bg-[#1f2538] text-white border border-[#2a3146] focus:outline-none focus:border-blue-500 transition"
+                spellCheck={false}
+                autoCapitalize="none"
+                autoCorrect="off"
+                inputMode="text"
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-gray-400">
+                  {customUUID.trim().length === 0
+                    ? "Uses automatic UUID generation"
+                    : normalizedUUID === "__invalid__"
+                      ? "Invalid UUID format"
+                      : `Saved: ${normalizedUUID}`}
+                </span>
+                <button
+                  type="button"
+                  className="text-[10px] text-red-400 hover:text-red-300 transition"
+                  onClick={() => {
+                    setCustomUUID("");
+                    localStorage.removeItem("customUUID");
+                  }}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+
+            {/* <div>
+              <label className="text-gray-200 text-sm font-semibold mb-1 block">
+                Previous Version{" "}
+                <span className="text-xs text-gray-400 font-normal">
+                  (Not available)
+                </span>
+              </label>
+              <button className="w-full bg-[#23293a] text-gray-400 px-4 py-2 rounded mt-1 cursor-not-allowed" disabled>
+                LAUNCH
+              </button>
+            </div> */}
+
           </div>
         </div>
+
+        {/* FOOTER */}
+        <div className="pt-4 mt-4 border-t border-[#2a3146] flex items-center justify-between gap-4">
+
+          <div className="text-left">
+            <span className="text-[10px] uppercase tracking-widest text-gray-500 font-semibold">
+              Credits
+            </span>
+            <div className="mt-1 space-y-0.5">
+              <p className="text-xs text-gray-400">
+                Online Fix: <span className="text-blue-400">vZyle</span>
+              </p>
+              <p className="text-xs text-gray-400">
+                System Launcher: <span className="text-blue-400">Fitzxel</span>
+              </p>
+              <p className="text-xs text-gray-400">
+                Design Launcher: <span className="text-blue-400">primeisonline</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              className="px-4 py-2 rounded-lg font-semibold border border-blue-500/40 text-blue-400 hover:bg-blue-500/10 transition disabled:opacity-50"
+              disabled={checkingUpdates}
+              onClick={() => checkForUpdates("manual")}
+            >
+              {checkingUpdates ? "CHECKING..." : "CHECK FOR UPDATES"}
+            </button>
+
+            {onLogout && (
+              <button
+                className="px-5 py-2 rounded-lg font-bold text-white bg-gradient-to-r from-blue-500 to-cyan-400 hover:from-blue-600 hover:to-cyan-500 transition shadow-lg"
+                onClick={onLogout}
+              >
+                LOGOUT
+              </button>
+            )}
+          </div>
+
+        </div>
+
       </div>
     </div>
   );
