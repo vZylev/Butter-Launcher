@@ -2,25 +2,30 @@
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "com.butter.launcher",
-  "icon": "src/assets/icon.png",
+  "icon": "build/icon",
   "asar": true,
   "productName": "Butter Launcher",
   "copyright": "Copyright © 2026 Butter Labs",
   "directories": {
     "output": "release/${version}"
   },
+  "publish": {
+    "provider": "github",
+    "releaseType": "release"
+  },
   "files": [
     "dist",
     "dist-electron"
   ],
   "mac": {
+    "icon": "build/icon",
     "target": [
       "dmg"
     ],
     "artifactName": "${name}-installer.${ext}"
   },
   "win": {
-    "icon": "src/assets/icon.ico",
+    "icon": "build/icon",
     "target": [
       {
         "target": "nsis",
@@ -39,19 +44,21 @@
     "allowElevation": true
   },
   "linux": {
-    "icon": "src/assets/icon.png",
+    "icon": "build/icon",
     "executableName": "butter-launcher",
     "target": [
       "AppImage",
       "deb",
       "flatpak",
-      "tar.gz"
+      "tar.gz",
+      "rpm"
     ],
     "artifactName": "${name}.${ext}",
     "category": "Game",
     "desktop": {
+      // ignore not allowed properties, docs says another way to set them but it doesn't work
       "Name": "Butter Launcher",
-      "Comment": "Hytale launcher",
+      "Comment": "The best Hytale Launcher",
       "Terminal": "false",
       "Categories": "Game;",
       "StartupWMClass": "Butter Launcher"

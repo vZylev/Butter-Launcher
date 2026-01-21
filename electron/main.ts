@@ -135,27 +135,13 @@ const installBackgroundNetworkBlocker = (w: BrowserWindow) => {
 };
 
 function resolveAppIcon() {
-  const iconFile = process.platform === "win32" ? "icon.ico" : "icon.png";
+  const iconFile = path.join(
+    process.env.APP_ROOT,
+    "build",
+    process.platform === "win32" ? "icon.ico" : "icon.png",
+  );
 
-  const candidates = [
-    // Dev (repo)
-    path.join(process.env.APP_ROOT, "src", "assets", iconFile),
-    // If you later copy icons into dist/public
-    path.join(process.env.APP_ROOT, "dist", iconFile),
-    path.join(process.env.APP_ROOT, "public", iconFile),
-    // Vite public (set to public/ in dev, dist/ in prod)
-    path.join(process.env.VITE_PUBLIC, iconFile),
-  ];
-
-  const foundPath = candidates.find((p) => {
-    try {
-      return !!p && fs.existsSync(p);
-    } catch {
-      return false;
-    }
-  });
-
-  return foundPath ? nativeImage.createFromPath(foundPath) : undefined;
+  return nativeImage.createFromPath(iconFile);
 }
 
 const restoreFromBackground = () => {
@@ -364,16 +350,17 @@ ipcMain.handle("get-default-game-directory", () => {
   try {
     if (process.platform === "linux") {
       const xdgBase =
-        process.env["XDG_DATA_HOME"] && path.isAbsolute(process.env["XDG_DATA_HOME"]!)
+        process.env["XDG_DATA_HOME"] &&
+        path.isAbsolute(process.env["XDG_DATA_HOME"]!)
           ? process.env["XDG_DATA_HOME"]!
           : path.join(os.homedir(), ".local", "share");
       const newPath = path.join(xdgBase, "butter-launcher", "Hytale");
       const legacyPath = path.join(META_DIRECTORY, "Hytale");
-      if (fs.existsSync(legacyPath) && !fs.existsSync(newPath)) return legacyPath;
+      if (fs.existsSync(legacyPath) && !fs.existsSync(newPath))
+        return legacyPath;
       return newPath;
     }
-  } catch {
-  }
+  } catch {}
   return path.join(META_DIRECTORY, "Hytale");
 });
 

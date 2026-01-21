@@ -3,18 +3,10 @@
   "description": "The best Hytale Launcher",
   "author": "vZyle <vZyle@example.com>",
   "private": false,
+  "license": "MIT",
   "version": "1.0.6",
   "type": "module",
   "main": "dist-electron/main.js",
-  "build": {
-    "extends": "electron-builder.json5",
-    "win": {
-      "icon": "src/assets/icon.ico"
-    },
-    "linux": {
-      "icon": "src/assets/icon.png"
-    }
-  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",

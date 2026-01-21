@@ -65,11 +65,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Flatpak (Linux)
+      - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y flatpak flatpak-builder
+          sudo apt-get install -y flatpak flatpak-builder rpm
           flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
           flatpak remotes --user
 
