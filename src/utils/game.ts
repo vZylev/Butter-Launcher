@@ -5,44 +5,13 @@ const VERSION_DETAILS_META_KEY = "versionDetailsMeta:v1";
 
 const useSystemOS = () => {
   if (window.config.OS === "win32") return "windows";
-  if (window.config.OS === "linux") return "linux";
+  if (window.config.OS !== "darwin") return "linux";
   return window.config.OS;
 };
 
 const useSystemArch = (os: string) => {
-  // Hytale patch endpoints currently only provide darwin/arm64.
   if (os === "darwin") return "arm64";
   return "amd64";
-};
-
-export const getGameVersion = async (
-  versionType: VersionType = "release",
-  versionIndex: number = 1,
-) => {
-  if (versionIndex < 1) versionIndex = 1;
-
-  const os = useSystemOS();
-  const arch = useSystemArch(os);
-  const URL = `${BASE_URL}/${os}/${arch}/${versionType}/0/${versionIndex}.pwr`;
-
-  let version: GameVersion | null = null;
-
-  const pwrStatus = await window.ipcRenderer.invoke("fetch:head", URL);
-  if (pwrStatus !== 200) return null;
-
-  // get version details
-  const details: VersionDetailsRoot = await window.ipcRenderer.invoke(
-    "fetch:json",
-    `${import.meta.env.VITE_REQUEST_VERSIONS_DETAILS_URL}`,
-  );
-
-  version = {
-    url: URL,
-    type: versionType,
-    build_index: versionIndex,
-    build_name: details?.versions[versionIndex.toString()]?.name || "",
-  };
-  return version;
 };
 
 const buildPwrUrl = (
@@ -75,7 +44,7 @@ const startOfToday = () => {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 };
 
-const loadCachedVersionDetails = (): VersionDetailsRoot | null => {
+const loadCachedVersionDetails = (): VersionsManifestRoot | null => {
   try {
     const raw = localStorage.getItem(VERSION_DETAILS_CACHE_KEY);
     if (!raw) return null;
@@ -85,7 +54,10 @@ const loadCachedVersionDetails = (): VersionDetailsRoot | null => {
   }
 };
 
-const saveCachedVersionDetails = (details: VersionDetailsRoot, meta?: any) => {
+const saveCachedVersionDetails = (
+  details: VersionsManifestRoot,
+  meta?: any,
+) => {
   try {
     localStorage.setItem(VERSION_DETAILS_CACHE_KEY, JSON.stringify(details));
     if (meta)
@@ -96,7 +68,7 @@ const saveCachedVersionDetails = (details: VersionDetailsRoot, meta?: any) => {
 };
 
 const fetchVersionDetailsIfOnline =
-  async (): Promise<VersionDetailsRoot | null> => {
+  async (): Promise<VersionsManifestRoot | null> => {
     const url = `${import.meta.env.VITE_REQUEST_VERSIONS_DETAILS_URL}`;
     try {
       const status = await window.ipcRenderer.invoke("fetch:head", url);
@@ -104,7 +76,7 @@ const fetchVersionDetailsIfOnline =
       return (await window.ipcRenderer.invoke(
         "fetch:json",
         url,
-      )) as VersionDetailsRoot;
+      )) as VersionsManifestRoot;
     } catch {
       return null;
     }
@@ -232,7 +204,8 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
   const arch = useSystemArch(os);
 
   const versions: GameVersion[] = finalIds.map((buildIndex) => {
-    const detailsEntry = namesMap?.[buildIndex.toString()];
+    const versionEntry = namesMap?.[buildIndex];
+    const detailsEntry = versionEntry?.[os];
     const listedName = detailsEntry?.name;
     const build_name =
       typeof listedName === "string" && listedName.trim().length > 0
@@ -255,8 +228,16 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
       typeof (detailsEntry as any)?.patch_note === "string"
         ? (detailsEntry as any).patch_note
         : undefined;
+    const server_url =
+      typeof (versionEntry as any)?.server_url === "string"
+        ? (versionEntry as any).server_url
+        : undefined;
+    const unserver_url =
+      typeof (versionEntry as any)?.unserver_url === "string"
+        ? (versionEntry as any).unserver_url
+        : undefined;
 
-    return {
+    const version: GameVersion = {
       url: buildPwrUrl(os, arch, versionType, buildIndex),
       type: versionType,
       build_index: buildIndex,
@@ -266,7 +247,10 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
       patch_hash: patch_url && patch_hash ? patch_hash : undefined,
       original_url: patch_url && patch_hash ? original_url : undefined,
       patch_note: patch_url && patch_hash ? patch_note : undefined,
+      server_url: server_url,
+      unserver_url: unserver_url,
     };
+    return version;
   });
 
   // Mark the actual latest build based on what exists (includes probeBeyondLatest).

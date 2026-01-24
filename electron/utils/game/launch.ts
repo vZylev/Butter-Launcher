@@ -6,6 +6,8 @@ import fs from "fs";
 import { genUUID } from "./uuid";
 import { installGame } from "./install";
 import { logger } from "../logger";
+import { getOnlinePatchState } from "./onlinePatch";
+import { generateTokens } from "./tokens";
 
 const ensureExecutable = (filePath: string) => {
   if (process.platform === "win32") return;
@@ -124,13 +126,35 @@ export const launchGame = async (
     userDir,
     "--java-exec",
     jre,
-    "--auth-mode",
-    "offline",
     "--uuid",
     finalUuid,
     "--name",
     username,
   ];
+
+  if (
+    process.platform !== "win32" &&
+    getOnlinePatchState(baseDir, version).enabled
+  ) {
+    logger.info(
+      "Linux or macOS detected with online patch enabled, using auth tokens",
+    );
+    args.push("--auth-mode", "authenticated");
+
+    const authTokens = generateTokens(username, finalUuid);
+    if (!authTokens) {
+      logger.error("Auth tokens not found, cannot launch game");
+      win.webContents.send("launch-error", "Auth tokens not found");
+      return;
+    }
+    args.push("--identity-token", authTokens.identityToken);
+    args.push("--session-token", authTokens.sessionToken);
+  } else {
+    logger.info(
+      "Windows detected or disabled online patch, using offline auth",
+    );
+    args.push("--auth-mode", "offline");
+  }
 
   logger.info("Launch arguments:", args);
 
@@ -138,9 +162,11 @@ export const launchGame = async (
     logger.info(`Spawning client (attempt ${attempt + 1})...`);
     try {
       const env = { ...process.env };
-      
+
       if (isWaylandSession()) {
-        console.log("Wayland session detected, setting SDL_VIDEODRIVER=wayland");
+        console.log(
+          "Wayland session detected, setting SDL_VIDEODRIVER=wayland",
+        );
         env.SDL_VIDEODRIVER = "wayland";
       }
 

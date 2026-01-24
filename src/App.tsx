@@ -10,9 +10,13 @@ export default function App() {
   const [fade, setFade] = useState(false);
 
   useEffect(() => {
+    window.ipcRenderer.send("ready", {
+      enableRPC: !!window.localStorage.getItem("enableRPC"),
+    });
+
     if (ready) {
       setFade(true);
-      const timeout = setTimeout(() => setShowLoader(false), 1000); 
+      const timeout = setTimeout(() => setShowLoader(false), 1000);
       return () => clearTimeout(timeout);
     }
   }, [ready]);
@@ -31,26 +35,27 @@ export default function App() {
         style={{ position: "relative" }}
       >
         {showLoader && (
-          <div style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 10000,
-            pointerEvents: "all",
-            opacity: fade ? 0 : 1,
-            transition: "opacity 1s"
-          }}>
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 10000,
+              pointerEvents: "all",
+              opacity: fade ? 0 : 1,
+              transition: "opacity 1s",
+            }}
+          >
             <Loader />
           </div>
         )}
-        {!showLoader && (
-          ready ? (
+        {!showLoader &&
+          (ready ? (
             username ? (
               <Launcher onLogout={() => setUsername(null)} />
             ) : (
               <Login onLogin={(username) => setUsername(username)} />
             )
-          ) : null
-        )}
+          ) : null)}
       </div>
     </div>
   );

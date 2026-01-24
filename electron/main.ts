@@ -277,15 +277,6 @@ function createWindow() {
     }
   });
 
-  win.on("ready-to-show", () => {
-    connectRPC();
-    try {
-      setChoosingVersionActivity();
-    } catch {
-      // ignore
-    }
-  });
-
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
   } else {
@@ -316,9 +307,31 @@ app.on("activate", () => {
 ipcMain.on("minimize-window", () => {
   win?.minimize();
 });
-
 ipcMain.on("close-window", () => {
   win?.close();
+});
+
+ipcMain.on("ready", (_, { enableRPC }) => {
+  if (enableRPC) {
+    connectRPC();
+    try {
+      setChoosingVersionActivity();
+    } catch {
+      // ignore
+    }
+  }
+});
+ipcMain.on("rpc:enable", (_, enable) => {
+  if (enable) {
+    connectRPC();
+    try {
+      setChoosingVersionActivity();
+    } catch {
+      // ignore
+    }
+  } else {
+    disconnectRPC();
+  }
 });
 
 ipcMain.handle(

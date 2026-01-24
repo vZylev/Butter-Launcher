@@ -27,6 +27,10 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
       listener(event, ...args),
     );
   },
+  removeListener(...args: Parameters<typeof ipcRenderer.removeListener>) {
+    const [channel, listener] = args;
+    return ipcRenderer.removeListener(channel, listener);
+  },
 });
 
 contextBridge.exposeInMainWorld("config", {

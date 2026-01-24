@@ -17,22 +17,32 @@ type GameVersion = {
   original_url?: string;
   patch_note?: string;
   installed?: boolean;
+  server_url?: string;
+  unserver_url?: string;
 };
 
 type VersionDetails = {
   name: string;
   url?: string;
-  original?: string;
   hash?: string;
   patch_note?: string;
+  original?: string;
 };
 
-type VersionDetailsRoot = {
+type VersionManifest = {
+  server_url?: string;
+  unserver_url?: string;
+  windows: VersionDetails;
+  linux: VersionDetails;
+  darwin: VersionDetails;
+};
+
+type VersionsManifestRoot = {
   last_updated: string;
   latest_release_id: number;
   latest_prerelease_id: number;
-  versions: Record<string, VersionDetails>;
-  pre_releases: Record<string, VersionDetails>;
+  versions: Record<string, VersionManifest>;
+  pre_releases: Record<string, VersionManifest>;
 };
 
 type InstallProgress = {

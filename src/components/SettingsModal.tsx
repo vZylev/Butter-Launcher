@@ -10,6 +10,7 @@ const SettingsModal: React.FC<{
 }> = ({ open, onClose, onLogout }) => {
   const { gameDir, checkForUpdates, checkingUpdates } = useGameContext();
   const [customUUID, setCustomUUID] = useState<string>("");
+  const [enableRPC, setEnableRPC] = useState<boolean>(false);
 
   const [closing, setClosing] = useState(false);
 
@@ -56,8 +57,10 @@ const SettingsModal: React.FC<{
 
   useEffect(() => {
     if (!open) return;
-    const stored = localStorage.getItem("customUUID") || "";
-    setCustomUUID(stored);
+    const storedUUID = localStorage.getItem("customUUID") || "";
+    setCustomUUID(storedUUID);
+    const storedRPC = localStorage.getItem("enableRPC") || "false";
+    setEnableRPC(storedRPC === "true");
   }, [open]);
 
   useEffect(() => {
@@ -72,6 +75,16 @@ const SettingsModal: React.FC<{
       localStorage.setItem("customUUID", normalizedUUID);
     }
   }, [customUUID, normalizedUUID, open]);
+
+  useEffect(() => {
+    if (enableRPC) {
+      localStorage.setItem("enableRPC", "true");
+      window.ipcRenderer.send("rpc:enable", true);
+    } else {
+      localStorage.removeItem("enableRPC");
+      window.ipcRenderer.send("rpc:enable", false);
+    }
+  }, [enableRPC]);
 
   if (!open && !closing) return null;
 
@@ -180,6 +193,19 @@ const SettingsModal: React.FC<{
                 </button>
               </div>
             </div>
+
+            <label className="w-fit flex gap-2 items-center text-xs uppercase tracking-widest text-gray-400">
+              <p>Discord RPC:</p>
+              <input
+                type="checkbox"
+                checked={enableRPC}
+                onChange={(e) => setEnableRPC(e.target.checked)}
+                className="hidden sr-only"
+              />
+              <div className="px-4 py-2 flex items-center justify-between bg-[#1f2538] hover:bg-[#262d44] border border-[#2a3146] rounded-lg text-white transition">
+                {enableRPC ? "Enabled" : "Disabled"}
+              </div>
+            </label>
 
             {/* <div>
               <label className="text-gray-200 text-sm font-semibold mb-1 block">

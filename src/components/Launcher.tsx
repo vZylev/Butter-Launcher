@@ -91,7 +91,6 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
     : "";
 
   const patchAvailable =
-    window.config.OS === "win32" &&
     !!selected &&
     !!selected.installed &&
     !!selected.patch_url &&
@@ -323,10 +322,9 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
 
         <div
           className={cn(
-            "mt-2 max-h-0 opacity-0 -translate-y-1 rounded-xl border border-white/10 bg-black/45 backdrop-blur-md shadow-xl overflow-hidden transition-all duration-300",
-            !versionsOpen && "pointer-events-none",
+            "mt-2 max-h-0 opacity-0 -translate-y-1 pointer-events-none rounded-xl border border-white/10 bg-black/45 backdrop-blur-md shadow-xl overflow-hidden transition-all duration-300",
             versionsOpen &&
-              "max-h-[340px] opacity-100 translate-y-0 animate-popIn animate-softGlow",
+              "max-h-[220px] opacity-100 translate-y-0 animate-popIn animate-softGlow pointer-events-auto",
           )}
         >
           <div className="p-3">
