@@ -21,6 +21,30 @@ import {
 
 const pipeline = promisify(stream.pipeline);
 
+// ============================================================================
+// RESUMABLE DOWNLOAD INFRASTRUCTURE
+// ============================================================================
+
+/**
+ * Metadata stored for each in-progress download to enable resumption.
+ */
+type DownloadMetadata = {
+  url: string;
+  expectedSize?: number;
+  downloadedBytes: number;
+  lastModified: string; // ISO timestamp
+  etag?: string; // Server ETag for validation
+};
+
+/**
+ * Resume-aware download state tracker
+ */
+type ResumeState = {
+  metadataPath: string;
+  tempPath: string;
+  metadata: DownloadMetadata | null;
+};
+
 // we track only the pwr download because users love cancel buttons
 // and because canceling patching would be too reasonable
 class UserCancelledError extends Error {
@@ -40,9 +64,128 @@ const pwrDownloadsInFlight = new Map<string, PwrDownloadState>();
 const installKey = (gameDir: string, version: GameVersion) =>
   `${gameDir}::${version.type}::${version.build_index}`;
 
+/**
+ * Generate stable paths for download temp file and metadata
+ */
+const getDownloadPaths = (
+  gameDir: string,
+  version: GameVersion
+): { tempPath: string; metadataPath: string } => {
+  // Use stable filename (no timestamp) so we can resume across sessions
+  const basename = `build-${version.build_index}_${version.type}`;
+  const tempPath = path.join(gameDir, `${basename}.pwr.download`);
+  const metadataPath = path.join(gameDir, `${basename}.pwr.meta.json`);
+  
+  return { tempPath, metadataPath };
+};
+
+/**
+ * Load download metadata from disk if it exists
+ */
+const loadDownloadMetadata = (metadataPath: string): DownloadMetadata | null => {
+  try {
+    if (!fs.existsSync(metadataPath)) return null;
+    const raw = fs.readFileSync(metadataPath, "utf8");
+    const parsed = JSON.parse(raw);
+    
+    // Validate structure
+    if (!parsed || typeof parsed !== "object") return null;
+    if (typeof parsed.url !== "string") return null;
+    if (typeof parsed.downloadedBytes !== "number") return null;
+    if (typeof parsed.lastModified !== "string") return null;
+    
+    return parsed as DownloadMetadata;
+  } catch (err) {
+    logger.warn("Failed to load download metadata:", err);
+    return null;
+  }
+};
+
+/**
+ * Save download metadata to disk for resume capability
+ */
+const saveDownloadMetadata = (
+  metadataPath: string,
+  metadata: DownloadMetadata
+): void => {
+  try {
+    fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2), "utf8");
+  } catch (err) {
+    logger.error("Failed to save download metadata:", err);
+  }
+};
+
+/**
+ * Clean up download artifacts (temp file + metadata)
+ */
+const cleanupDownload = (tempPath: string, metadataPath: string): void => {
+  try {
+    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+  } catch (err) {
+    logger.warn("Failed to delete temp file:", err);
+  }
+  
+  try {
+    if (fs.existsSync(metadataPath)) fs.unlinkSync(metadataPath);
+  } catch (err) {
+    logger.warn("Failed to delete metadata file:", err);
+  }
+};
+
+/**
+ * Get the current size of a partially downloaded file
+ */
+const getPartialFileSize = (filePath: string): number => {
+  try {
+    if (!fs.existsSync(filePath)) return 0;
+    const stats = fs.statSync(filePath);
+    return stats.size;
+  } catch {
+    return 0;
+  }
+};
+
+/**
+ * Validate if a partial download can be resumed
+ */
+const canResumeDownload = (
+  url: string,
+  tempPath: string,
+  metadata: DownloadMetadata | null
+): { canResume: boolean; startByte: number } => {
+  if (!metadata || metadata.url !== url) {
+    return { canResume: false, startByte: 0 };
+  }
+  
+  const fileSize = getPartialFileSize(tempPath);
+  
+  // File doesn't exist or is empty
+  if (fileSize === 0) {
+    return { canResume: false, startByte: 0 };
+  }
+  
+  // File size doesn't match metadata
+  if (fileSize !== metadata.downloadedBytes) {
+    logger.warn(
+      `File size mismatch: expected ${metadata.downloadedBytes}, got ${fileSize}`
+    );
+    return { canResume: false, startByte: 0 };
+  }
+  
+  // Metadata is too old (>7 days)
+  const metaAge = Date.now() - new Date(metadata.lastModified).getTime();
+  const MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
+  if (metaAge > MAX_AGE) {
+    logger.info("Metadata too old, starting fresh download");
+    return { canResume: false, startByte: 0 };
+  }
+  
+  return { canResume: true, startByte: fileSize };
+};
+
 export const cancelBuildDownload = (
   gameDir: string,
-  version: GameVersion,
+  version: GameVersion
 ): boolean => {
   const key = installKey(gameDir, version);
   const st = pwrDownloadsInFlight.get(key);
@@ -54,12 +197,9 @@ export const cancelBuildDownload = (
     // ignore
   }
 
-  // best effort cleanup of partial file
-  try {
-    if (fs.existsSync(st.tempPath)) fs.unlinkSync(st.tempPath);
-  } catch {
-    // ignore
-  }
+  // CHANGED: Don't delete the partial file - keep it for resume
+  // The metadata will track how much was downloaded
+  logger.info("Download cancelled, partial file preserved for resume");
 
   return true;
 };
@@ -85,46 +225,121 @@ const ensureClientExecutable = (installDir: string) => {
   }
 };
 
-// manifest helpers live in ./manifest
+// ============================================================================
+// RESUMABLE DOWNLOAD IMPLEMENTATION
+// ============================================================================
 
+/**
+ * Download a PWR file with full resume support across sessions
+ */
 const downloadPWR = async (
   gameDir: string,
   version: GameVersion,
-  win: BrowserWindow,
-) => {
-  const tempPWRPath = path.join(gameDir, `temp_${version.build_index}.pwr`);
+  win: BrowserWindow
+): Promise<string | null> => {
+  const { tempPath, metadataPath } = getDownloadPaths(gameDir, version);
   const key = installKey(gameDir, version);
   const controller = new AbortController();
 
+  // Load existing metadata if available
+  const existingMetadata = loadDownloadMetadata(metadataPath);
+  const resumeInfo = canResumeDownload(version.url, tempPath, existingMetadata);
+  
+  const startByte = resumeInfo.canResume ? resumeInfo.startByte : 0;
+  const isResuming = startByte > 0;
+
+  if (isResuming) {
+    logger.info(
+      `Resuming download for ${version.build_name} from byte ${startByte}`
+    );
+  } else {
+    logger.info(
+      `Starting fresh download for ${version.build_name} from ${version.url}`
+    );
+    // Clean up any stale files
+    cleanupDownload(tempPath, metadataPath);
+  }
+
   // yes this is global state and yes it will haunt us later
-  pwrDownloadsInFlight.set(key, { controller, tempPath: tempPWRPath });
+  pwrDownloadsInFlight.set(key, { controller, tempPath });
 
   try {
-    logger.info(
-      `Starting PWR download for version ${version.build_name} from ${version.url}`,
-    );
-    const response = await fetch(version.url, { signal: controller.signal });
-    if (!response.ok)
-      throw new Error(`Failed to download: ${response.statusText}`);
-    if (!response.body) throw new Error("No response body");
+    // Prepare Range request headers for resume
+    const headers: Record<string, string> = {};
+    if (isResuming && existingMetadata?.etag) {
+      headers["If-Range"] = existingMetadata.etag;
+    }
+    if (isResuming) {
+      headers["Range"] = `bytes=${startByte}-`;
+    }
 
-    const contentLength = response.headers.get("content-length");
-    const totalLength = contentLength ? parseInt(contentLength, 10) : undefined;
-    let downloadedLength = 0;
-
-    logger.info(
-      `PWR size: ${totalLength ? (totalLength / 1024 / 1024).toFixed(2) + " MB" : "unknown"}`,
-    );
-
-    // Emit a start event so UI doesn't show 0/0.
-    win.webContents.send("install-progress", {
-      phase: "pwr-download",
-      percent: totalLength ? 0 : -1,
-      total: totalLength,
-      current: 0,
+    const response = await fetch(version.url, {
+      signal: controller.signal,
+      headers,
     });
 
+    // Handle different response codes
+    if (response.status === 416) {
+      // Range not satisfiable - file is complete or corrupted
+      logger.warn("Range not satisfiable, starting fresh download");
+      cleanupDownload(tempPath, metadataPath);
+      // Retry without range
+      return downloadPWR(gameDir, version, win);
+    }
+
+    if (response.status === 200 && isResuming) {
+      // Server doesn't support resume, starting fresh
+      logger.info("Server doesn't support resume (200 instead of 206), starting fresh");
+      cleanupDownload(tempPath, metadataPath);
+    }
+
+    if (!response.ok) {
+      throw new Error(`Failed to download: ${response.statusText}`);
+    }
+
+    if (!response.body) {
+      throw new Error("No response body");
+    }
+
+    const contentLength = response.headers.get("content-length");
+    const etag = response.headers.get("etag") || undefined;
+    
+    // Calculate total size
+    let totalLength: number | undefined;
+    if (response.status === 206) {
+      // Partial content - add resumed bytes
+      totalLength = contentLength ? parseInt(contentLength, 10) + startByte : undefined;
+    } else {
+      // Full download
+      totalLength = contentLength ? parseInt(contentLength, 10) : undefined;
+    }
+    
+    let downloadedLength = startByte;
+
+    logger.info(
+      `PWR size: ${totalLength ? (totalLength / 1024 / 1024).toFixed(2) + " MB" : "unknown"}${
+        isResuming ? ` (resuming from ${(startByte / 1024 / 1024).toFixed(2)} MB)` : ""
+      }`
+    );
+
+    // Determine write mode
+    const writeStream = response.status === 206
+      ? fs.createWriteStream(tempPath, { flags: "a" }) // Append mode
+      : fs.createWriteStream(tempPath); // Overwrite mode
+
+    // Emit initial progress
+    win.webContents.send("install-progress", {
+      phase: "pwr-download",
+      percent: totalLength ? Math.round((downloadedLength / totalLength) * 100) : 0,
+      total: totalLength,
+      current: downloadedLength,
+    });
+
+    // Track progress with metadata updates
     const progressStream = new stream.PassThrough();
+    let lastMetadataSave = Date.now();
+    const METADATA_SAVE_INTERVAL = 2000; // Save every 2 seconds
+
     progressStream.on("data", (chunk) => {
       downloadedLength += chunk.length;
 
@@ -139,16 +354,47 @@ const downloadPWR = async (
         total: totalLength,
         current: downloadedLength,
       });
+
+      // Periodically save metadata for resume
+      const now = Date.now();
+      if (now - lastMetadataSave >= METADATA_SAVE_INTERVAL) {
+        saveDownloadMetadata(metadataPath, {
+          url: version.url,
+          expectedSize: totalLength,
+          downloadedBytes: downloadedLength,
+          lastModified: new Date().toISOString(),
+          etag,
+        });
+        lastMetadataSave = now;
+      }
     });
 
     await pipeline(
       // @ts-ignore
       stream.Readable.fromWeb(response.body),
       progressStream,
-      fs.createWriteStream(tempPWRPath),
+      writeStream
     );
 
-    logger.info(`PWR download completed: ${tempPWRPath}`);
+    logger.info(`PWR download completed: ${tempPath}`);
+
+    // Final metadata save
+    saveDownloadMetadata(metadataPath, {
+      url: version.url,
+      expectedSize: totalLength,
+      downloadedBytes: downloadedLength,
+      lastModified: new Date().toISOString(),
+      etag,
+    });
+
+    // Verify file size matches expected
+    const finalSize = getPartialFileSize(tempPath);
+    if (totalLength && finalSize !== totalLength) {
+      logger.warn(
+        `Downloaded file size mismatch: expected ${totalLength}, got ${finalSize}`
+      );
+      // Don't throw - let butler validation catch corruption
+    }
 
     win.webContents.send("install-progress", {
       phase: "pwr-download",
@@ -157,25 +403,47 @@ const downloadPWR = async (
       current: downloadedLength,
     });
 
-    return tempPWRPath;
+    return tempPath;
   } catch (error) {
     // user asked to cancel so we pretend this was always supported
     if (
       controller.signal.aborted ||
       (error && typeof error === "object" && (error as any).name === "AbortError")
     ) {
-      try {
-        if (fs.existsSync(tempPWRPath)) fs.unlinkSync(tempPWRPath);
-      } catch {
-        // ignore
+      // Save final metadata state for resume
+      const currentSize = getPartialFileSize(tempPath);
+      if (currentSize > 0) {
+        saveDownloadMetadata(metadataPath, {
+          url: version.url,
+          expectedSize: existingMetadata?.expectedSize,
+          downloadedBytes: currentSize,
+          lastModified: new Date().toISOString(),
+          etag: existingMetadata?.etag,
+        });
+        logger.info(
+          `Download cancelled, saved ${(currentSize / 1024 / 1024).toFixed(2)} MB for resume`
+        );
       }
       throw new UserCancelledError();
     }
 
     logger.error(
       `Failed to download PWR for version ${version.build_name}:`,
-      error,
+      error
     );
+    
+    // On error, save metadata for potential resume
+    const currentSize = getPartialFileSize(tempPath);
+    if (currentSize > 0) {
+      saveDownloadMetadata(metadataPath, {
+        url: version.url,
+        expectedSize: existingMetadata?.expectedSize,
+        downloadedBytes: currentSize,
+        lastModified: new Date().toISOString(),
+        etag: existingMetadata?.etag,
+      });
+    }
+    
     return null;
   } finally {
     pwrDownloadsInFlight.delete(key);
@@ -186,7 +454,7 @@ const applyPWR = async (
   pwrPath: string,
   butlerPath: string,
   installDir: string,
-  win: BrowserWindow,
+  win: BrowserWindow
 ) => {
   logger.info(`Applying PWR patch from ${pwrPath} to ${installDir}`);
   const stagingDir = path.join(installDir, "staging-temp");
@@ -210,11 +478,11 @@ const applyPWR = async (
       ["apply", "--json", "--staging-dir", stagingDir, pwrPath, installDir],
       {
         windowsHide: true,
-      },
+      }
     ).on("error", (error) => {
       logger.error(
         "Butler process failed to start or encountered a critical error:",
-        error,
+        error
       );
       reject(error);
     });
@@ -286,10 +554,10 @@ const applyPWR = async (
 export const installGame = async (
   gameDir: string,
   version: GameVersion,
-  win: BrowserWindow,
+  win: BrowserWindow
 ) => {
   logger.info(
-    `Starting game installation for ${version.type} build ${version.build_name} in ${gameDir}`,
+    `Starting game installation for ${version.type} build ${version.build_name} in ${gameDir}`
   );
   try {
     migrateLegacyChannelInstallIfNeeded(gameDir, version.type);
@@ -301,15 +569,15 @@ export const installGame = async (
         const existing = readInstallManifest(latestDir);
         if (existing && existing.build_index !== version.build_index) {
           logger.info(
-            `Retiring existing 'latest' build ${existing.build_index} to release builds.`,
+            `Retiring existing 'latest' build ${existing.build_index} to release builds.`
           );
           const targetBuildDir = getReleaseBuildDir(
             gameDir,
-            existing.build_index,
+            existing.build_index
           );
           if (fs.existsSync(targetBuildDir)) {
             logger.info(
-              `Target build directory ${targetBuildDir} already exists, deleting legacy 'latest'.`,
+              `Target build directory ${targetBuildDir} already exists, deleting legacy 'latest'.`
             );
             // Already installed elsewhere; remove latest to free the alias.
             fs.rmSync(latestDir, { recursive: true, force: true });
@@ -344,7 +612,7 @@ export const installGame = async (
     // Only skip the patching step when we *know* we're already on this build.
     if (!alreadyOnThisBuild) {
       logger.info(
-        `New build detected (target: ${version.build_index}, current: ${installedManifest?.build_index ?? "none"}). Starting patch process.`,
+        `New build detected (target: ${version.build_index}, current: ${installedManifest?.build_index ?? "none"}). Starting patch process.`
       );
       const butlerPath = await installButler();
       if (!butlerPath) throw new Error("Failed to install butler");
@@ -356,12 +624,15 @@ export const installGame = async (
         tempPWRPath,
         butlerPath,
         installDir,
-        win,
+        win
       );
       if (!gameFinalDir) throw new Error("Failed to apply PWR");
       logger.info(`PWR patch applied successfully to ${gameFinalDir}`);
 
-      fs.unlinkSync(tempPWRPath);
+      // Clean up download artifacts after successful installation
+      const { tempPath, metadataPath } = getDownloadPaths(gameDir, version);
+      cleanupDownload(tempPath, metadataPath);
+      logger.info("Cleaned up download artifacts");
 
       // Record the installed build so future updates can detect when patching is needed.
       writeInstallManifest(installDir, version);
@@ -374,7 +645,7 @@ export const installGame = async (
       // This keeps us safe against partial installs.
       if (!client || !server) {
         logger.warn(
-          "Manifest indicates installation, but client or server binaries are missing. Re-patching.",
+          "Manifest indicates installation, but client or server binaries are missing. Re-patching."
         );
         const butlerPath = await installButler();
         if (!butlerPath) throw new Error("Failed to install butler");
@@ -386,11 +657,14 @@ export const installGame = async (
           tempPWRPath,
           butlerPath,
           installDir,
-          win,
+          win
         );
         if (!gameFinalDir) throw new Error("Failed to apply PWR");
         logger.info(`PWR patch re-applied successfully to ${gameFinalDir}`);
-        fs.unlinkSync(tempPWRPath);
+        
+        // Clean up download artifacts
+        const { tempPath, metadataPath } = getDownloadPaths(gameDir, version);
+        cleanupDownload(tempPath, metadataPath);
 
         writeInstallManifest(installDir, version);
 
@@ -415,8 +689,9 @@ export const installGame = async (
     logger.error("Installation failed with error:", error);
     win.webContents.send(
       "install-error",
-      error instanceof Error ? error.message : "Unknown error",
+      error instanceof Error ? error.message : "Unknown error"
     );
     return false;
   }
 };
+
