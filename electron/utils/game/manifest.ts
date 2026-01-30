@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import type { GameVersion } from "./types";
 
 export const INSTALLED_MANIFEST_FILENAME = ".butter-installed.json";
 

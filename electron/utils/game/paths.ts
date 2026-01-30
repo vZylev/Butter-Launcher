@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { INSTALLED_MANIFEST_FILENAME, readInstallManifest, writeInstallManifest } from "./manifest";
+import type { GameVersion } from "./types";
 
 const BUILD_DIR_PREFIX = "build-";
 

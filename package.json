@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@kostya-main/discord-rpc": "^1.2.1",
+    "adm-zip": "^0.5.16",
     "electron-updater": "^6.7.3",
     "extract-zip": "^2.0.1",
     "react": "^18.2.0",
@@ -29,6 +30,7 @@
   "devDependencies": {
     "@tabler/icons-react": "^3.36.1",
     "@tailwindcss/vite": "^4.1.18",
+    "@types/adm-zip": "^0.5.7",
     "@types/discord-rpc": "^4.0.10",
     "@types/react": "^18.2.64",
     "@types/react-dom": "^18.2.21",

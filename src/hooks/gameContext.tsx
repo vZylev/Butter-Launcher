@@ -198,12 +198,16 @@ export const GameContextProvider = ({
       const customUUID = (localStorage.getItem("customUUID") || "").trim();
       const uuidArg = customUUID.length ? customUUID : null;
 
+      const authServerUrl = (localStorage.getItem("authServerUrl") || "").trim();
+      const authServerUrlArg = authServerUrl.length ? authServerUrl : null;
+
       window.ipcRenderer.send(
         "launch-game",
         gameDir,
         version,
         username,
         uuidArg,
+        authServerUrlArg,
       );
     },
     [gameDir],

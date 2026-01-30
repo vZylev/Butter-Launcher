@@ -342,22 +342,22 @@ ipcMain.on("rpc:enable", (_, enable) => {
 
 ipcMain.handle(
   "online-patch:check",
-  async (_, gameDir: string, version: GameVersion) => {
-    return await checkOnlinePatchNeeded(gameDir, version);
+  async (_, gameDir: string, version: GameVersion, authServerUrl?: string | null) => {
+    return await checkOnlinePatchNeeded(gameDir, version, authServerUrl);
   },
 );
 
 ipcMain.handle(
   "online-patch:state",
-  async (_, gameDir: string, version: GameVersion) => {
-    return getOnlinePatchState(gameDir, version);
+  async (_, gameDir: string, version: GameVersion, authServerUrl?: string | null) => {
+    return getOnlinePatchState(gameDir, version, authServerUrl);
   },
 );
 
 ipcMain.handle(
   "online-patch:health",
-  async (_, gameDir: string, version: GameVersion) => {
-    return await getOnlinePatchHealth(gameDir, version);
+  async (_, gameDir: string, version: GameVersion, authServerUrl?: string | null) => {
+    return await getOnlinePatchHealth(gameDir, version, authServerUrl);
   },
 );
 
@@ -534,6 +534,7 @@ ipcMain.on(
     version: GameVersion,
     username: string,
     customUUID?: string | null,
+    authServerUrl?: string | null,
   ) => {
     const win = BrowserWindow.fromWebContents(e.sender);
     if (win) {
@@ -543,7 +544,7 @@ ipcMain.on(
         backgroundTimeout = null;
       }
 
-      launchGame(gameDir, version, username, win, 0, customUUID ?? null, {
+      launchGame(gameDir, version, username, win, 0, customUUID ?? null, authServerUrl ?? null, {
         onGameSpawned: () => {
           logger.info(`Game spawned: ${version.type} ${version.build_name}`);
           isGameRunning = true;
@@ -584,7 +585,7 @@ ipcMain.on(
 
 ipcMain.on(
   "online-patch:enable",
-  async (e, gameDir: string, version: GameVersion) => {
+  async (e, gameDir: string, version: GameVersion, authServerUrl?: string | null) => {
     const win = BrowserWindow.fromWebContents(e.sender);
     if (!win) return;
 
@@ -610,6 +611,7 @@ ipcMain.on(
         version,
         win,
         "online-patch-progress",
+        authServerUrl,
       );
       win.webContents.send("online-patch-finished", result);
     } catch (err) {
@@ -623,7 +625,7 @@ ipcMain.on(
 
 ipcMain.on(
   "online-patch:disable",
-  async (e, gameDir: string, version: GameVersion) => {
+  async (e, gameDir: string, version: GameVersion, authServerUrl?: string | null) => {
     const win = BrowserWindow.fromWebContents(e.sender);
     if (!win) return;
 
@@ -648,6 +650,7 @@ ipcMain.on(
         version,
         win,
         "online-unpatch-progress",
+        authServerUrl,
       );
       win.webContents.send("online-unpatch-finished", result);
     } catch (err) {
@@ -661,7 +664,7 @@ ipcMain.on(
 
 ipcMain.on(
   "online-patch:fix-client",
-  async (e, gameDir: string, version: GameVersion) => {
+  async (e, gameDir: string, version: GameVersion, authServerUrl?: string | null) => {
     const win = BrowserWindow.fromWebContents(e.sender);
     if (!win) return;
 
@@ -686,6 +689,7 @@ ipcMain.on(
         version,
         win,
         "online-unpatch-progress",
+        authServerUrl,
       );
       win.webContents.send("online-unpatch-finished", result);
     } catch (err) {

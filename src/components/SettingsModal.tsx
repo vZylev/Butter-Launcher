@@ -10,6 +10,7 @@ const SettingsModal: React.FC<{
 }> = ({ open, onClose, onLogout }) => {
   const { gameDir, checkForUpdates, checkingUpdates } = useGameContext();
   const [customUUID, setCustomUUID] = useState<string>("");
+  const [authServerUrl, setAuthServerUrl] = useState<string>("");
   const [enableRPC, setEnableRPC] = useState<boolean>(false);
 
   const [closing, setClosing] = useState(false);
@@ -59,6 +60,8 @@ const SettingsModal: React.FC<{
     if (!open) return;
     const storedUUID = localStorage.getItem("customUUID") || "";
     setCustomUUID(storedUUID);
+    const storedAuthServer = localStorage.getItem("authServerUrl") || "";
+    setAuthServerUrl(storedAuthServer);
     const storedRPC = localStorage.getItem("enableRPC") || "false";
     setEnableRPC(storedRPC === "true");
   }, [open]);
@@ -75,6 +78,16 @@ const SettingsModal: React.FC<{
       localStorage.setItem("customUUID", normalizedUUID);
     }
   }, [customUUID, normalizedUUID, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const raw = authServerUrl.trim();
+    if (!raw) {
+      localStorage.removeItem("authServerUrl");
+      return;
+    }
+    localStorage.setItem("authServerUrl", raw);
+  }, [authServerUrl, open]);
 
   useEffect(() => {
     if (enableRPC) {
@@ -194,6 +207,22 @@ const SettingsModal: React.FC<{
               </div>
             </div>
 
+            <div className="col-span-2 space-y-2">
+              <label className="text-xs uppercase tracking-widest text-gray-400">
+                Authentication Server
+              </label>
+              <input
+                value={authServerUrl}
+                onChange={(e) => setAuthServerUrl(e.target.value)}
+                placeholder="https://auth.sanasol.ws"
+                className="w-full px-3 py-2 rounded-lg bg-[#1f2538] text-white border border-[#2a3146] focus:outline-none focus:border-blue-500 transition"
+                spellCheck={false}
+                autoCapitalize="none"
+                autoCorrect="off"
+                inputMode="url"
+              />
+            </div>
+
             <label className="w-fit flex gap-2 items-center text-xs uppercase tracking-widest text-gray-400">
               <p>Discord RPC:</p>
               <input
@@ -229,7 +258,7 @@ const SettingsModal: React.FC<{
             </span>
             <div className="mt-1 space-y-0.5">
               <p className="text-xs text-gray-400">
-                Online Fix: <span className="text-blue-400">vZyle</span>
+                Online Fix: Created by <span className="text-blue-400">sanasol</span> implemented by <span className="text-blue-400">Gustakir</span>
               </p>
               <p className="text-xs text-gray-400">
                 System Launcher: <span className="text-blue-400">Fitzxel</span>

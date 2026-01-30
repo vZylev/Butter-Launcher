@@ -1,4 +1,5 @@
 import { BrowserWindow } from "electron";
+import crypto from "crypto";
 import { checkGameInstallation } from "./check";
 import { join, dirname } from "path";
 import { spawn } from "child_process";
@@ -6,9 +7,122 @@ import fs from "fs";
 import { genUUID } from "./uuid";
 import { installGame } from "./install";
 import { logger } from "../logger";
-import { getOnlinePatchState } from "./onlinePatch";
-import { fetchAuthTokens } from "./auth";
+import { URL } from "url";
+
 import { resolveExistingInstallDir } from "./paths";
+import { getOnlinePatchState } from "./onlinePatch";
+import type { GameVersion } from "./types";
+
+// Default auth server URL - can be overridden by environment variable
+const DEFAULT_AUTH_SERVER_URL = "https://auth.sanasol.ws";
+const DEFAULT_AUTH_DOMAIN = "auth.sanasol.ws";
+
+// Get auth server URL from environment or default
+function getAuthServerUrl(authServerUrl?: string | null): string {
+  return authServerUrl || process.env.HYTALE_AUTH_SERVER_URL || DEFAULT_AUTH_SERVER_URL;
+}
+
+// Get auth domain from environment or default
+function getAuthDomain(authServerUrl?: string | null): string {
+    if (authServerUrl) {
+        try {
+            return new URL(authServerUrl).hostname;
+        } catch {
+            return authServerUrl;
+        }
+    }
+    return process.env.HYTALE_AUTH_DOMAIN || DEFAULT_AUTH_DOMAIN;
+}
+
+/**
+ * Fetch properly signed JWT tokens from the auth server
+ * This is required for the patched game to authenticate
+ */
+async function fetchAuthTokens(uuid: string, name: string, authServerUrl?: string | null): Promise<{
+  identityToken: string;
+  sessionToken: string;
+}> {
+  const url = `${getAuthServerUrl(authServerUrl)}/game-session/child`;
+
+  logger.info(`[Launch] Fetching auth tokens from ${url}`);
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        uuid: uuid,
+        name: name,
+        scopes: ['hytale:server', 'hytale:client']
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Auth server returned ${response.status}`);
+    }
+
+    const data = await response.json();
+    logger.info('[Launch] Auth tokens received from server');
+
+    return {
+      identityToken: data.IdentityToken || data.identityToken,
+      sessionToken: data.SessionToken || data.sessionToken
+    };
+  } catch (error) {
+    logger.error('[Launch] Failed to fetch auth tokens:', error);
+    // Fallback to local token generation (won't pass signature validation but allows offline testing)
+    return generateLocalTokens(uuid, name, authServerUrl);
+  }
+}
+
+/**
+ * Fallback: Generate tokens locally (won't pass signature validation but allows offline testing)
+ */
+function generateLocalTokens(uuid: string, name: string, authServerUrl?: string | null): {
+  identityToken: string;
+  sessionToken: string;
+} {
+  logger.info('[Launch] Using locally generated tokens (fallback mode)');
+  const serverUrl = getAuthServerUrl(authServerUrl);
+  const now = Math.floor(Date.now() / 1000);
+  const exp = now + 36000; // 10 hours
+
+  const header = Buffer.from(JSON.stringify({
+    alg: 'EdDSA',
+    kid: '2025-10-01',
+    typ: 'JWT'
+  })).toString('base64url');
+
+  const identityPayload = Buffer.from(JSON.stringify({
+    sub: uuid,
+    name: name,
+    username: name,
+    entitlements: ['game.base'],
+    scope: 'hytale:server hytale:client',
+    iat: now,
+    exp: exp,
+    iss: serverUrl,
+    jti: crypto.randomUUID()
+  })).toString('base64url');
+
+  const sessionPayload = Buffer.from(JSON.stringify({
+    sub: uuid,
+    scope: 'hytale:server',
+    iat: now,
+    exp: exp,
+    iss: serverUrl,
+    jti: crypto.randomUUID()
+  })).toString('base64url');
+
+  const signature = crypto.randomBytes(64).toString('base64url');
+
+  return {
+    identityToken: `${header}.${identityPayload}.${signature}`,
+    sessionToken: `${header}.${sessionPayload}.${signature}`
+  };
+}
 
 const ensureExecutable = (filePath: string) => {
   if (process.platform === "win32") return;
@@ -39,6 +153,7 @@ export const launchGame = async (
   win: BrowserWindow,
   retryCount: number = 0,
   customUUID: string | null = null,
+  authServerUrl: string | null = null,
   callbacks?: {
     onGameSpawned?: () => void;
     onGameExited?: (info: {
@@ -47,6 +162,15 @@ export const launchGame = async (
     }) => void;
   },
 ) => {
+  if (authServerUrl) {
+    process.env.HYTALE_AUTH_SERVER_URL = authServerUrl;
+    try {
+        process.env.HYTALE_AUTH_DOMAIN = new URL(authServerUrl).hostname;
+    } catch {
+        process.env.HYTALE_AUTH_DOMAIN = authServerUrl;
+    }
+  }
+
   if (retryCount > 1) {
     const msg = "Failed to launch game (max retries reached)";
     logger.error(msg);
@@ -135,28 +259,17 @@ export const launchGame = async (
     username,
   ];
 
-  const patchEnabled = getOnlinePatchState(baseDir, version).enabled;
-  const hasProperPatchFlag = typeof version.proper_patch === "boolean";
-
-  // New behavior:
-  // - If online patch is enabled and proper_patch === false => authenticated + tokens
-  // - If online patch is enabled and proper_patch === true  => offline
-  // Compatibility fallback (when proper_patch is missing):
-  // - Legacy behavior was Linux/macOS authenticated when patched.
-  const useAuthenticated =
-    patchEnabled &&
-    ((hasProperPatchFlag && version.proper_patch === false) ||
-      (!hasProperPatchFlag && process.platform !== "win32"));
-  // Nothing says "fun" like having two auth modes and three operating systems ;w;
+  const patchState = getOnlinePatchState(baseDir, version, authServerUrl);
+  const useAuthenticated = patchState.enabled;
 
   if (useAuthenticated) {
     logger.info(
-      "Online patch enabled with proper_patch=false (or legacy non-windows), using authenticated auth",
+      "Online patch enabled, using authenticated auth",
     );
     args.push("--auth-mode", "authenticated");
 
     try {
-      const authTokens = await fetchAuthTokens(username, finalUuid);
+      const authTokens = await fetchAuthTokens(finalUuid, username, authServerUrl);
       args.push("--identity-token", authTokens.identityToken);
       args.push("--session-token", authTokens.sessionToken);
     } catch (e) {
@@ -171,9 +284,7 @@ export const launchGame = async (
     // If this fails, it's not you. It's… probably DNS.
   } else {
     logger.info(
-      patchEnabled
-        ? "Online patch enabled with proper_patch=true, using offline auth"
-        : "Online patch disabled, using offline auth",
+      "Online patch disabled, using offline auth",
     );
     args.push("--auth-mode", "offline");
   }
@@ -198,19 +309,31 @@ export const launchGame = async (
       }
 
       const child = spawn(client, args, {
-        windowsHide: true,
+        windowsHide: false,
         shell: false,
         cwd: dirname(client),
         // Critical for Windows: allow the launcher to quit without killing the game.
         // `stdio: "ignore"` + `unref()` prevents the child being tied to the parent lifetime.
         detached: process.platform !== "darwin",
-        stdio: "ignore",
+        stdio: "pipe",
         env: env,
       });
 
       // Ensure the child is not keeping the parent process alive, and (on Windows)
       // is less likely to be terminated when the Electron app exits.
       child.unref();
+
+      if (child.stdout) {
+        child.stdout.on("data", (data) => {
+          logger.info(`[Game] ${data.toString().trim()}`);
+        });
+      }
+
+      if (child.stderr) {
+        child.stderr.on("data", (data) => {
+          logger.error(`[Game Error] ${data.toString().trim()}`);
+        });
+      }
 
       child.on("spawn", () => {
         logger.info("Game process spawned successfully.");

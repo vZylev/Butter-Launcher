@@ -12,15 +12,11 @@ type GameVersion = {
   build_index: number;
   build_name: string;
   isLatest?: boolean;
-  patch_url?: string;
-  patch_hash?: string;
-  original_url?: string;
   patch_note?: string;
   /**
-   * When the online patch is enabled:
-   * - proper_patch === true  => launch stays offline
-   * - proper_patch === false => launch uses authenticated mode + tokens
-   * If missing, launcher falls back to legacy behavior (Linux/macOS authenticated).
+   * When proper_patch is true, the game uses offline mode.
+   * When false or missing, the game uses authenticated mode with tokens.
+   * Note: Patching is now done locally via binary modification.
    */
   proper_patch?: boolean;
   installed?: boolean;

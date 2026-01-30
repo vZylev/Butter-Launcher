@@ -212,18 +212,6 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
         ? listedName
         : `Build-${buildIndex}`;
 
-    const patch_url =
-      typeof (detailsEntry as any)?.url === "string"
-        ? (detailsEntry as any).url
-        : undefined;
-    const original_url =
-      typeof (detailsEntry as any)?.original === "string"
-        ? (detailsEntry as any).original
-        : undefined;
-    const patch_hash =
-      typeof (detailsEntry as any)?.hash === "string"
-        ? (detailsEntry as any).hash
-        : undefined;
     const proper_patch =
       typeof (detailsEntry as any)?.proper_patch === "boolean"
         ? (detailsEntry as any).proper_patch
@@ -232,14 +220,13 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
       typeof (detailsEntry as any)?.patch_note === "string"
         ? (detailsEntry as any).patch_note
         : undefined;
-    // because schema stability is a myth
+    // Server URLs still used for reference but patching is done locally
     const server_url =
       typeof (versionEntry as any)?.server_url === "string"
         ? (versionEntry as any).server_url
         : typeof (versionEntry as any)?.server === "string"
           ? (versionEntry as any).server
           : undefined;
-    // surely nobody will rename fields again
     const unserver_url =
       typeof (versionEntry as any)?.unserver_url === "string"
         ? (versionEntry as any).unserver_url
@@ -253,13 +240,10 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
       build_index: buildIndex,
       build_name,
       isLatest: false,
-      patch_url: patch_url && patch_hash ? patch_url : undefined,
-      patch_hash: patch_url && patch_hash ? patch_hash : undefined,
-      original_url: patch_url && patch_hash ? original_url : undefined,
-      patch_note: patch_url && patch_hash ? patch_note : undefined,
-      proper_patch: patch_url && patch_hash ? proper_patch : undefined,
-      server_url: server_url,
-      unserver_url: unserver_url,
+      patch_note,
+      proper_patch,
+      server_url,
+      unserver_url,
     };
     return version;
   });

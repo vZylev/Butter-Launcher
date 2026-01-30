@@ -81,11 +81,9 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
     ? selected.build_name?.trim() || `Build-${selected.build_index}`
     : "";
 
-  const patchAvailable =
-    !!selected &&
-    !!selected.installed &&
-    !!selected.patch_url &&
-    !!selected.patch_hash;
+  // CHANGED: Local binary patching is always available for installed versions
+  // No longer requires patch_url or patch_hash from remote manifest
+  const patchAvailable = !!selected && !!selected.installed;
 
   // async state updates are fun until they are not
   // we only trust the most recent health check because time is not a deterministic function
@@ -103,10 +101,13 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
     }
 
     try {
+      const authServerUrl = (localStorage.getItem("authServerUrl") || "").trim();
+      const authServerUrlArg = authServerUrl.length ? authServerUrl : null;
       const health = (await window.ipcRenderer.invoke(
         "online-patch:health",
         gameDir,
         selected,
+        authServerUrlArg,
       )) as {
         enabled?: boolean;
         needsFixClient?: boolean;
@@ -238,17 +239,23 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
 
   const startOnlinePatch = () => {
     if (!gameDir || !selected) return;
-    window.ipcRenderer.send("online-patch:enable", gameDir, selected);
+    const authServerUrl = (localStorage.getItem("authServerUrl") || "").trim();
+    const authServerUrlArg = authServerUrl.length ? authServerUrl : null;
+    window.ipcRenderer.send("online-patch:enable", gameDir, selected, authServerUrlArg);
   };
 
   const disableOnlinePatch = () => {
     if (!gameDir || !selected) return;
-    window.ipcRenderer.send("online-patch:disable", gameDir, selected);
+    const authServerUrl = (localStorage.getItem("authServerUrl") || "").trim();
+    const authServerUrlArg = authServerUrl.length ? authServerUrl : null;
+    window.ipcRenderer.send("online-patch:disable", gameDir, selected, authServerUrlArg);
   };
 
   const fixClient = () => {
     if (!gameDir || !selected) return;
-    window.ipcRenderer.send("online-patch:fix-client", gameDir, selected);
+    const authServerUrl = (localStorage.getItem("authServerUrl") || "").trim();
+    const authServerUrlArg = authServerUrl.length ? authServerUrl : null;
+    window.ipcRenderer.send("online-patch:fix-client", gameDir, selected, authServerUrlArg);
   };
 
   const deleteVersion = async (v: GameVersion) => {
