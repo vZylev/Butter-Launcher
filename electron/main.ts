@@ -6,14 +6,15 @@ import {
   nativeImage,
   Tray,
   Menu,
+  dialog,
 } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
-import { autoUpdater } from "electron-updater";
 import { META_DIRECTORY } from "./utils/const";
 import { logger } from "./utils/logger";
+import { ErrorCodes, mapErrorToCode } from "./utils/errorCodes";
 
 import { cancelBuildDownload, installGame } from "./utils/game/install";
 import { checkGameInstallation } from "./utils/game/check";
@@ -48,28 +49,88 @@ import {
   getOnlinePatchState,
 } from "./utils/game/onlinePatch";
 
+type LauncherSettings = {
+  downloadDirectory?: string;
+};
+
+const SETTINGS_FILE = path.join(META_DIRECTORY, "launcher-settings.json");
+
+const ensureMetaDir = () => {
+  try {
+    if (!fs.existsSync(META_DIRECTORY)) fs.mkdirSync(META_DIRECTORY, { recursive: true });
+  } catch {
+    // ignore
+  }
+};
+
+const readLauncherSettings = (): LauncherSettings => {
+  try {
+    ensureMetaDir();
+    if (!fs.existsSync(SETTINGS_FILE)) return {};
+    const raw = fs.readFileSync(SETTINGS_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    return parsed as LauncherSettings;
+  } catch {
+    return {};
+  }
+};
+
+const writeLauncherSettings = (next: LauncherSettings) => {
+  try {
+    ensureMetaDir();
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(next, null, 2), "utf8");
+  } catch {
+    // ignore
+  }
+};
+
+const isUsableDirectory = (p: unknown): p is string => {
+  if (typeof p !== "string") return false;
+  const trimmed = p.trim();
+  if (!trimmed) return false;
+  if (!path.isAbsolute(trimmed)) return false;
+  try {
+    if (!fs.existsSync(trimmed)) fs.mkdirSync(trimmed, { recursive: true });
+    return fs.existsSync(trimmed) && fs.statSync(trimmed).isDirectory();
+  } catch {
+    return false;
+  }
+};
+
+const computeDefaultGameDirectory = (): string => {
+  try {
+    if (process.platform === "linux") {
+      const xdgBase =
+        process.env["XDG_DATA_HOME"] &&
+        path.isAbsolute(process.env["XDG_DATA_HOME"]!)
+          ? process.env["XDG_DATA_HOME"]!
+          : path.join(os.homedir(), ".local", "share");
+      const newPath = path.join(xdgBase, "butter-launcher", "Hytale");
+      const legacyPath = path.join(META_DIRECTORY, "Hytale");
+      if (fs.existsSync(legacyPath) && !fs.existsSync(newPath)) return legacyPath;
+      return newPath;
+    }
+  } catch {
+    // ignore
+  }
+  return path.join(META_DIRECTORY, "Hytale");
+};
+
+const getEffectiveDownloadDirectory = (): string => {
+  const settings = readLauncherSettings();
+  const candidate = settings.downloadDirectory;
+  if (isUsableDirectory(candidate)) return candidate.trim();
+  return computeDefaultGameDirectory();
+};
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 process.env.APP_ROOT = path.join(__dirname, "..");
 
-// autoUpdater config
-autoUpdater.setFeedURL({
-  owner: "vZylev",
-  repo: "Butter-Launcher",
-  provider: "github",
-});
-
-autoUpdater.autoDownload = false;
-autoUpdater.autoInstallOnAppQuit = true;
-autoUpdater.autoRunAppAfterInstall = true;
-autoUpdater.forceDevUpdateConfig = false;
-
 app.on("ready", () => {
   app.setAppUserModelId("com.butter.launcher");
-  // only check for updates on startup in production.
-  if (!process.env["VITE_DEV_SERVER_URL"]) {
-    autoUpdater.checkForUpdatesAndNotify();
-  }
+  // Launcher updates are handled via version.json (renderer UI prompt).
 
   logger.info(`Butter Launcher is starting...
     App Version: ${app.getVersion()}
@@ -233,15 +294,6 @@ const moveToBackground = () => {
   // Reduce renderer work while hidden (CPU/network timers get throttled).
   win.webContents.setBackgroundThrottling(true);
 
-  // Best-effort: ensure app updater is not downloading anything in the background.
-  try {
-    autoUpdater.autoDownload = false;
-    // @ts-expect-error: electron-updater types vary; method exists in supported versions.
-    autoUpdater.cancelDownload?.();
-  } catch {
-    // ignore
-  }
-
   // Reduce background chatter (best-effort).
   // Note: keep Discord Rich Presence active while in tray/background.
 };
@@ -371,21 +423,40 @@ ipcMain.handle("fetch:head", async (_, url, ...args) => {
 });
 
 ipcMain.handle("get-default-game-directory", () => {
+  return computeDefaultGameDirectory();
+});
+
+ipcMain.handle("download-directory:get", () => {
+  return getEffectiveDownloadDirectory();
+});
+
+ipcMain.handle("download-directory:select", async () => {
+  if (!win) return { ok: false, path: null as string | null, error: "Window not ready" };
+
   try {
-    if (process.platform === "linux") {
-      const xdgBase =
-        process.env["XDG_DATA_HOME"] &&
-        path.isAbsolute(process.env["XDG_DATA_HOME"]!)
-          ? process.env["XDG_DATA_HOME"]!
-          : path.join(os.homedir(), ".local", "share");
-      const newPath = path.join(xdgBase, "butter-launcher", "Hytale");
-      const legacyPath = path.join(META_DIRECTORY, "Hytale");
-      if (fs.existsSync(legacyPath) && !fs.existsSync(newPath))
-        return legacyPath;
-      return newPath;
+    const current = getEffectiveDownloadDirectory();
+
+    const result = await dialog.showOpenDialog(win, {
+      title: "Select Download Directory",
+      defaultPath: current,
+      properties: ["openDirectory", "createDirectory"],
+    });
+
+    if (result.canceled || !result.filePaths?.length) {
+      return { ok: true, path: null as string | null, error: null as string | null };
     }
-  } catch {}
-  return path.join(META_DIRECTORY, "Hytale");
+
+    const selected = result.filePaths[0];
+    if (!isUsableDirectory(selected)) {
+      return { ok: false, path: null as string | null, error: "Invalid directory" };
+    }
+
+    writeLauncherSettings({ ...readLauncherSettings(), downloadDirectory: selected });
+    return { ok: true, path: selected, error: null as string | null };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Unknown error";
+    return { ok: false, path: null as string | null, error: message };
+  }
 });
 
 ipcMain.handle("open-folder", async (_, folderPath: string) => {
@@ -424,6 +495,17 @@ ipcMain.handle("open-external", async (_, url: string) => {
       "www.discord.com",
       "discord.gg",
       "www.discord.gg",
+      "updates.butterlauncher.tech",
+      "butterlauncher.tech",
+      "www.butterlauncher.tech",
+      "github.com",
+      "www.github.com",
+      "instagram.com",
+      "www.instagram.com",
+      "x.com",
+      "www.x.com",
+      "twitter.com",
+      "www.twitter.com",
     ]);
     if (!allowedHosts.has(hostname)) {
       throw new Error("Blocked external link");
@@ -534,6 +616,7 @@ ipcMain.on(
     version: GameVersion,
     username: string,
     customUUID?: string | null,
+    forceOfflineAuth?: boolean,
   ) => {
     const win = BrowserWindow.fromWebContents(e.sender);
     if (win) {
@@ -543,7 +626,15 @@ ipcMain.on(
         backgroundTimeout = null;
       }
 
-      launchGame(gameDir, version, username, win, 0, customUUID ?? null, {
+      launchGame(
+        gameDir,
+        version,
+        username,
+        win,
+        0,
+        customUUID ?? null,
+        !!forceOfflineAuth,
+        {
         onGameSpawned: () => {
           logger.info(`Game spawned: ${version.type} ${version.build_name}`);
           isGameRunning = true;
@@ -577,7 +668,8 @@ ipcMain.on(
             // ignore
           }
         },
-      });
+        },
+      );
     }
   },
 );
@@ -590,10 +682,7 @@ ipcMain.on(
 
     const key = onlinePatchKey(gameDir, version);
     if (onlinePatchInFlight.has(key)) {
-      win.webContents.send(
-        "online-patch-error",
-        "Patch operation already in progress. Please wait.",
-      );
+      win.webContents.send("online-patch-error", { code: ErrorCodes.OP_IN_PROGRESS });
       return;
     }
     onlinePatchInFlight.add(key);
@@ -613,8 +702,9 @@ ipcMain.on(
       );
       win.webContents.send("online-patch-finished", result);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      win.webContents.send("online-patch-error", msg);
+      const code = mapErrorToCode(err, { area: "online-patch" });
+      logger.error("Online patch failed", { code }, err);
+      win.webContents.send("online-patch-error", { code });
     } finally {
       onlinePatchInFlight.delete(key);
     }
@@ -629,10 +719,7 @@ ipcMain.on(
 
     const key = onlinePatchKey(gameDir, version);
     if (onlinePatchInFlight.has(key)) {
-      win.webContents.send(
-        "online-unpatch-error",
-        "Patch operation already in progress. Please wait.",
-      );
+      win.webContents.send("online-unpatch-error", { code: ErrorCodes.OP_IN_PROGRESS });
       return;
     }
     onlinePatchInFlight.add(key);
@@ -651,8 +738,9 @@ ipcMain.on(
       );
       win.webContents.send("online-unpatch-finished", result);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      win.webContents.send("online-unpatch-error", msg);
+      const code = mapErrorToCode(err, { area: "online-patch" });
+      logger.error("Online unpatch failed", { code }, err);
+      win.webContents.send("online-unpatch-error", { code });
     } finally {
       onlinePatchInFlight.delete(key);
     }
@@ -667,10 +755,7 @@ ipcMain.on(
 
     const key = onlinePatchKey(gameDir, version);
     if (onlinePatchInFlight.has(key)) {
-      win.webContents.send(
-        "online-unpatch-error",
-        "Patch operation already in progress. Please wait.",
-      );
+      win.webContents.send("online-unpatch-error", { code: ErrorCodes.OP_IN_PROGRESS });
       return;
     }
     onlinePatchInFlight.add(key);
@@ -689,8 +774,9 @@ ipcMain.on(
       );
       win.webContents.send("online-unpatch-finished", result);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      win.webContents.send("online-unpatch-error", msg);
+      const code = mapErrorToCode(err, { area: "online-patch" });
+      logger.error("Fix client (unpatch) failed", { code }, err);
+      win.webContents.send("online-unpatch-error", { code });
     } finally {
       onlinePatchInFlight.delete(key);
     }

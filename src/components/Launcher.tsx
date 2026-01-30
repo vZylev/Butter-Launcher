@@ -8,7 +8,13 @@ import settingsIcon from "../assets/settings.svg";
 import DiscordLogo from "../assets/discord.svg";
 import DragBar from "./DragBar";
 import ProgressBar from "./ProgressBar";
-import { IconChevronDown, IconX, IconTrash } from "@tabler/icons-react";
+import {
+  IconChevronDown,
+  IconX,
+  IconTrash,
+  IconBrandInstagram,
+  IconBrandX,
+} from "@tabler/icons-react";
 import cn from "../utils/cn";
 import ConfirmModal from "./ConfirmModal";
 
@@ -31,12 +37,15 @@ const NEWS_URL =
 const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
   const {
     gameDir,
+    offlineMode,
     versionType,
     setVersionType,
     availableVersions,
     selectedVersion,
     setAvailableVersions,
     setSelectedVersion,
+    checkingUpdates,
+    reconnect,
     updateAvailable,
     updateDismissed,
     dismissUpdateForNow,
@@ -266,7 +275,29 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
         backgroundRepeat: "no-repeat",
       }}
     >
-      <DragBar />
+      <DragBar
+        left={
+          offlineMode ? (
+            <div className="no-drag flex items-center gap-2">
+              <span className="text-xs font-semibold tracking-wide text-amber-200 bg-black/40 border border-amber-200/20 rounded-md px-2 py-1">
+                Offline Mode
+              </span>
+              <button
+                type="button"
+                className={cn(
+                  "no-drag text-xs px-2 py-1 rounded-md border border-white/10 bg-white/5 text-gray-200 hover:bg-white/10 transition",
+                  checkingUpdates && "opacity-60 cursor-not-allowed",
+                )}
+                onClick={() => reconnect()}
+                disabled={checkingUpdates}
+                title="Reintentar conexión"
+              >
+                Reconnect
+              </button>
+            </div>
+          ) : null
+        }
+      />
 
       <div className="absolute top-10 left-3 z-30 w-64">
         <button
@@ -339,7 +370,11 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
             </label>
             <div className="flex-1 overflow-y-auto pr-2">
               {availableVersions.length === 0 ? (
-                <div className="text-gray-400 text-xs p-2">Loading...</div>
+                <div className="text-gray-400 text-xs p-2">
+                  {offlineMode
+                    ? "No installed builds found."
+                    : "Loading..."}
+                </div>
               ) : (
                 availableVersions.map((v, idx) => {
                   const name = v.build_name?.trim() || `Build-${v.build_index}`;
@@ -426,6 +461,30 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
           style={{ width: 40, height: 40 }}
         >
           <img src={DiscordLogo} alt="Discord" className="w-5 h-5" />
+        </button>
+
+        <button
+          type="button"
+          className="bg-[#23293a]/80 hover:bg-[#E1306C] transition p-2 rounded-full shadow-lg flex items-center justify-center"
+          title="Instagram"
+          onClick={() => {
+            void window.config.openExternal("https://www.instagram.com/butterlauncher_official");
+          }}
+          style={{ width: 40, height: 40 }}
+        >
+          <IconBrandInstagram size={20} className="text-white" />
+        </button>
+
+        <button
+          type="button"
+          className="bg-[#23293a]/80 hover:bg-black transition p-2 rounded-full shadow-lg flex items-center justify-center"
+          title="X (Twitter)"
+          onClick={() => {
+            void window.config.openExternal("https://x.com/Butter_Launcher/");
+          }}
+          style={{ width: 40, height: 40 }}
+        >
+          <IconBrandX size={20} className="text-white" />
         </button>
       </div>
       <div className="flex items-start justify-between p-6">
@@ -589,7 +648,7 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
             );
 
             if (!result?.success) {
-              alert(result?.error ?? "Failed to delete version");
+              alert("Error #1000");
               return;
             }
 

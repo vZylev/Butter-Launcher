@@ -9,6 +9,7 @@ import { logger } from "../logger";
 import { getOnlinePatchState } from "./onlinePatch";
 import { fetchAuthTokens } from "./auth";
 import { resolveExistingInstallDir } from "./paths";
+import { mapErrorToCode } from "../errorCodes";
 
 const ensureExecutable = (filePath: string) => {
   if (process.platform === "win32") return;
@@ -39,6 +40,7 @@ export const launchGame = async (
   win: BrowserWindow,
   retryCount: number = 0,
   customUUID: string | null = null,
+  forceOfflineAuth: boolean = false,
   callbacks?: {
     onGameSpawned?: () => void;
     onGameExited?: (info: {
@@ -50,7 +52,7 @@ export const launchGame = async (
   if (retryCount > 1) {
     const msg = "Failed to launch game (max retries reached)";
     logger.error(msg);
-    win.webContents.send("launch-error", msg);
+    win.webContents.send("launch-error", { code: mapErrorToCode(msg, { area: "launch" }) });
     return;
   }
 
@@ -71,7 +73,7 @@ export const launchGame = async (
     if (!installResult) {
       const msg = "Game installation failed";
       logger.error(msg);
-      win.webContents.send("launch-error", msg);
+      win.webContents.send("launch-error", { code: mapErrorToCode(msg, { area: "launch" }) });
       return;
     }
 
@@ -80,7 +82,7 @@ export const launchGame = async (
     if (!client || !jre || (needsServer && !server)) {
       const msg = "Game installation incomplete (missing files after install)";
       logger.error(msg, { client, server, jre });
-      win.webContents.send("launch-error", msg);
+      win.webContents.send("launch-error", { code: mapErrorToCode(msg, { area: "launch" }) });
       return;
     }
     logger.info("Game installation successful and verified.");
@@ -144,10 +146,12 @@ export const launchGame = async (
   // Compatibility fallback (when proper_patch is missing):
   // - Legacy behavior was Linux/macOS authenticated when patched.
   const useAuthenticated =
+    !forceOfflineAuth &&
     patchEnabled &&
     ((hasProperPatchFlag && version.proper_patch === false) ||
       (!hasProperPatchFlag && process.platform !== "win32"));
   // Nothing says "fun" like having two auth modes and three operating systems ;w;
+  // And now a third input: "the internet is down". Perfect.
 
   if (useAuthenticated) {
     logger.info(
@@ -160,19 +164,20 @@ export const launchGame = async (
       args.push("--identity-token", authTokens.identityToken);
       args.push("--session-token", authTokens.sessionToken);
     } catch (e) {
-      const msg =
-        e instanceof Error ? e.message : "Authentication failed (unknown error)";
       logger.error("Authentication failed:", e);
-      win.webContents.send("launch-error", msg);
+      win.webContents.send("launch-error", { code: mapErrorToCode(e, { area: "auth" }) });
       return;
     }
     // If this fails, it's not you. It's… probably DNS.
   } else {
     logger.info(
-      patchEnabled
-        ? "Online patch enabled with proper_patch=true, using offline auth"
-        : "Online patch disabled, using offline auth",
+      forceOfflineAuth
+        ? "Launcher offline mode requested, using offline auth"
+        : patchEnabled
+          ? "Online patch enabled with proper_patch=true, using offline auth"
+          : "Online patch disabled, using offline auth",
     );
+    // Offline auth: because sometimes DNS has other plans.
     args.push("--auth-mode", "offline");
   }
 
@@ -224,7 +229,7 @@ export const launchGame = async (
         }
 
         logger.error(`Error launching game: ${error.message}`, error);
-        win.webContents.send("launch-error", error.message);
+        win.webContents.send("launch-error", { code: mapErrorToCode(error, { area: "launch" }) });
       });
 
       let finished = false;
@@ -256,7 +261,7 @@ export const launchGame = async (
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";
       logger.error(`Error launching game (catch): ${msg}`, error);
-      win.webContents.send("launch-error", msg);
+      win.webContents.send("launch-error", { code: mapErrorToCode(error, { area: "launch" }) });
     }
   };
 

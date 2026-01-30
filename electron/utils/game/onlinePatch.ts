@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import stream from "node:stream";
 import { promisify } from "util";
 import { BrowserWindow } from "electron";
+import { spawnSync } from "node:child_process";
 import {
   migrateLegacyChannelInstallIfNeeded,
   resolveClientPath,
@@ -67,6 +68,57 @@ const sha256File = (filePath: string): Promise<string> => {
   });
 };
 
+const getAppBundlePathIfInBundle = (targetPath: string): string | null => {
+  if (process.platform !== "darwin") return null;
+  try {
+    let cur = path.dirname(targetPath);
+    const root = path.parse(cur).root;
+    while (cur && cur !== root) {
+      if (cur.toLowerCase().endsWith(".app")) return cur;
+      cur = path.dirname(cur);
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+};
+
+const postMacBundleFixups = (targetPath: string) => {
+  if (process.platform !== "darwin") return;
+
+  const bundle = getAppBundlePathIfInBundle(targetPath);
+  if (!bundle) return;
+
+  // Best-effort: clear quarantine recursively so Gatekeeper doesn't block after we swap binaries.
+  try {
+    const r = spawnSync("xattr", ["-dr", "com.apple.quarantine", bundle], {
+      windowsHide: true,
+      encoding: "utf8",
+    });
+    if (r.status !== 0) {
+      const out = `${r.stdout || ""}${r.stderr || ""}`.trim();
+      if (out) console.warn("xattr quarantine removal output:", out);
+    }
+  } catch {
+    // ignore
+  }
+
+  // Best-effort: ad-hoc sign the bundle to avoid "is damaged" / signature invalid errors.
+  try {
+    const sign = spawnSync(
+      "codesign",
+      ["--force", "--deep", "--sign", "-", bundle],
+      { windowsHide: true, encoding: "utf8" },
+    );
+    if (sign.status !== 0) {
+      const out = `${sign.stdout || ""}${sign.stderr || ""}`.trim();
+      if (out) console.warn("codesign output:", out);
+    }
+  } catch {
+    // ignore
+  }
+};
+
 const getClientPath = (gameDir: string, version: GameVersion) => {
   migrateLegacyChannelInstallIfNeeded(gameDir, version.type);
   const installDir = resolveExistingInstallDir(gameDir, version);
@@ -77,7 +129,12 @@ const getPatchPaths = (clientPath: string) => {
   const clientDir = path.dirname(clientPath);
   const exeName = path.basename(clientPath);
 
-  const root = path.join(clientDir, PATCH_ROOT_DIRNAME);
+  // macOS: never write patch state inside the .app bundle (Gatekeeper/signing/EPERM issues).
+  // Instead, keep patch storage next to the app bundle, namespaced by executable name.
+  const appBundle = getAppBundlePathIfInBundle(clientPath);
+  const root = appBundle
+    ? path.join(path.dirname(appBundle), PATCH_ROOT_DIRNAME, exeName)
+    : path.join(clientDir, PATCH_ROOT_DIRNAME);
   const originalDir = path.join(root, "original");
   const patchedDir = path.join(root, "patched");
 
@@ -517,6 +574,9 @@ export const fixClientToUnpatched = async (
   moveReplace(tempOriginal, clientPath);
   unlinkIfExists(tempCurrent);
 
+  // macOS: ensure the bundle is runnable after swapping binaries.
+  postMacBundleFixups(clientPath);
+
   win.webContents.send(progressChannel, {
     phase: "online-unpatch",
     percent: 100,
@@ -682,6 +742,8 @@ export const enableClientPatch = async (
   }
 
   copyReplace(paths.patchedPath, clientPath);
+  // macOS: ensure the bundle is runnable after swapping binaries.
+  postMacBundleFixups(clientPath);
   win.webContents.send(progressChannel, {
     phase: "online-patch",
     percent: 100,
@@ -826,6 +888,9 @@ export const disableClientPatch = async (
   copyReplace(tempCurrent, paths.patchedPath);
   copyReplace(paths.originalPath, clientPath);
   unlinkIfExists(tempCurrent);
+
+  // macOS: ensure the bundle is runnable after restoring the original.
+  postMacBundleFixups(clientPath);
 
   win.webContents.send(progressChannel, {
     phase: "online-unpatch",

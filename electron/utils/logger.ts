@@ -35,11 +35,35 @@ const logFile = getUniqueLogPath();
  */
 function formatMessage(level: string, ...args: any[]) {
   const timestamp = new Date().toISOString();
-  const message = args
-    .map((arg) =>
-      typeof arg === "object" ? JSON.stringify(arg, null, 2) : String(arg),
-    )
-    .join(" ");
+  const render = (arg: any): string => {
+    if (arg instanceof Error) {
+      const base = `${arg.name}: ${arg.message}`;
+      const stack = arg.stack ? `\n${arg.stack}` : "";
+      const cause = (arg as any).cause;
+      if (cause) {
+        const causeStr =
+          cause instanceof Error
+            ? `${cause.name}: ${cause.message}`
+            : typeof cause === "object"
+              ? JSON.stringify(cause, null, 2)
+              : String(cause);
+        return `${base}${stack}\nCause: ${causeStr}`;
+      }
+      return `${base}${stack}`;
+    }
+
+    if (typeof arg === "object" && arg !== null) {
+      try {
+        return JSON.stringify(arg, null, 2);
+      } catch {
+        return Object.prototype.toString.call(arg);
+      }
+    }
+
+    return String(arg);
+  };
+
+  const message = args.map(render).join(" ");
   return `[${timestamp}] [${level.toUpperCase()}] ${message}`;
 }
 

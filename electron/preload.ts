@@ -96,6 +96,8 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
 contextBridge.exposeInMainWorld("config", {
   getDefaultGameDirectory: () =>
     ipcRenderer.invoke("get-default-game-directory"),
+  getDownloadDirectory: () => ipcRenderer.invoke("download-directory:get"),
+  selectDownloadDirectory: () => ipcRenderer.invoke("download-directory:select"),
   openFolder: (folderPath: string) =>
     ipcRenderer.invoke("open-folder", folderPath),
   openExternal: (url: string) => ipcRenderer.invoke("open-external", url),

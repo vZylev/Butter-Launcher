@@ -8,9 +8,10 @@ const SettingsModal: React.FC<{
   onClose: () => void;
   onLogout?: () => void;
 }> = ({ open, onClose, onLogout }) => {
-  const { gameDir, checkForUpdates, checkingUpdates } = useGameContext();
+  const { gameDir, setGameDir, checkForUpdates, checkingUpdates } = useGameContext();
   const [customUUID, setCustomUUID] = useState<string>("");
   const [enableRPC, setEnableRPC] = useState<boolean>(false);
+  const [changingDir, setChangingDir] = useState(false);
 
   const [closing, setClosing] = useState(false);
 
@@ -41,7 +42,26 @@ const SettingsModal: React.FC<{
       await window.config.openFolder(dir);
     } catch (e) {
       console.error("Failed to open game directory", e);
-      alert("Failed to open game directory");
+      alert("Error #1000");
+    }
+  };
+
+  const handleChangeDownloadDir = async () => {
+    setChangingDir(true);
+    try {
+      const res = await window.config.selectDownloadDirectory();
+      if (!res.ok) {
+        alert("Error #1000");
+        return;
+      }
+      if (res.path) {
+        setGameDir(res.path);
+      }
+    } catch (e) {
+      console.error("Failed to select download directory", e);
+      alert("Error #1000");
+    } finally {
+      setChangingDir(false);
     }
   };
 
@@ -51,7 +71,7 @@ const SettingsModal: React.FC<{
       await window.config.openFolder(`${dir}/UserData/Mods`);
     } catch (e) {
       console.error("Failed to open mods directory", e);
-      alert("Failed to open mods directory");
+      alert("Error #1000");
     }
   };
 
@@ -145,6 +165,25 @@ const SettingsModal: React.FC<{
                 <span className="text-sm">Open Folder</span>
                 <IconFolderOpen size={18} />
               </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs uppercase tracking-widest text-gray-400">
+                Download Directory
+              </label>
+              <button
+                className="w-full flex items-center justify-between bg-[#1f2538] hover:bg-[#262d44] border border-[#2a3146] rounded-lg px-4 py-2 text-white transition disabled:opacity-60"
+                onClick={handleChangeDownloadDir}
+                disabled={changingDir}
+              >
+                <span className="text-sm">
+                  {changingDir ? "Selecting..." : "Change"}
+                </span>
+                <IconFolderOpen size={18} />
+              </button>
+              <div className="text-[10px] text-gray-400 font-mono break-all">
+                {gameDir || "(loading...)"}
+              </div>
             </div>
             <div className="space-y-2">
               <label className="text-xs uppercase tracking-widest text-gray-400">

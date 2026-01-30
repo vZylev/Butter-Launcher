@@ -10,6 +10,8 @@ import { installJRE } from "./jre";
 import { checkGameInstallation } from "./check";
 import { readInstallManifest, writeInstallManifest } from "./manifest";
 import { logger } from "../logger";
+import { formatErrorWithHints } from "../errorHints";
+import { mapErrorToCode } from "../errorCodes";
 
 import {
   getLatestDir,
@@ -104,8 +106,9 @@ const downloadPWR = async (
       `Starting PWR download for version ${version.build_name} from ${version.url}`,
     );
     const response = await fetch(version.url, { signal: controller.signal });
-    if (!response.ok)
-      throw new Error(`Failed to download: ${response.statusText}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} ${response.statusText}`);
+    }
     if (!response.body) throw new Error("No response body");
 
     const contentLength = response.headers.get("content-length");
@@ -141,12 +144,24 @@ const downloadPWR = async (
       });
     });
 
-    await pipeline(
-      // @ts-ignore
-      stream.Readable.fromWeb(response.body),
-      progressStream,
-      fs.createWriteStream(tempPWRPath),
-    );
+    try {
+      await pipeline(
+        // @ts-ignore
+        stream.Readable.fromWeb(response.body),
+        progressStream,
+        fs.createWriteStream(tempPWRPath),
+      );
+    } catch (e) {
+      const { userMessage, meta } = formatErrorWithHints(e, {
+        op: `Download PWR (${version.build_name})`,
+        url: version.url,
+        filePath: tempPWRPath,
+      });
+      logger.error("PWR download pipeline failed", meta, e);
+      const wrapped = new Error(userMessage);
+      (wrapped as any).cause = e;
+      throw wrapped;
+    }
 
     logger.info(`PWR download completed: ${tempPWRPath}`);
 
@@ -172,11 +187,22 @@ const downloadPWR = async (
       throw new UserCancelledError();
     }
 
-    logger.error(
-      `Failed to download PWR for version ${version.build_name}:`,
-      error,
-    );
-    return null;
+    const statusMatch =
+      typeof (error as any)?.message === "string"
+        ? (error as any).message.match(/^HTTP\s+(\d{3})\b/)
+        : null;
+    const status = statusMatch ? Number(statusMatch[1]) : undefined;
+
+    const { userMessage, meta } = formatErrorWithHints(error, {
+      op: `Download PWR (${version.build_name})`,
+      url: version.url,
+      filePath: tempPWRPath,
+      status: Number.isFinite(status as any) ? status : undefined,
+    });
+    logger.error(`Failed to download PWR for version ${version.build_name}`, meta, error);
+    const wrapped = new Error(userMessage);
+    (wrapped as any).cause = error;
+    throw wrapped;
   } finally {
     pwrDownloadsInFlight.delete(key);
   }
@@ -205,6 +231,7 @@ const applyPWR = async (
   });
 
   return new Promise<string>((resolve, reject) => {
+    let stderrBuf = "";
     const butlerProcess = spawn(
       butlerPath,
       ["apply", "--json", "--staging-dir", stagingDir, pwrPath, installDir],
@@ -216,7 +243,12 @@ const applyPWR = async (
         "Butler process failed to start or encountered a critical error:",
         error,
       );
-      reject(error);
+      const { userMessage } = formatErrorWithHints(error, {
+        op: "Run butler apply",
+        filePath: butlerPath,
+        dirPath: installDir,
+      });
+      reject(new Error(userMessage));
     });
 
     // Try to surface butler progress in the UI.
@@ -266,7 +298,10 @@ const applyPWR = async (
     }
 
     butlerProcess.stderr.on("data", (data) => {
-      logger.error(`Butler stderr: ${data.toString().trim()}`);
+      const chunk = data.toString();
+      // Keep a bounded snippet for error reporting
+      if (stderrBuf.length < 8192) stderrBuf += chunk;
+      logger.error(`Butler stderr: ${chunk.trim()}`);
     });
 
     butlerProcess.on("close", (code) => {
@@ -277,6 +312,23 @@ const applyPWR = async (
         phase: "patching",
         percent: 100,
       });
+
+      if (typeof code === "number" && code !== 0) {
+        const err = new Error(
+          `Butler apply failed (exit code ${code}).` +
+            (stderrBuf.trim() ? ` Stderr: ${stderrBuf.trim().slice(0, 800)}` : ""),
+        );
+        const { userMessage, meta } = formatErrorWithHints(err, {
+          op: "Apply PWR patch",
+          filePath: pwrPath,
+          dirPath: installDir,
+        });
+        logger.error("Butler apply failed", meta, err);
+        const wrapped = new Error(userMessage);
+        (wrapped as any).cause = err;
+        reject(wrapped);
+        return;
+      }
 
       resolve(installDir);
     });
@@ -335,9 +387,9 @@ export const installGame = async (
 
     if (!jre) {
       logger.info("JRE not found, installing JRE...");
-      const jrePath = await installJRE(gameDir, win);
-      if (!jrePath) throw new Error("Failed to install JRE");
-      logger.info(`JRE installed at ${jrePath}`);
+      const jreRes = await installJRE(gameDir, win);
+      if (!jreRes.ok) throw new Error(jreRes.error);
+      logger.info(`JRE installed at ${jreRes.path}`);
     }
 
     // If binaries exist but build differs, we must still apply the new PWR.
@@ -346,15 +398,14 @@ export const installGame = async (
       logger.info(
         `New build detected (target: ${version.build_index}, current: ${installedManifest?.build_index ?? "none"}). Starting patch process.`,
       );
-      const butlerPath = await installButler();
-      if (!butlerPath) throw new Error("Failed to install butler");
+      const butlerRes = await installButler();
+      if (!butlerRes.ok) throw new Error(butlerRes.error);
 
       const tempPWRPath = await downloadPWR(gameDir, version, win);
-      if (!tempPWRPath) throw new Error("Failed to download PWR");
 
       const gameFinalDir = await applyPWR(
         tempPWRPath,
-        butlerPath,
+        butlerRes.path,
         installDir,
         win,
       );
@@ -376,15 +427,14 @@ export const installGame = async (
         logger.warn(
           "Manifest indicates installation, but client or server binaries are missing. Re-patching.",
         );
-        const butlerPath = await installButler();
-        if (!butlerPath) throw new Error("Failed to install butler");
+        const butlerRes = await installButler();
+        if (!butlerRes.ok) throw new Error(butlerRes.error);
 
         const tempPWRPath = await downloadPWR(gameDir, version, win);
-        if (!tempPWRPath) throw new Error("Failed to download PWR");
 
         const gameFinalDir = await applyPWR(
           tempPWRPath,
-          butlerPath,
+          butlerRes.path,
           installDir,
           win,
         );
@@ -412,11 +462,10 @@ export const installGame = async (
       return false;
     }
 
-    logger.error("Installation failed with error:", error);
-    win.webContents.send(
-      "install-error",
-      error instanceof Error ? error.message : "Unknown error",
-    );
+    const code = mapErrorToCode(error, { area: "install" });
+    logger.error("Installation failed", { code }, error);
+    // UI shows only the numeric code; full details are in logs.
+    win.webContents.send("install-error", { code });
     return false;
   }
 };

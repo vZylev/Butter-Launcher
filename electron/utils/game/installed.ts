@@ -117,23 +117,32 @@ export const deleteInstalledVersion = (
   baseDir: string,
   info: InstalledBuildInfo,
 ): void => {
-  let installDir: string;
+  const buildIndex = Number(info.build_index);
+  // Because sometimes inputs are vibes, not numbers.
+  if (!Number.isFinite(buildIndex) || buildIndex <= 0) return;
 
-  if (info.isLatest) {
-    installDir = getLatestDir(baseDir);
-  } else if (info.type === "release") {
-    installDir = path.join(
-      getReleaseChannelDir(baseDir),
-      `build-${info.build_index}`,
-    );
+  const targets: string[] = [];
+
+  if (info.type === "release") {
+    // The `latest` alias exists only for release builds.
+    // Yes, the UI can still call things "latest" in other contexts. No, the filesystem doesn't care.
+    if (info.isLatest) targets.push(getLatestDir(baseDir));
+
+    // Also delete the canonical release build folder if it exists.
+    // If it doesn't, cool. If it does, it was probably created by legacy/migration/manual chaos.
+    targets.push(path.join(getReleaseChannelDir(baseDir), `build-${buildIndex}`));
   } else {
-    installDir = path.join(
-      getPreReleaseChannelDir(baseDir),
-      `build-${info.build_index}`,
-    );
+    // Pre-release builds are always stored under game/pre-release/build-N.
+    // In other words: do NOT touch game/latest just because someone yelled "latest".
+    targets.push(path.join(getPreReleaseChannelDir(baseDir), `build-${buildIndex}`));
   }
 
-  if (!fs.existsSync(installDir)) return;
-
-  fs.rmSync(installDir, { recursive: true, force: true });
+  for (const installDir of targets) {
+    try {
+      if (!fs.existsSync(installDir)) continue;
+      fs.rmSync(installDir, { recursive: true, force: true });
+    } catch {
+      // ignore: best-effort cleanup (Windows file locks: nature's way of saying "not today")
+    }
+  }
 };

@@ -28,6 +28,8 @@ interface Window {
     OS: NodeJS.Platform;
     ARCH: NodeJS.Architecture;
     getDefaultGameDirectory: () => Promise<string>;
+    getDownloadDirectory: () => Promise<string>;
+    selectDownloadDirectory: () => Promise<{ ok: boolean; path: string | null; error: string | null }>;
     openFolder: (
       folderPath: string,
     ) => Promise<{ ok: boolean; error: string | null }>;

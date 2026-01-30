@@ -7,6 +7,11 @@ import crypto from "node:crypto";
 import extract from "extract-zip";
 import * as tar from "tar";
 import { logger } from "../logger";
+import { formatErrorWithHints } from "../errorHints";
+
+export type JreInstallResult =
+  | { ok: true; path: string }
+  | { ok: false; error: string };
 
 type ArchObj = {
   url: string;
@@ -30,18 +35,28 @@ type JRE = {
 
 const JRE_URL = "https://launcher.hytale.com/version/release/jre.json";
 
-export const installJRE = async (gameDir: string, win: BrowserWindow) => {
+export const installJRE = async (
+  gameDir: string,
+  win: BrowserWindow,
+): Promise<JreInstallResult> => {
   const os = process.platform;
+  let downloadUrl: string | null = null;
+  let jreCompressedPath: string | null = null;
 
   try {
     logger.info(`Fetching JRE manifest from ${JRE_URL}`);
     const response = await fetch(JRE_URL);
-    if (!response.ok) throw new Error("Failed to fetch JRE");
+    if (!response.ok) {
+      const { userMessage, meta } = formatErrorWithHints(
+        new Error(`HTTP ${response.status} ${response.statusText}`),
+        { op: "Fetch JRE manifest", url: JRE_URL, status: response.status },
+      );
+      logger.error("JRE manifest fetch failed", meta);
+      return { ok: false, error: userMessage };
+    }
     const jre: JRE = await response.json();
 
-    let downloadUrl: string | null = null;
     let downloadHash: string | null = null;
-    let jreCompressedPath: string | null = null;
     let platformKey: string = "";
 
     if (os === "win32") {
@@ -89,15 +104,26 @@ export const installJRE = async (gameDir: string, win: BrowserWindow) => {
         const extractResult = await extractJRE(jreCompressedPath, gameDir, win);
         if (!extractResult) throw new Error("Failed to extract verified JRE");
 
-        return extractResult;
+        return { ok: true, path: extractResult };
       }
       logger.warn("Existing JRE archive hash mismatch, re-downloading.");
     }
 
     logger.info(`Downloading JRE from ${downloadUrl}`);
     const resFile = await fetch(downloadUrl);
-    if (!resFile.ok)
-      throw new Error(`Failed to download JRE: ${resFile.statusText}`);
+    if (!resFile.ok) {
+      const { userMessage, meta } = formatErrorWithHints(
+        new Error(`HTTP ${resFile.status} ${resFile.statusText}`),
+        {
+          op: "Download JRE",
+          url: downloadUrl,
+          filePath: jreCompressedPath,
+          status: resFile.status,
+        },
+      );
+      logger.error("JRE download failed", meta);
+      return { ok: false, error: userMessage };
+    }
     const contentLength = resFile.headers.get("content-length");
     const totalLength = contentLength ? parseInt(contentLength, 10) : undefined;
     let downloadedLength = 0;
@@ -132,12 +158,22 @@ export const installJRE = async (gameDir: string, win: BrowserWindow) => {
       });
     });
 
-    await pipeline(
-      // @ts-ignore
-      stream.Readable.fromWeb(resFile.body),
-      progressStream,
-      fs.createWriteStream(jreCompressedPath),
-    );
+    try {
+      await pipeline(
+        // @ts-ignore
+        stream.Readable.fromWeb(resFile.body),
+        progressStream,
+        fs.createWriteStream(jreCompressedPath),
+      );
+    } catch (e) {
+      const { userMessage, meta } = formatErrorWithHints(e, {
+        op: "Save JRE archive",
+        url: downloadUrl,
+        filePath: jreCompressedPath,
+      });
+      logger.error("JRE write/pipeline failed", meta, e);
+      return { ok: false, error: userMessage };
+    }
 
     logger.info(`JRE download completed: ${jreCompressedPath}`);
 
@@ -149,16 +185,36 @@ export const installJRE = async (gameDir: string, win: BrowserWindow) => {
     });
 
     const verifyResult = await verifyJRE(jreCompressedPath, downloadHash);
-    if (!verifyResult) throw new Error("JRE hash mismatch after download");
+    if (!verifyResult) {
+      const { userMessage, meta } = formatErrorWithHints(
+        new Error("sha256 mismatch"),
+        { op: "Verify JRE archive hash", filePath: jreCompressedPath },
+      );
+      logger.error("JRE hash mismatch", meta);
+      return { ok: false, error: userMessage };
+    }
     logger.info("JRE hash verified.");
 
     const extractResult = await extractJRE(jreCompressedPath, gameDir, win);
-    if (!extractResult) throw new Error("Failed to extract JRE after download");
+    if (!extractResult) {
+      const { userMessage, meta } = formatErrorWithHints(
+        new Error("extract failed"),
+        { op: "Extract JRE", filePath: jreCompressedPath, dirPath: path.join(gameDir, "jre") },
+      );
+      logger.error("JRE extract failed", meta);
+      return { ok: false, error: userMessage };
+    }
 
-    return extractResult;
+    return { ok: true, path: extractResult };
   } catch (error) {
-    logger.error("Failed to install JRE:", error);
-    return null;
+    const { userMessage, meta } = formatErrorWithHints(error, {
+      op: "Install JRE",
+      url: downloadUrl ?? undefined,
+      filePath: jreCompressedPath ?? undefined,
+      dirPath: gameDir,
+    });
+    logger.error("Failed to install JRE", meta, error);
+    return { ok: false, error: userMessage };
   }
 };
 

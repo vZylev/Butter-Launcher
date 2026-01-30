@@ -1,6 +1,6 @@
 import React from "react";
 
-const DragBar: React.FC = () => {
+const DragBar: React.FC<{ left?: React.ReactNode }> = ({ left }) => {
   const handleMinimize = () => {
     window.ipcRenderer.send("minimize-window");
   };
@@ -11,8 +11,13 @@ const DragBar: React.FC = () => {
   return (
     <div
       id="frame"
-      className="w-full h-9 flex items-center justify-end select-none"
+      className="w-full h-9 flex items-center justify-between select-none"
     >
+      <div className="flex items-center gap-2 pl-2">
+        {left}
+      </div>
+
+      <div className="flex items-center justify-end">
       <button
         className="no-drag w-8 h-8 flex items-center justify-center text-lg text-gray-300 hover:bg-[#23293a] hover:text-white rounded transition focus:outline-none mr-1"
         onClick={handleMinimize}
@@ -60,6 +65,7 @@ const DragBar: React.FC = () => {
           />
         </svg>
       </button>
+      </div>
     </div>
   );
 };

@@ -10,6 +10,8 @@ import { getGameVersions } from "../utils/game";
 
 interface GameContextType {
   gameDir: string | null;
+  setGameDir: (dir: string | null) => void;
+  offlineMode: boolean;
   versionType: VersionType;
   setVersionType: (t: VersionType) => void;
   availableVersions: GameVersion[];
@@ -35,6 +37,7 @@ interface GameContextType {
   launchGame: (version: GameVersion, username: string) => void;
   checkForUpdates: (reason?: "startup" | "manual") => Promise<void>;
   startPendingOnlinePatch: () => void;
+  reconnect: () => void;
 }
 
 export const GameContext = createContext<GameContextType | null>(null);
@@ -45,6 +48,8 @@ export const GameContextProvider = ({
   children: React.ReactNode;
 }) => {
   const [gameDir, setGameDir] = useState<string | null>(null);
+
+  const [offlineMode, setOfflineMode] = useState(false);
 
   const [versionType, setVersionType] = useState<VersionType>("release");
   const [releaseVersions, setReleaseVersions] = useState<GameVersion[]>([]);
@@ -184,15 +189,18 @@ export const GameContextProvider = ({
         setLaunching(false);
         setGameLaunched(false);
       });
-      window.ipcRenderer.once("launch-error", (_, error?: string) => {
+      window.ipcRenderer.once("launch-error", (_, error?: unknown) => {
         setLaunching(false);
         setGameLaunched(false);
-        if (error) {
-          console.error("Launch error:", error);
-          alert(`Launch failed: ${error}`);
-        } else {
-          alert("Launch failed: Unknown error");
-        }
+        const payload: any = error;
+        const code =
+          payload && typeof payload === "object" && typeof payload.code === "number"
+            ? payload.code
+            : typeof payload === "number"
+              ? payload
+              : 1000;
+        console.error("Launch error code:", code);
+        alert(`Error #${code}`);
       });
 
       const customUUID = (localStorage.getItem("customUUID") || "").trim();
@@ -204,13 +212,60 @@ export const GameContextProvider = ({
         version,
         username,
         uuidArg,
+        offlineMode,
       );
     },
-    [gameDir],
+    [gameDir, offlineMode],
+  );
+
+  const checkConnectivity = useCallback(async (): Promise<boolean> => {
+    // navigator.onLine is fast but not perfectly reliable.
+    // Because networking is easy and always works™.
+    // So we also do a quick HEAD request as a reality check.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return false;
+
+    const url =
+      (import.meta as any).env?.VITE_REQUEST_VERSIONS_DETAILS_URL ||
+      (import.meta as any).env?.VITE_LAUNCHER_VERSION_URL ||
+      "https://updates.butterlauncher.tech/version.json";
+
+    try {
+      const status = await window.ipcRenderer.invoke("fetch:head", url);
+      return status === 200;
+    } catch {
+      // If the internet doesn't answer, we assume it's not feeling social today.
+      return false;
+    }
+  }, []);
+
+  const buildInstalledOnlyList = useCallback(
+    (
+      installed: Array<{
+        type: VersionType;
+        build_index: number;
+        build_name?: string;
+        isLatest?: boolean;
+      }>,
+      t: VersionType,
+    ): GameVersion[] => {
+      return installed
+        .filter((x) => x.type === t)
+        .map((x) => ({
+          type: t,
+          build_index: x.build_index,
+          build_name: x.build_name || `Build-${x.build_index}`,
+          isLatest: !!x.isLatest,
+          installed: true,
+          // url is not needed for launch when already installed; keep a best-effort placeholder.
+          url: "",
+        }))
+        .sort((a, b) => b.build_index - a.build_index);
+    },
+    [],
   );
 
   const checkForUpdates = useCallback(
-    async (reason: "startup" | "manual" = "startup") => {
+    async (_reason: "startup" | "manual" = "startup") => {
       if (!gameDir) return;
       setCheckingUpdates(true);
 
@@ -221,8 +276,51 @@ export const GameContextProvider = ({
         )) as Array<{
           type: VersionType;
           build_index: number;
+          build_name?: string;
           isLatest?: boolean;
         }>;
+
+        const isOnline = await checkConnectivity();
+        if (!isOnline) {
+          setOfflineMode(true);
+
+          // Offline Mode: we stop pretending we can reach the internet.
+          // Installed builds only. No remote fetches. No drama.
+
+          const nextRelease = buildInstalledOnlyList(installed, "release");
+          const nextPre = buildInstalledOnlyList(installed, "pre-release");
+
+          setReleaseVersions(nextRelease);
+          setPreReleaseVersions(nextPre);
+          setUpdateAvailable(false);
+
+          const pickIndex = (list: GameVersion[], t: VersionType) => {
+            const raw = localStorage.getItem(`selectedVersion:${t}`);
+            const savedBuild = raw ? Number(raw) : NaN;
+            if (Number.isFinite(savedBuild)) {
+              const idx = list.findIndex((v) => v.build_index === savedBuild);
+              if (idx !== -1) return idx;
+            }
+            return list.length ? 0 : 0;
+          };
+
+          setSelectedIndexByType((prev) => ({
+            ...prev,
+            release: pickIndex(nextRelease, "release"),
+            "pre-release": pickIndex(nextPre, "pre-release"),
+          }));
+
+          // Prefer a channel that actually has installed builds.
+          if (nextRelease.length) setVersionType("release");
+          else if (nextPre.length) setVersionType("pre-release");
+
+          return;
+        }
+
+        if (offlineMode) {
+          // Welcome back to the world wide web.
+          setOfflineMode(false);
+        }
 
         const releaseInstalledSet = new Set<number>();
         const preReleaseInstalledSet = new Set<number>();
@@ -331,8 +429,22 @@ export const GameContextProvider = ({
         setCheckingUpdates(false);
       }
     },
-    [gameDir],
+    [gameDir, offlineMode, checkConnectivity, buildInstalledOnlyList],
   );
+
+  const reconnect = useCallback(() => {
+    // Re-run update flow; it will re-check connectivity and switch modes.
+    void checkForUpdates("manual");
+  }, [checkForUpdates]);
+
+  useEffect(() => {
+    const onOnline = () => {
+      if (!offlineMode) return;
+      void checkForUpdates("manual");
+    };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [offlineMode, checkForUpdates]);
 
   useEffect(() => {
     if (!window.config) return;
@@ -386,15 +498,29 @@ export const GameContextProvider = ({
     window.ipcRenderer.on("online-unpatch-finished", () => {
       setPatchingOnline(false);
     });
-    window.ipcRenderer.on("online-unpatch-error", (_, error: string) => {
+    window.ipcRenderer.on("online-unpatch-error", (_, error: unknown) => {
       setPatchingOnline(false);
-      console.error("Online unpatch error:", error);
-      alert(`Disable patch failed: ${error}`);
+      const payload: any = error;
+      const code =
+        payload && typeof payload === "object" && typeof payload.code === "number"
+          ? payload.code
+          : typeof payload === "number"
+            ? payload
+            : 1000;
+      console.error("Online unpatch error code:", code);
+      alert(`Error #${code}`);
     });
-    window.ipcRenderer.on("online-patch-error", (_, error: string) => {
+    window.ipcRenderer.on("online-patch-error", (_, error: unknown) => {
       setPatchingOnline(false);
-      console.error("Online patch error:", error);
-      alert(`Online patch failed: ${error}`);
+      const payload: any = error;
+      const code =
+        payload && typeof payload === "object" && typeof payload.code === "number"
+          ? payload.code
+          : typeof payload === "number"
+            ? payload
+            : 1000;
+      console.error("Online patch error code:", code);
+      alert(`Error #${code}`);
     });
     window.ipcRenderer.on("install-started", () => {
       setInstalling(true);
@@ -467,11 +593,19 @@ export const GameContextProvider = ({
       // Then refresh installed state from filesystem (and remote if available).
       void checkForUpdates("manual");
     });
-    window.ipcRenderer.on("install-error", (_, error) => {
+    window.ipcRenderer.on("install-error", (_, error: unknown) => {
       setInstalling(false);
       setInstallingVersion(null);
       setCancelingBuildDownload(false);
-      alert(`Installation failed: ${error}`);
+      const payload: any = error;
+      const code =
+        payload && typeof payload === "object" && typeof payload.code === "number"
+          ? payload.code
+          : typeof payload === "number"
+            ? payload
+            : 1000;
+      console.error("Install error code:", code);
+      alert(`Error #${code}`);
     });
 
     window.ipcRenderer.on("install-cancelled", () => {
@@ -487,10 +621,19 @@ export const GameContextProvider = ({
     });
 
     (async () => {
-      const defaultGameDirectory =
-        await window.config.getDefaultGameDirectory();
+      // Prefer the persisted download directory if present.
+      try {
+        const persisted = await (window.config as any).getDownloadDirectory?.();
+        if (typeof persisted === "string" && persisted.trim()) {
+          setGameDir(persisted);
+          return;
+        }
+      } catch {
+        // ignore
+      }
 
-      setGameDir(defaultGameDirectory);
+      const fallback = await window.config.getDefaultGameDirectory();
+      setGameDir(fallback);
     })();
   }, []);
 
@@ -514,6 +657,8 @@ export const GameContextProvider = ({
     <GameContext.Provider
       value={{
         gameDir,
+        setGameDir,
+        offlineMode,
         versionType,
         setVersionType,
         availableVersions,
@@ -539,6 +684,7 @@ export const GameContextProvider = ({
         launchGame,
         checkForUpdates,
         startPendingOnlinePatch: () => {},
+        reconnect,
       }}
     >
       {children}
