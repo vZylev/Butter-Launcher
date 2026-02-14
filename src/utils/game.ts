@@ -57,6 +57,8 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
     const patch_hash = osObj.hash || undefined;
     const original_url = osObj.original || undefined;
     const proper_patch = typeof osObj.proper_patch === "boolean" ? osObj.proper_patch : false;
+    const server_url = (buildObj as any).server || undefined;
+    const unserver_url = (buildObj as any).unserver || undefined;
 
     versions.push({
       url,
@@ -69,6 +71,8 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
       patch_hash,
       original_url,
       proper_patch,
+      server_url,
+      unserver_url,
     });
   }
 

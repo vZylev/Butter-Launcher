@@ -23,6 +23,26 @@ import {
 
 const pipeline = promisify(stream.pipeline);
 
+// Butler .pwr patches use a protobuf-based wire format.
+// The first 8 bytes are a "magic" header: 0xc1 0x53 0x50 0x00 ("PWR\0" with high bit)
+// followed by a 32-bit message type.  In practice the first two bytes are never
+// 0x4d 0x5a ("MZ" – PE executables), 0x7f 0x45 ("ELF"), 0xcf 0xfa (Mach-O 64),
+// or 0x50 0x4b ("PK" – ZIP).  We check for the known butler magic to decide
+// whether the download is a patch file or a raw game binary.
+const BUTLER_PWR_MAGIC = Buffer.from([0xc1, 0x53, 0x50, 0x00]);
+
+const isButlerPatch = (filePath: string): boolean => {
+  try {
+    const fd = fs.openSync(filePath, "r");
+    const buf = Buffer.alloc(4);
+    fs.readSync(fd, buf, 0, 4, 0);
+    fs.closeSync(fd);
+    return buf.equals(BUTLER_PWR_MAGIC);
+  } catch {
+    return false;
+  }
+};
+
 // we track only the pwr download because users love cancel buttons
 // and because canceling patching would be too reasonable
 class UserCancelledError extends Error {
@@ -344,6 +364,97 @@ const applyPWR = async (
   });
 };
 
+/**
+ * Handle a downloaded file that is a raw game binary (not a butler .pwr patch).
+ * Places it directly into installDir/Client/ with the correct name.
+ */
+const installRawBinary = (
+  downloadedPath: string,
+  installDir: string,
+  version: GameVersion,
+  win: BrowserWindow,
+): string => {
+  logger.info(
+    `Downloaded file is a raw binary, not a butler patch. Installing directly to ${installDir}`,
+  );
+
+  win.webContents.send("install-progress", {
+    phase: "patching",
+    percent: -1,
+  });
+
+  const clientDir = path.join(installDir, "Client");
+  fs.mkdirSync(clientDir, { recursive: true });
+
+  // Determine destination filename from the download URL or sensible default.
+  const isWin = process.platform === "win32";
+  const isMac = process.platform === "darwin";
+  const defaultName = isWin
+    ? "HytaleClient.exe"
+    : isMac
+      ? "HytaleClient.app"
+      : "HytaleClient";
+
+  const urlFilename = version.url
+    ? path.basename(new URL(version.url).pathname)
+    : undefined;
+  const destName = urlFilename || defaultName;
+  const destPath = path.join(clientDir, destName);
+
+  fs.copyFileSync(downloadedPath, destPath);
+  logger.info(`Raw binary installed to ${destPath}`);
+
+  win.webContents.send("install-progress", {
+    phase: "patching",
+    percent: 100,
+  });
+
+  return installDir;
+};
+
+/**
+ * Download the server jar when the manifest provides a server_url.
+ * Places it at installDir/Server/HytaleServer.jar.
+ */
+const downloadServerJar = async (
+  version: GameVersion,
+  installDir: string,
+  win: BrowserWindow,
+) => {
+  if (!version.server_url) return;
+  if (process.platform === "darwin") return; // macOS doesn't need a server
+
+  const serverDir = path.join(installDir, "Server");
+  const destPath = path.join(serverDir, "HytaleServer.jar");
+
+  if (fs.existsSync(destPath)) {
+    logger.info("Server jar already exists, skipping download.");
+    return;
+  }
+
+  logger.info(`Downloading server jar from ${version.server_url}`);
+  fs.mkdirSync(serverDir, { recursive: true });
+
+  const response = await fetch(version.server_url);
+  if (!response.ok) {
+    throw new Error(`Server jar download failed: HTTP ${response.status} ${response.statusText}`);
+  }
+  if (!response.body) throw new Error("No response body for server jar");
+
+  win.webContents.send("install-progress", {
+    phase: "server-download",
+    percent: -1,
+  });
+
+  await pipeline(
+    // @ts-ignore
+    stream.Readable.fromWeb(response.body),
+    fs.createWriteStream(destPath),
+  );
+
+  logger.info(`Server jar installed to ${destPath}`);
+};
+
 export const installGame = async (
   gameDir: string,
   version: GameVersion,
@@ -407,54 +518,86 @@ export const installGame = async (
       logger.info(
         `New build detected (target: ${version.build_index}, current: ${installedManifest?.build_index ?? "none"}). Starting patch process.`,
       );
-      const butlerRes = await installButler();
-      if (!butlerRes.ok) throw new Error(butlerRes.error);
 
-      const tempPWRPath = await downloadPWR(gameDir, version, win);
+      const tempDownloadPath = await downloadPWR(gameDir, version, win);
 
-      const gameFinalDir = await applyPWR(
-        tempPWRPath,
-        butlerRes.path,
-        installDir,
-        win,
-      );
-      if (!gameFinalDir) throw new Error("Failed to apply PWR");
-      logger.info(`PWR patch applied successfully to ${gameFinalDir}`);
+      let gameFinalDir: string;
+      if (isButlerPatch(tempDownloadPath)) {
+        logger.info("Downloaded file is a butler patch, applying with butler.");
+        const butlerRes = await installButler();
+        if (!butlerRes.ok) throw new Error(butlerRes.error);
 
-      fs.unlinkSync(tempPWRPath);
+        gameFinalDir = await applyPWR(
+          tempDownloadPath,
+          butlerRes.path,
+          installDir,
+          win,
+        );
+      } else {
+        gameFinalDir = installRawBinary(
+          tempDownloadPath,
+          installDir,
+          version,
+          win,
+        );
+      }
+      if (!gameFinalDir) throw new Error("Failed to install game");
+      logger.info(`Game installed successfully to ${gameFinalDir}`);
+
+      fs.unlinkSync(tempDownloadPath);
 
       // Record the installed build so future updates can detect when patching is needed.
       writeInstallManifest(installDir, version);
 
       // On Linux/macOS, downloaded binaries may lose the executable bit.
       ensureClientExecutable(installDir);
-      logger.info("Game installation and patching complete.");
+
+      // Download server jar if available and not already present.
+      await downloadServerJar(version, installDir, win);
+
+      logger.info("Game installation complete.");
     } else {
       // If the manifest says it's installed, but binaries are missing, fall back to patching.
       // This keeps us safe against partial installs.
       if (!client || !server) {
         logger.warn(
-          "Manifest indicates installation, but client or server binaries are missing. Re-patching.",
+          "Manifest indicates installation, but client or server binaries are missing. Re-installing.",
         );
-        const butlerRes = await installButler();
-        if (!butlerRes.ok) throw new Error(butlerRes.error);
 
-        const tempPWRPath = await downloadPWR(gameDir, version, win);
+        const tempDownloadPath = await downloadPWR(gameDir, version, win);
 
-        const gameFinalDir = await applyPWR(
-          tempPWRPath,
-          butlerRes.path,
-          installDir,
-          win,
-        );
-        if (!gameFinalDir) throw new Error("Failed to apply PWR");
-        logger.info(`PWR patch re-applied successfully to ${gameFinalDir}`);
-        fs.unlinkSync(tempPWRPath);
+        let gameFinalDir: string;
+        if (isButlerPatch(tempDownloadPath)) {
+          logger.info("Downloaded file is a butler patch, applying with butler.");
+          const butlerRes = await installButler();
+          if (!butlerRes.ok) throw new Error(butlerRes.error);
+
+          gameFinalDir = await applyPWR(
+            tempDownloadPath,
+            butlerRes.path,
+            installDir,
+            win,
+          );
+        } else {
+          gameFinalDir = installRawBinary(
+            tempDownloadPath,
+            installDir,
+            version,
+            win,
+          );
+        }
+        if (!gameFinalDir) throw new Error("Failed to install game");
+        logger.info(`Game re-installed successfully to ${gameFinalDir}`);
+        fs.unlinkSync(tempDownloadPath);
 
         writeInstallManifest(installDir, version);
 
         ensureClientExecutable(installDir);
-        logger.info("Game re-patching complete.");
+
+        // Download server jar if available and not already present.
+        await downloadServerJar(version, installDir, win);
+
+        logger.info("Game re-installation complete.");
       } else {
         logger.info("Game already installed and binaries verified.");
       }
