@@ -1,6 +1,8 @@
 import { ipcRenderer, contextBridge } from "electron";
 import { version, build_date } from "../package.json";
 
+// Preload: carefully exposing just enough power to be dangerous.
+
 const normalizeBuildDate = (raw: unknown): string => {
   const s = typeof raw === "string" ? raw.trim() : "";
   if (s) return s;
@@ -98,9 +100,87 @@ contextBridge.exposeInMainWorld("config", {
     ipcRenderer.invoke("get-default-game-directory"),
   getDownloadDirectory: () => ipcRenderer.invoke("download-directory:get"),
   selectDownloadDirectory: () => ipcRenderer.invoke("download-directory:select"),
+  pickFolder: (payload?: { title?: string; defaultPath?: string }) =>
+    ipcRenderer.invoke("dialog:pick-folder", payload ?? {}),
+  pickFile: (payload?: { title?: string; defaultPath?: string; extensions?: string[] }) =>
+    ipcRenderer.invoke("dialog:pick-file", payload ?? {}),
+  getSteamDeckMode: () => ipcRenderer.invoke("steamdeck-mode:get"),
+  setSteamDeckMode: (enabled: boolean, gameDir?: string | null) =>
+    ipcRenderer.invoke("steamdeck-mode:set", enabled, gameDir ?? null),
   openFolder: (folderPath: string) =>
     ipcRenderer.invoke("open-folder", folderPath),
   openExternal: (url: string) => ipcRenderer.invoke("open-external", url),
+
+  supportTicketCollect: (username: string, customUUID?: string | null) =>
+    ipcRenderer.invoke("support-ticket:collect", username, customUUID ?? null),
+
+  startupSoundGet: () => ipcRenderer.invoke("launcher-settings:startup-sound:get"),
+  startupSoundSet: (enabled: boolean) =>
+    ipcRenderer.invoke("launcher-settings:startup-sound:set", !!enabled),
+  startupSoundMarkFirstRunPlayed: () =>
+    ipcRenderer.invoke("launcher-settings:startup-sound:first-run-played"),
+
+  // Premium login (OAuth)
+  premiumStatus: () => ipcRenderer.invoke("premium:status"),
+  premiumOauthStart: () => ipcRenderer.invoke("premium:oauth:start"),
+  premiumOauthCancel: () => ipcRenderer.invoke("premium:oauth:cancel"),
+  premiumLogout: () => ipcRenderer.invoke("premium:logout"),
+
+  // Host server (local)
+  hostServerStart: (
+    gameDir: string,
+    version: GameVersion,
+    opts?: {
+      assetsZipPath?: string | null;
+      authMode?: "offline" | "authenticated" | "insecure";
+      noAot?: boolean;
+      ramMinGb?: number | null;
+      ramMaxGb?: number | null;
+    },
+  ) => ipcRenderer.invoke("host-server:start", gameDir, version, opts ?? {}),
+  hostServerStop: () => ipcRenderer.invoke("host-server:stop"),
+  hostServerCommand: (command: string) =>
+    ipcRenderer.invoke("host-server:command", command),
+  hostServerSyncFolder: (
+    gameDir: string,
+    version: GameVersion,
+    kind: "universe" | "mods" | "earlyplugins",
+    sourceDir: string,
+  ) => ipcRenderer.invoke("host-server:sync-folder", gameDir, version, kind, sourceDir),
+
+  // Mods (CurseForge + local installed)
+  modsSearch: (query?: string) => ipcRenderer.invoke("mods:search", query ?? ""),
+  modsBrowse: (payload?: { query?: string; sort?: string; index?: number; pageSize?: number }) =>
+    ipcRenderer.invoke("mods:browse", payload ?? {}),
+  modsGetDescription: (modId: number) => ipcRenderer.invoke("mods:description", modId),
+  modsGetDetails: (modId: number) => ipcRenderer.invoke("mods:details", modId),
+  modsInstall: (modId: number, gameDir: string) => ipcRenderer.invoke("mods:install", modId, gameDir),
+  modsInstallFile: (modId: number, fileId: number, gameDir: string) =>
+    ipcRenderer.invoke("mods:install-file", modId, fileId, gameDir),
+  modsRegistry: (gameDir: string) => ipcRenderer.invoke("mods:registry", gameDir),
+  modsInstalledList: (gameDir: string) => ipcRenderer.invoke("mods:installed:list", gameDir),
+  modsInstalledToggle: (gameDir: string, fileName: string) =>
+    ipcRenderer.invoke("mods:installed:toggle", gameDir, fileName),
+  modsInstalledDelete: (gameDir: string, fileName: string) =>
+    ipcRenderer.invoke("mods:installed:delete", gameDir, fileName),
+  modsFileHash: (gameDir: string, fileName: string) =>
+    ipcRenderer.invoke("mods:file-hash", gameDir, fileName),
+  modsInstalledSetAll: (gameDir: string, enabled: boolean) =>
+    // Because clicking 200 toggles manually builds character.
+    ipcRenderer.invoke("mods:installed:set-all", gameDir, enabled),
+
+  modsProfilesList: (gameDir: string) => ipcRenderer.invoke("mods:profiles:list", gameDir),
+  // We smuggle optional version pinning (cf) through IPC, because users delete things.
+  modsProfilesSave: (
+    gameDir: string,
+    profile: { name: string; mods: string[]; cf?: Record<string, { modId: number; fileId?: number }> },
+  ) =>
+    ipcRenderer.invoke("mods:profiles:save", gameDir, profile),
+  modsProfilesDelete: (gameDir: string, name: string) =>
+    ipcRenderer.invoke("mods:profiles:delete", gameDir, name),
+  modsProfilesApply: (gameDir: string, name: string) =>
+    ipcRenderer.invoke("mods:profiles:apply", gameDir, name),
+
   OS: process.platform,
   ARCH: process.arch,
   VERSION: version,

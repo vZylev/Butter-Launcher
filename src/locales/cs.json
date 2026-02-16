@@ -1,0 +1,230 @@
+{
+  "common": {
+    "startupSound": "Sonido de apertura",
+    "close": "Zavřít",
+    "cancel": "Zrušit",
+    "confirm": "Potvrdit",
+    "remove": "Smazat",
+    "minimize": "Minimalizovat",
+    "maximize": "Maximizar",
+    "reconnect": "Připojit znovu",
+    "retryConnection": "Zopakovat připojení",
+    "back": "Zpět",
+    "search": "Vyhledat",
+    "folder": "Složka",
+    "sortBy": "Seřadit dle",
+    "open": "Otevřít",
+    "loading": "Načítám...",
+    "refresh": "Obnovit",
+    "delete": "Odstranit",
+    "toggle": "Přepnout",
+    "enable": "Zapnout",
+    "disable": "Vypnout",
+    "save": "Uložit",
+    "apply": "Aplikovat",
+    "selectAll": "Vybrat vše",
+    "selectNone": "Zrušit výběr",
+    "loadMore": "Načíst více",
+    "working": "Provádím...",
+    "enabled": "Zapnut",
+    "disabled": "Vypnut",
+    "clear": "Smazat",
+    "send": "Enviar"
+  },
+  "launcher": {
+    "offlineMode": "Offline režim",
+    "buttons": {
+      "wiki": "Wiki",
+      "chat": "Chat",
+      "servers": "Servery",
+      "hostServer": "Vytvořit server",
+      "mods": "Modifikace",
+      "settings": "Nastavení"
+    },
+    "news": {
+      "loading": "Načítám...",
+      "showMore": "Zobrazit více",
+      "openLink": "Otevřít odkaz",
+      "openImage": "Otevřít obrázek"
+    },
+    "hytaleFeed": {
+      "title": "Hytale novinky",
+      "toggleShow": "Zobrazit Hytale novinky",
+      "toggleHide": "Skrýt Hytale news",
+      "statusLoading": "Načítám...",
+      "statusError": "Chyba",
+      "statusScroll": "Scrolluj →",
+      "open": "Otevřít"
+    }
+  },
+  "serversModal": {
+    "filters": {
+      "all": "Vše",
+      "premium": "Premium",
+      "noPremium": "Bez Premium"
+    }
+  },
+  "settings": {
+    "title": "SYSTÉMOVÉ NASTAVENÍ",
+    "language": {
+      "label": "Jazyk",
+      "english": "English",
+      "spanish": "Spanish"
+    },
+    "gameDirectory": {
+      "label": "Adresář hry",
+      "openFolder": "Otevřít adresář"
+    },
+    "downloadDirectory": {
+      "label": "Stáhnout adresář",
+      "change": "Změnit",
+      "selecting": "Vybírám...",
+      "loading": "(načítám...)"
+    },
+    "customUUID": {
+      "label": "Vlastní UUID",
+      "placeholder": "Náhodně generován (pokud prázdný)",
+      "usesAuto": "Používa automatické generování UUID",
+      "invalid": "Neplatný formát UUID",
+      "saved": "Uloženo: {{uuid}}"
+    },
+    "discordRPC": "Discord RPC",
+    "steamDeck": {
+      "label": "Režím SteamDeck",
+      "applying": "Aplikovat fix...",
+      "restoring": "Obnovuji...",
+      "failed": "Chyba. Skontroluj logy.",
+      "linuxOnly": "Jen pro Linux/SteamOS",
+      "hintLinux": "Vymění vstavaný libzstd.so se systémovým libzstd.so.1",
+      "hintNonLinux": "Dostupné jen na Linux/SteamOS",
+      "tooltipLinux": "Opravuje pád glibc 2.41+ systémem symlink libzstd.so se systémovou verzí"
+    },
+    "onlinePatch": {
+      "label": "Online záplata",
+      "removeButton": "Smazát aktuální online záplatu",
+      "description": "Obnovit originálního klienta/server a smazat soubory záplaty.",
+      "title": "Smazat online záplatu",
+      "confirm": "Jsi si jist odstráněním online záplaty z \"{{version}}\"?\n\nTohle obnoví originálního klienta/server a smaže soubory záplaty.",
+      "confirmFallback": "Jsi si jist smazáním online záplaty z aktuálně vybrané verze hry?",
+      "requireGameDir": "Nejdřív vyber herní složku",
+      "requireVersion": "Nejdřív vyber verzi",
+      "requireInstalled": "Nejdřív nainstaluj vybranou verzi",
+      "requireGameClosed": "Nejřív zavři hru",
+      "inProgress": "Probíha akce",
+      "checkingState": "Kontroluji stav záplaty...",
+      "requireEnabled": "Tento build nemá žádnou záplatu na smazání",
+      "hintEnableToRemove": "Aplikuj online záplatu pro její smazání.",
+      "hintCloseGame": "Zavří hru pro smazání online záplaty."
+    },
+    "credits": {
+      "label": "Zásluhy",
+      "onlineFix": "Online Fix",
+      "systemLauncher": "System Launcher",
+      "designLauncher": "Design Launcher",
+      "language": "Language"
+    },
+    "updates": {
+      "check": "SKONTROLOVAT AKTUALIZACE",
+      "checking": "KONTROLUJI..."
+    },
+    "logout": "ODHLÁSIT SE"
+  },
+  "modsModal": {
+    "title": "Modfikace",
+    "tabs": {
+      "discover": "Objevuj",
+      "installed": "Nainstalované",
+      "profiles": "Profily"
+    },
+    "searchPlaceholder": "Vyhledat modifikace...",
+    "openModsFolder": "Otevřít složku modifikací",
+    "noModsFound": "Žádne modifikace.",
+    "installedMods": "Nainstalované modifikace",
+    "noInstalledModsFound": "Nenalezené nainstalované modifikace.",
+    "profileMods": "Modifikace profilu",
+    "noInstalledModsToSelect": "Žádné modifikace na výběr.",
+    "sort": {
+      "relevance": "Relevantnost",
+      "popularity": "Oblíbenost",
+      "latestUpdate": "Nejnovější aktualizace",
+      "creationDate": "Dátum vytvoření",
+      "totalDownloads": "Celkové stažení",
+      "az": "A-Z"
+    },
+    "details": {
+      "loadingDetails": "Načítam detaily...",
+      "downloads": "{{value}} stažení",
+      "created": "Vytvořen {{date}}",
+      "updated": "Aktualizován {{date}}",
+      "updatedShort": "Aktualizován {{date}}",
+      "description": "Popisek",
+      "loadingDescription": "Načítam popisek...",
+      "noDescription": "Bez popisku.",
+      "files": "Soubory",
+      "loadingFiles": "Načítam soubory...",
+      "noFilesReturned": "Nenalezené soubory.",
+      "selectModForDetails": "Vyber modifikaci pro detaily.",
+      "installThisFile": "Nainstalovat tento soubor",
+      "results": "{{value}} výsledek(ků)",
+      "loaded": "{{loaded}} načteno",
+      "loadedOf": "{{loaded}} / {{total}} načteno"
+    },
+    "status": {
+      "installing": "Instaluji...",
+      "downloading": "Stahuji...",
+      "downloadingPct": "Stahuji... {{pct}}%",
+      "downloadingKb": "Stahuji... {{kb}} KB",
+      "loading": "Načítam...",
+      "saving": "Ukládám...",
+      "unknownError": "Neznáma chyba"
+    },
+    "releaseType": {
+      "stable": "Stable",
+      "beta": "Beta",
+      "alpha": "Alpha"
+    },
+    "installed": {
+      "enableAll": "Zapnout všechny",
+      "disableAll": "Vypnout všechny",
+      "openFolder": "Otevřít adresář"
+    },
+    "profiles": {
+      "title": "Profily",
+      "namePlaceholder": "Název profilu...",
+      "noProfilesYet": "Zatím žádné profily.",
+      "selectedCount": "Vybrán(o): {{count}}",
+      "currentlyEnabled": "Aktuálně zapnuto",
+      "currentlyDisabled": "Aktuálně vypnuto",
+      "tip": "Tip: ulož profil a pak ho aplikuj."
+    },
+    "actions": {
+      "install": "Nainstalovat",
+      "installed": "Nainstalováno",
+      "update": "Aktualizovat"
+    },
+    "countMods": "{{count}} mód(ů)"
+  },
+  "progress": {
+    "phases": {
+      "pwrDownload": "Stahuji...",
+      "patching": "Extrahuji...",
+      "onlinePatch": "Aplikuji online záplatu",
+      "fixDownload": "Stahuji fix...",
+      "fixExtract": "Aplikuji fix...",
+      "jreDownload": "Stahuji JRE...",
+      "jreExtract": "Extrahuji JRE..."
+    }
+  },
+  "launcherUpdate": {
+    "title": "Aktualizace dostupná",
+    "description": "Nová verze Butter Launcheru je dostupná.",
+    "subtitleCurrent": "Aktuální: v{{version}}",
+    "subtitleLatest": "Nejnovější: v{{version}}",
+    "released": "Vydaná: {{date}}",
+    "whatsNew": "Co je nového",
+    "noChangelog": "Popisek nedostupný.",
+    "dontRemindAgain": "Již nepřipomínat",
+    "notNow": "Teď ne",
+    "update": "Aktualizovat"
+  }
+}

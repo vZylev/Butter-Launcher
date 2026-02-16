@@ -1,0 +1,635 @@
+{
+  "common": {
+    "close": "Close",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "remove": "Remove",
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "reconnect": "Reconnect",
+    "retryConnection": "Retry connection",
+    "back": "Back",
+    "search": "Search",
+    "folder": "Folder",
+    "sortBy": "Sort by",
+    "open": "Open",
+    "loading": "Loading...",
+    "refresh": "Refresh",
+    "delete": "Delete",
+    "toggle": "Toggle",
+    "enable": "Enable",
+    "disable": "Disable",
+    "save": "Save",
+    "apply": "Apply",
+    "selectAll": "Select all",
+    "selectNone": "Select none",
+    "loadMore": "Load more",
+    "working": "Working...",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "clear": "Clear",
+    "send": "Send"
+  },
+  "login": {
+    "accountTypePrompt": "Choose your account type",
+    "premium": "Premium",
+    "noPremium": "No Premium",
+    "premiumPrompt": "Sign in with your Hytale account to continue",
+    "premiumLogin": "Login with Hytale",
+    "prompt": "Enter your nickname to continue",
+    "nicknamePlaceholder": "Nickname",
+    "characters": "{{current}}/{{max}} characters",
+    "enter": "Enter",
+    "errors": {
+      "empty": "Enter your nickname",
+      "minLength": "Nickname must be at least {{min}} characters long",
+      "maxLength": "Nickname must be at most {{max}} characters long"
+    }
+  },
+  "splash": {
+    "title": "Butter Launcher",
+    "logoAlt": "Butter Launcher",
+    "initializing": "Initializing",
+    "preparing": "Preparing your session"
+  },
+  "launcher": {
+    "offlineMode": "Offline Mode",
+    "errors": {
+      "emergencyMode": "The launcher is in emergency mode. Check Discord for more information."
+    },
+    "buttons": {
+      "wiki": "Wiki",
+      "chat": "Chat",
+      "friends": "Friends",
+      "servers": "Servers",
+      "hostServer": "Host a Server",
+      "mods": "Mods",
+      "settings": "Settings"
+    },
+    "news": {
+      "loading": "Loading...",
+      "showMore": "Show more",
+      "openLink": "Open link",
+      "openImage": "Open image"
+    },
+    "updates": {
+      "dismissForNow": "Do not update for now",
+      "available": "New update available.",
+      "fixClient": "Fix Client",
+      "fixClientTooltip": "Restore the unpatched client",
+      "update": "Update",
+      "install": "Install",
+      "installFull": "Install",
+      "installFullTooltip": "Install (full download)",
+      "smartInstall": "Smart Install",
+      "smartInstallChecking": "Checking Smart Update...",
+      "smartInstallTooltip": "Smart Install (differential patch)",
+      "play": "Play",
+      "running": "Running Game"
+    },
+    "onlinePatch": {
+      "label": "Online Patch",
+      "titleEnable": "Online Patch",
+      "titleDisable": "Disable online patch",
+      "titleUpdate": "Update online patch",
+      "btnEnable": "Online Patch",
+      "btnDisable": "Disable Patch",
+      "btnUpdate": "Update Patch",
+      "notesNone": "No patch notes available for this build.",
+      "confirmTitle": "Online Patch",
+      "confirmCancel": "Do not patch",
+      "confirmApply": "Patch"
+    },
+    "hytaleFeed": {
+      "title": "Hytale News",
+      "toggleShow": "Show Hytale news",
+      "toggleHide": "Hide Hytale news",
+      "statusLoading": "Loading...",
+      "statusError": "Error",
+      "statusScroll": "Scroll →",
+      "open": "Open"
+    },
+    "version": {
+      "label": "Version",
+      "select": "Select a version",
+      "selectBuild": "Select build",
+      "release": "Release",
+      "preRelease": "Pre-release",
+      "latest": "Latest",
+      "show": "Show versions",
+      "hide": "Hide versions",
+      "noInstalledBuilds": "No installed builds found.",
+      "delete": "Delete {{name}}",
+      "deleteTitle": "Delete Version",
+      "deleteConfirm": "Are you sure you want to delete {{name}}?",
+      "cannotDeleteRunning": "You can't delete the running build. Close the game first.",
+      "requiresBuild1": "You must install Build-1 before downloading other versions.",
+      "manualInstallRequired": "Needs to be installed manually.",
+      "invalidBuild1Folder": "The selected folder doesn't look like Build-1. Missing: {{missing}}. Select the folder that contains Client, Server and assets.zip."
+    }
+  },
+  "serversModal": {
+    "title": "SERVERS",
+    "comingSoon": "Coming soon",
+    "description": "This menu will list community servers, let you save favorites and connect quickly.",
+    "placeholder": "Placeholder UI only — no server logic wired yet.",
+    "warning": {
+      "title": "Host a Server",
+      "versionLine": "The server will start using the currently selected version in the launcher: {{version}}.",
+      "dedicated": "I prefer a dedicated server",
+      "confirm": "I understand, continue"
+    },
+    "panel": {
+      "authMode": {
+        "label": "Auth Mode",
+        "offline": "Offline",
+        "authenticated": "Authenticated",
+        "insecure": "Insecure"
+      },
+      "advanced": {
+        "toggle": "Advanced Options",
+        "ram": "RAM",
+        "min": "Min",
+        "max": "Max",
+        "customAssets": "Custom Assets",
+        "universe": "Universe",
+        "mods": "Mods",
+        "chooseFile": "Choose .zip",
+        "chooseFolder": "Choose"
+      },
+      "actions": {
+        "showConsole": "Show Console",
+        "startServer": "Start Server",
+        "stopServer": "Stop Server"
+      }
+    },
+    "console": {
+      "title": "Server Console",
+      "commandPlaceholder": "Type a command and press Enter..."
+    },
+    "sections": {
+      "recommended": "Recommended",
+      "servers": "Servers"
+    },
+    "filters": {
+      "all": "All",
+      "premium": "Premium",
+      "noPremium": "No Premium"
+    },
+    "actions": {
+      "copyIp": "Copy IP"
+    },
+    "labels": {
+      "ip": "IP",
+      "description": "Description",
+      "details": "Details"
+    },
+    "errors": {
+      "missingUrls": "Server lists are not configured.",
+      "loadFailed": "Failed to load server lists."
+    },
+    "empty": {
+      "noRecommended": "No recommended servers.",
+      "noServers": "No servers.",
+      "noDescription": "No description.",
+      "noDetails": "No additional details."
+    },
+    "feedback": {
+      "ipCopied": "The IP has been copied"
+    },
+    "notes": {
+      "clickToLearn": "Click a server to learn more about it!",
+      "addYourServer": "Want to add your server? Join the Discord and request an audience!"
+    }
+  },
+  "friendsMenu": {
+    "brand": "Matcha!",
+    "title": {
+      "loggedOut": "Matcha!",
+      "loggedIn": "Matcha! — {{handle}}"
+    },
+    "intro": {
+      "headline": "Matcha!",
+      "subtitle": "More than just a messenger—Matcha! is the social engine powering your entire Butter Launcher experience.",
+      "feature1": "Instant Chat & DMs",
+      "feature2": "Friendships & Parties",
+      "feature3": "Seamless Lobby Invites",
+      "cta": "Connect faster. Play together.",
+      "powered": "Powered by Matcha!",
+      "acceptTermsPrefix": "By registering you accept the",
+      "acceptTermsLink": "Terms and Conditions"
+    },
+    "profile": {
+      "open": "Open profile",
+      "title": "PROFILE",
+      "loadFailed": "Failed to load your profile.",
+      "username": "Username",
+      "createdAt": "Created",
+      "totalMessages": "Total messages sent",
+      "dndTitle": "Do Not Disturb",
+      "dndHint": "Mutes DM notification sounds"
+    },
+
+    "unread": {
+      "badgeTitle": "Unread messages",
+      "separator": "- unread -"
+    },
+    "terms": {
+      "title": "Matcha! System — Terms of Service",
+      "lastUpdated": "Last Updated: 02-16-2026",
+      "body": "Preamble\nWelcome to Matcha!, the social infrastructure powering your Butter Launcher experience. By registering an account, accessing the platform, or utilizing our communication services, you acknowledge that you have read, understood, and unconditionally agree to be bound by the following Terms of Service (\"Terms\").\n\n1. Account Security & Registration\n1.1. Account Identity\nYour user profile is distinctively identified by a username combined with a numeric discriminator (e.g., User#0000). You acknowledge that you are the sole authorized user of your account and are fully responsible for all activities, actions, and communications that occur under your credentials.\n\n1.2. Credential Protection\nWhile Matcha! employs industry-standard encryption protocols to protect your data, you are responsible for maintaining the confidentiality of your login credentials. Matcha! assumes no liability for any loss or damage arising from unauthorized access attributable to your failure to secure your password.\n\n1.3. Registration Constraints\nTo ensure service integrity and prevent abuse, account creation is strictly limited to one (1) new account per IP address within a 24-hour period. Any attempt to circumvent this restriction—including but not limited to the use of VPNs, proxies, or IP spoofing— constitutes a violation of these Terms and may result in a permanent ban.\n\n2. User Conduct & Acceptable Use\n2.1. Automated Content Filtering\nThe platform utilizes automated filtering systems to maintain community standards. Any deliberate attempt to bypass these filters (e.g., through the use of \"leet speak,\" special characters, or misspelling) is strictly prohibited and will result in immediate administrative action.\n\n2.2. Anti-Spam & Automation\nTo prevent service disruption, we enforce strict rate limits on message transmission. The use of bots, macros, scripts, or any third-party software to automate interactions or \"flood\" the chat service is prohibited.\n\n2.3. Prohibited Content\nWe maintain a zero-tolerance policy regarding:\n\nHate speech and discriminatory language.\n\nThreats of violence or harm.\n\nDoxing (the unauthorized publication of private or identifying information).\n\nHarassment or bullying in any form.\n\n3. Data Privacy & Processing\n3.1. Message Retention\nBy using the service, you consent to the processing and storage of your communications (including Global Chat and Direct Messages) on our servers. This data retention is necessary to facilitate message history synchronization across user sessions.\n\n3.2. Connection Logging\nFor the purposes of security, auditing, and moderation, you acknowledge that we log specific connection data, including the IP address utilized at the time of registration and the IP address associated with your most recent connection.\n\n4. Limitation of Liability & Disclaimer\nPLEASE READ THIS SECTION CAREFULLY.\n\n4.1. User Interactions\nMatcha! and its administrators act solely as a conduit for communication. We are not responsible for, nor do we arbitrate, disputes, conflicts, or agreements between users. You assume full responsibility for your interactions with other account holders.\n\n4.2. Third-Party Content\nWe disclaim all liability regarding external links, files, or media shared by users within Global Chat or Direct Messages. Accessing third-party content is done entirely at your own risk.\n\n4.3. Limitation of Damages\nTo the fullest extent permitted by law, the creators, operators, and affiliates of Matcha! shall not be liable for any direct, indirect, incidental, special, or consequential damages resulting from your use of the service. This includes, without limitation, damages for emotional distress, loss of data, or damages resulting from fraudulent actions by other users.\n\n4.4. \"As Is\" Service\nThe platform is provided on an \"AS IS\" and \"AS AVAILABLE\" basis without warranties of any kind. We do not guarantee uninterrupted service and are not liable for data loss or message delivery failures caused by technical malfunctions, maintenance, or server restarts.\n\n5. Moderation & Termination\nThe System Administrators reserve the exclusive right, at their sole discretion and without prior notice, to:\n\nRemove or obscure content deemed inappropriate or in violation of these Terms.\n\nUnilaterally modify usernames that are offensive or violate community standards.\n\nSuspend, restrict, or permanently terminate any account found to be in violation of these Terms or that poses a threat to the security or safety of the community."
+    },
+    "friendsHeader": "FRIENDS ({{online}}/{{total}} Online)",
+    "friends": "Friends",
+    "globalChat": "Global Chat",
+    "logout": "Logout",
+    "copy": "Copy",
+    "continue": "Continue",
+    "signIn": "Sign in",
+    "create": "Create",
+    "createAccount": "Create account",
+    "you": "You",
+    "devs": "Devs",
+    "deleted": "Message deleted.",
+    "deletedByAdmin": "Message deleted by an administrator.",
+    "scrollUp": "Scroll up to load older messages.",
+    "refreshing": "Refreshing…",
+
+    "searchFriends": "Search",
+    "friendsList": "Friends",
+    "friendsListCounts": "Friends - {{online}} connected ({{total}} total)",
+    "noFriendsFound": "No friends found.",
+
+    "requests": "Requests",
+    "received": "Received",
+    "sent": "Sent",
+    "requestsIncoming": "Received ({{count}})",
+    "requestsOutgoing": "Sent ({{count}})",
+    "none": "None.",
+    "accept": "Accept",
+    "reject": "Reject",
+    "cancel": "Cancel",
+
+    "addFriend": "Add friend",
+    "sendRequest": "Send request",
+    "backToFriends": "Back",
+
+    "status": {
+      "online": "Online",
+      "offline": "Offline",
+      "inGame": "In-Game",
+      "multiplayer": "Multiplayer",
+      "singleplayer": "Singleplayer"
+    },
+
+    "ctx": {
+      "sendMessage": "Send message",
+      "removeFriend": "Remove friend"
+    },
+
+    "proof": {
+      "uniqueId": "Master Key",
+      "yourHandle": "Your handle",
+      "saveHandleHint": "Save this for future sign-in.",
+      "uniqueIdHint": "Copy and save this B-Matcha Secure Key (starts with BM:). It is shown only once and is required to prove account ownership for support requests (delete account, rename, or password reset). Do not share it with anyone except official Butter/Matcha support."
+    },
+
+    "register": {
+      "handleHint": "Your full handle (with #) will be shown after creating the account."
+    },
+
+    "placeholders": {
+      "username": "Username",
+      "handle": "Username#0000",
+      "password": "Password",
+      "passwordRepeat": "Repeat password",
+      "globalMessage": "Write to everyone…",
+      "dmMessage": "Type a message…"
+    },
+
+    "msgMenu": {
+      "sentAt": "Sent",
+      "reply": "Reply",
+      "copy": "Copy",
+      "delete": "Delete message",
+      "report": "Report"
+    },
+
+    "reply": {
+      "replyingTo": "Replying to",
+      "cancel": "Cancel",
+      "to": "Reply to"
+    },
+
+    "report": {
+      "title": "Report",
+      "reporting": "Reporting",
+      "category": "Category",
+      "reason": "Reason",
+      "pick": "Select…",
+      "submit": "Submit",
+      "otherPlaceholder": "Explain what happened…",
+
+      "cats": {
+        "security_violence": "Safety & violence",
+        "offensive": "Behavior & offensive content",
+        "spam_quality": "Chat quality & spam",
+        "other": "Other"
+      },
+
+      "reasons": {
+        "threats_violence": "Threats or violence",
+        "bullying": "Bullying or harassment",
+        "doxxing": "Doxxing / personal information",
+        "hate_speech": "Hate speech",
+        "sexual_nsfw": "Sexual content / NSFW",
+        "spam_ads": "Spam / unwanted advertising",
+        "phishing": "Phishing / scam"
+      },
+
+      "descriptions": {
+        "threats_violence": "Threats, incitement to violence, or content that promotes physical harm to yourself or others.",
+        "bullying": "Harassment, intimidation, humiliation, or repeated personal attacks toward a user.",
+        "doxxing": "Sharing personal information without permission (address, phone, accounts, private photos, etc.).",
+        "hate_speech": "Offensive or discriminatory content targeting race, ethnicity, religion, nationality, sexual orientation, gender, disability, or other characteristics.",
+        "sexual_nsfw": "Explicit sexual content, unwanted sexual advances, or NSFW material.",
+        "spam_ads": "Repetitive messages, flooding, unsolicited advertising, or irrelevant links.",
+        "phishing": "Attempts to steal accounts/passwords, malicious links, or impersonation/scams."
+      }
+    },
+
+    "errors": {
+      "selectFriendToChat": "Select a friend to chat.",
+      "removeFriendFailed": "Remove friend failed",
+      "deleteFailed": "Delete failed",
+      "reportFailed": "Report failed",
+      "reportMissingCategory": "Select a category.",
+      "reportMissingReason": "Select a reason.",
+      "reportMissingDetails": "Please describe the reason.",
+      "banned": "Account banned. Reason: {{reason}}. Ends: {{until}}. Remaining: {{remaining}}.",
+      "bannedReasonFallback": "No reason provided"
+    }
+  },
+  "hostServerModal": {
+    "title": "HOST A SERVER",
+    "comingSoon": "Coming soon",
+    "description": "This menu will help you configure and host a server (port, mods, version, and start/stop controls).",
+    "placeholder": "Placeholder UI only — no hosting logic wired yet.",
+    "warning": {
+      "title": "Host a Server",
+      "versionLine": "The server will start using the currently selected version in the launcher: {{version}}.",
+      "dedicated": "I prefer a dedicated server",
+      "confirm": "I understand, continue",
+      "folderSyncTitle": "Replace server folder?",
+      "folderSyncMessage": "Remember: loading a new {{target}} folder will replace the current one."
+    },
+    "errors": {
+      "buildNotInstalled": "You must install the selected build before hosting a local server.\nSelected: {{version}}",
+      "java25Required": "Java 25 is required to host a server. We recommend Adoptium (Temurin): https://adoptium.net/temurin/releases",
+      "javaTooOld": "Your Java version is {{found}}. Java 25 is required to host a server. We recommend Adoptium (Temurin): https://adoptium.net/temurin/releases",
+      "customAssetsMissing": "Select a .zip file for Custom Assets, or disable Custom Assets.",
+      "assetsZipMissing": "The selected assets .zip does not exist: {{path}}",
+      "folderSyncRunning": "Stop the server before replacing Universe/Mods/Early Plugins.",
+      "folderSyncFailed": "Failed to copy the selected folder into the server.",
+      "folderSourceMissing": "The selected folder does not exist: {{path}}",
+      "ramMissing": "Set both RAM values (Min and Max) when RAM is enabled.",
+      "ramInvalid": "RAM values must be positive numbers.",
+      "ramRange": "Max RAM cannot be less than Min RAM.",
+      "serverStartFailed": "Failed to start the server.",
+      "serverStopFailed": "Failed to stop the server.",
+      "serverNotRunning": "Server is not running.",
+      "commandFailed": "Failed to send command to the server."
+    },
+    "panel": {
+      "authMode": {
+        "label": "Auth Mode",
+        "offline": "Offline",
+        "authenticated": "Authenticated",
+        "insecure": "Insecure"
+      },
+      "advanced": {
+        "toggle": "Advanced Options",
+        "ram": "RAM",
+        "min": "Min",
+        "max": "Max",
+        "noAot": "Do not use AOT",
+        "customAssets": "Custom Assets",
+        "universe": "Universe",
+        "mods": "Mods",
+        "earlyPlugins": "Early Plugins",
+        "chooseFile": "Choose .zip",
+        "chooseFolder": "Choose"
+      },
+      "actions": {
+        "showConsole": "Show Console",
+        "startServer": "Start Server",
+        "stopServer": "Stop Server"
+      }
+    },
+    "console": {
+      "title": "Server Console",
+      "commandPlaceholder": "Type a command and press Enter..."
+    },
+    "localHost": {
+      "section": "Local Host",
+      "button": "Local Host",
+      "note": "Note: Requires port forwarding on your router and keeping your PC turned on so others can join; alternatively, Radmin/Hamachi or similar apps will be required to allow other users to play."
+    },
+    "proHosting": {
+      "section": "Pro Hosting",
+      "button": "PlaceHolder"
+    }
+  },
+  "modsModal": {
+    "title": "Mods",
+    "tabs": {
+      "discover": "Discover",
+      "installed": "Installed",
+      "profiles": "Profiles"
+    },
+    "searchPlaceholder": "Search mods...",
+    "openModsFolder": "Open Mods Folder",
+    "noModsFound": "No mods found.",
+    "installedMods": "Installed Mods",
+    "noInstalledModsFound": "No installed mods found.",
+    "profileMods": "Profile Mods",
+    "noInstalledModsToSelect": "No installed mods to select.",
+    "sort": {
+      "relevance": "Relevance",
+      "popularity": "Popularity",
+      "latestUpdate": "Latest update",
+      "creationDate": "Creation date",
+      "totalDownloads": "Total downloads",
+      "az": "A-Z"
+    },
+    "details": {
+      "loadingDetails": "Loading details...",
+      "downloads": "{{value}} downloads",
+      "created": "Created {{date}}",
+      "updated": "Updated {{date}}",
+      "updatedShort": "Updated {{date}}",
+      "description": "Description",
+      "loadingDescription": "Loading description...",
+      "noDescription": "No description.",
+      "files": "Files",
+      "loadingFiles": "Loading files...",
+      "noFilesReturned": "No files returned.",
+      "selectModForDetails": "Select a mod to view details.",
+      "installThisFile": "Install this file",
+      "results": "{{value}} results",
+      "loaded": "{{loaded}} loaded",
+      "loadedOf": "{{loaded}} / {{total}} loaded"
+    },
+    "status": {
+      "installing": "Installing...",
+      "downloading": "Downloading...",
+      "downloadingPct": "Downloading... {{pct}}%",
+      "downloadingKb": "Downloading... {{kb}} KB",
+      "loading": "Loading...",
+      "saving": "Saving...",
+      "unknownError": "Unknown error"
+    },
+    "releaseType": {
+      "stable": "Stable",
+      "beta": "Beta",
+      "alpha": "Alpha"
+    },
+    "installed": {
+      "enableAll": "Enable All",
+      "disableAll": "Disable All",
+      "openFolder": "Open Folder"
+    },
+    "profiles": {
+      "title": "Profiles",
+      "namePlaceholder": "Profile name...",
+      "noProfilesYet": "No profiles yet.",
+      "selectedCount": "Selected: {{count}}",
+      "currentlyEnabled": "Currently enabled",
+      "currentlyDisabled": "Currently disabled",
+      "notInstalled": "Not installed",
+      "install": "Install",
+      "tip": "Tip: save a profile, then apply it.",
+      "share": {
+        "title": "Share mod pack",
+        "export": "Export",
+        "copy": "Copy code",
+        "import": "Import from clipboard",
+        "codePlaceholder": "Your BLMP: code will appear here...",
+        "exportReady": "Code generated. You can copy it now.",
+        "copied": "Copied to clipboard.",
+        "invalidFormat": "Invalid format. Expected a BLMP: code in your clipboard.",
+        "importFailed": "Import failed.",
+        "importSomeFailed": "Some mods failed to download ({{count}}).",
+        "previewTitle": "Import mod pack",
+        "previewSummary": "You are about to import profile \"{{name}}\" ({{count}} mods). Game version: {{gameVersion}}",
+        "previewMods": "Mods ({{count}}):",
+        "previewNoMods": "No mods in this pack.",
+        "continue": "Continue",
+        "importing": "Importing {{current}}/{{total}}: {{name}}",
+        "importingPct": "Importing {{current}}/{{total}}: {{name}} ({{pct}}%)",
+        "importDone": "Import finished. Profile \"{{profile}}\" created with {{count}} mods.",
+        "importDoneManual": "Import finished. Profile \"{{profile}}\" created with {{count}} mods. Manual mods: {{manual}}.",
+        "integrityTitle": "Integrity warning",
+        "integrityMismatch": "The downloaded file for \"{{name}}\" does not match the expected hash.",
+        "integrityExpected": "Expected: {{hash}}",
+        "integrityGot": "Got: {{hash}}"
+      }
+    },
+    "actions": {
+      "install": "Install",
+      "installed": "Installed",
+      "update": "Update"
+    },
+    "countMods": "{{count}} mods"
+  },
+  "progress": {
+    "phases": {
+      "pwrDownload": "Downloading...",
+      "patching": "Extracting...",
+      "onlinePatch": "Patching Online System",
+      "fixDownload": "Downloading Fix...",
+      "fixExtract": "Patching Fix...",
+      "jreDownload": "Downloading JRE...",
+      "jreExtract": "Extracting JRE..."
+    }
+  },
+  "launcherUpdate": {
+    "title": "Update available",
+    "description": "A new version of Butter Launcher is available.",
+    "subtitleCurrent": "Current: v{{version}}",
+    "subtitleLatest": "Latest: v{{version}}",
+    "released": "Released: {{date}}",
+    "whatsNew": "What’s new",
+    "noChangelog": "No changelog provided.",
+    "dontRemindAgain": "Don’t remind me again",
+    "notNow": "Not now",
+    "update": "Update"
+  },
+  "settings": {
+    "title": "SYSTEM SETTINGS",
+    "teamName": "Butter Launcher Team",
+    "madeBy": "Made by",
+    "language": {
+      "label": "Language",
+      "english": "English",
+      "spanish": "Spanish"
+    },
+    "gameDirectory": {
+      "label": "Game Directory",
+      "openFolder": "Open Folder"
+    },
+    "downloadDirectory": {
+      "label": "Download Directory",
+      "change": "Change",
+      "selecting": "Selecting...",
+      "loading": "(loading...)"
+    },
+    "customUUID": {
+      "label": "Custom UUID",
+      "placeholder": "Auto generated if empty",
+      "usesAuto": "Uses automatic UUID generation",
+      "invalid": "Invalid UUID format",
+      "saved": "Saved: {{uuid}}"
+    },
+    "discordRPC": "Discord RPC",
+    "startupSound": "Startup sound",
+    "steamDeck": {
+      "label": "SteamDeck mode",
+      "applying": "Applying fix...",
+      "restoring": "Restoring...",
+      "failed": "Failed. Check logs.",
+      "linuxOnly": "Linux/Steam Deck only",
+      "hintLinux": "Replaces bundled libzstd.so with system libzstd.so.1",
+      "hintNonLinux": "Only available on Linux/Steam Deck",
+      "tooltipLinux": "Fixes glibc 2.41+ crash by symlinking libzstd.so to the system version"
+    },
+    "onlinePatch": {
+      "label": "Online Patch",
+      "removeButton": "Remove current online patch",
+      "description": "Restores the original client/server and deletes patch artifacts.",
+      "title": "Remove Online Patch",
+      "confirm": "Are you sure you want to remove the Online Patch from \"{{version}}\"?\n\nThis will restore the original client/server and delete patched artifacts.",
+      "confirmFallback": "Are you sure you want to remove the Online Patch from the selected version?",
+      "requireGameDir": "Select the game folder first",
+      "requireVersion": "Select a version first",
+      "requireInstalled": "Install the selected version first",
+      "requireGameClosed": "Close the game first",
+      "checkingState": "Checking patch status...",
+      "requireEnabled": "This build has no online patch to remove",
+      "hintEnableToRemove": "Enable the online patch to remove it.",
+      "hintCloseGame": "Close the game to remove the online patch.",
+      "inProgress": "Operation in progress"
+    },
+    "credits": {
+      "label": "Credits",
+      "onlineFix": "Online Fix",
+      "systemLauncher": "System Launcher",
+      "designLauncher": "Design Launcher"
+    },
+    "updates": {
+      "check": "CHECK FOR UPDATES",
+      "checking": "CHECKING..."
+    },
+    "logout": "LOGOUT"
+  }
+}

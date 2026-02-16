@@ -42,7 +42,7 @@ jobs:
           git tag v${{ steps.get_version.outputs.VERSION }}
           git push origin v${{ steps.get_version.outputs.VERSION }}
 
-        # 2. Build and publish for each OS
+  # 2. Build and publish for each OS
   build:
     needs: prepare-release
     if: needs.prepare-release.outputs.TAG_EXISTS == 'false'
@@ -75,5 +75,9 @@ jobs:
 
       - name: Build & Publish (Electron Builder)
         env:
+          # Token de GitHub para poder subir los releases
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # AQUÍ ESTÁ LA MAGIA: Inyectamos tu clave secreta
+          # Electron/Webpack/Vite la leerán durante el build y la "quemarán" dentro del .exe
+          LAUNCHER_SECRET_KEY: ${{ secrets.LAUNCHER_SECRET_KEY }}
         run: npm run release

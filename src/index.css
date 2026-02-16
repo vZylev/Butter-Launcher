@@ -1,6 +1,32 @@
 @import "tailwindcss";
 
+/* CSS: because fighting the cascade builds character. */
+
 @theme {
+  @keyframes chroma-shift {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  @keyframes hue-slow {
+    0% {
+      filter: hue-rotate(-12deg);
+    }
+    50% {
+      filter: hue-rotate(12deg);
+    }
+    100% {
+      filter: hue-rotate(-12deg);
+    }
+  }
+
   @keyframes loading-horiz {
     from {
       transform: translateX(-100%) scaleX(0.6);
@@ -9,7 +35,14 @@
       transform: translateX(100%) scaleX(0.3);
     }
   }
+
+  --animate-chroma-shift: chroma-shift 2.2s ease-in-out infinite;
+  --animate-hue-slow: hue-slow 3.8s ease-in-out infinite;
   --animate-loading-horiz: loading-horiz 1.3s ease-in-out infinite;
+}
+
+.bg-chroma-animated {
+  background-size: 200% 100%;
 }
 
 * {
@@ -20,6 +53,32 @@
 body::-webkit-scrollbar {
   width: 0px;
   background: transparent;
+}
+
+/* Dark scrollbar utility (opt-in per element) */
+.dark-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.65) rgba(255, 255, 255, 0.10);
+}
+
+.dark-scrollbar::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+.dark-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: 999px;
+}
+
+.dark-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.60);
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.10);
+}
+
+.dark-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.75);
 }
 
 #frame {
@@ -81,6 +140,34 @@ body::-webkit-scrollbar {
   }
 }
 
+@keyframes softGlowStrong {
+  0%,
+  100% {
+    box-shadow:
+      0 10px 30px rgba(0, 0, 0, 0.35),
+      0 0 0 rgba(96, 165, 250, 0);
+  }
+  50% {
+    box-shadow:
+      0 10px 30px rgba(0, 0, 0, 0.35),
+      0 0 28px rgba(96, 165, 250, 0.26);
+  }
+}
+
+@keyframes tinyGlow {
+  0%,
+  100% {
+    filter:
+      drop-shadow(0 0 6px rgba(96, 165, 250, 0.10))
+      drop-shadow(0 0 14px rgba(96, 165, 250, 0.06));
+  }
+  55% {
+    filter:
+      drop-shadow(0 0 18px rgba(96, 165, 250, 0.30))
+      drop-shadow(0 0 36px rgba(96, 165, 250, 0.14));
+  }
+}
+
 .animate-fadeIn {
   animation: fadeIn 0.2s ease-out;
 }
@@ -95,6 +182,319 @@ body::-webkit-scrollbar {
 
 .animate-softGlow {
   animation: softGlow 2.6s ease-in-out infinite;
+}
+
+.animate-softGlowStrong {
+  animation: softGlowStrong 2.6s ease-in-out infinite;
+}
+
+.animate-tinyGlow {
+  animation: tinyGlow 2.2s ease-in-out infinite;
+  will-change: filter;
+}
+
+@keyframes splash-aurora {
+  0% {
+    background-position: 0% 50%;
+    filter: hue-rotate(-10deg);
+  }
+  50% {
+    background-position: 100% 50%;
+    filter: hue-rotate(10deg);
+  }
+  100% {
+    background-position: 0% 50%;
+    filter: hue-rotate(-10deg);
+  }
+}
+
+@keyframes splash-ring-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes splash-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+    filter: blur(2px);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes splash-scan {
+  0% {
+    transform: translateX(-120%) scaleX(0.65);
+    opacity: 0.4;
+  }
+  45% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(120%) scaleX(0.35);
+    opacity: 0.6;
+  }
+}
+
+.splash-root {
+  background: rgba(20, 24, 36, 1);
+}
+
+.splash-vignette {
+  background:
+    radial-gradient(900px 520px at 50% 35%, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0) 58%),
+    radial-gradient(900px 520px at 50% 70%, rgba(34, 211, 238, 0.10) 0%, rgba(34, 211, 238, 0) 55%),
+    radial-gradient(1200px 700px at 50% 50%, rgba(0, 0, 0, 0) 35%, rgba(0, 0, 0, 0.75) 100%);
+}
+
+.splash-aurora {
+  background:
+    linear-gradient(120deg, rgba(59, 130, 246, 0.18), rgba(34, 211, 238, 0.12), rgba(59, 130, 246, 0.18));
+  background-size: 220% 220%;
+  animation: splash-aurora 6.5s ease-in-out infinite;
+  mix-blend-mode: screen;
+  opacity: 0.65;
+}
+
+.splash-title {
+  background: linear-gradient(90deg, rgba(59, 130, 246, 1), rgba(34, 211, 238, 1), rgba(59, 130, 246, 1));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  background-size: 200% 100%;
+  animation: chroma-shift 2.2s ease-in-out infinite;
+}
+
+.splash-logo {
+  animation: splash-pop 520ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+  transform:
+    scale(calc(1 + (var(--splash-beat, 0) * 0.05)));
+}
+
+.splash-ring {
+  background:
+    conic-gradient(
+      from 180deg,
+      rgba(59, 130, 246, 0.0) 0deg,
+      rgba(59, 130, 246, 0.55) 55deg,
+      rgba(34, 211, 238, 0.30) 130deg,
+      rgba(59, 130, 246, 0.0) 220deg,
+      rgba(34, 211, 238, 0.45) 280deg,
+      rgba(59, 130, 246, 0.0) 360deg
+    );
+  filter: blur(0.2px);
+  opacity: 0.85;
+  animation: splash-ring-spin 2.4s linear infinite;
+  transform: scale(calc(1 + (var(--splash-beat, 0) * 0.08)));
+}
+
+.splash-ring2 {
+  inset: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow:
+    0 0 0 1px rgba(59, 130, 246, 0.12),
+    0 0 28px rgba(34, 211, 238, 0.10);
+  opacity: 0.85;
+  animation: splash-ring-spin 5.6s linear infinite reverse;
+  transform: scale(calc(1 + (var(--splash-beat, 0) * 0.04)));
+}
+
+.splash-glow {
+  inset: 22px;
+  background:
+    radial-gradient(circle at 40% 35%, rgba(34, 211, 238, 0.20), rgba(34, 211, 238, 0.0) 60%),
+    radial-gradient(circle at 60% 70%, rgba(59, 130, 246, 0.18), rgba(59, 130, 246, 0.0) 62%);
+  opacity: 0.85;
+  filter:
+    drop-shadow(0 0 18px rgba(34, 211, 238, 0.14))
+    drop-shadow(0 0 26px rgba(59, 130, 246, 0.12));
+  transform: scale(calc(1 + (var(--splash-beat, 0) * 0.06)));
+}
+
+.splash-bar {
+  width: 100%;
+  background:
+    linear-gradient(90deg, rgba(59, 130, 246, 0.0), rgba(59, 130, 246, 0.95), rgba(34, 211, 238, 0.95), rgba(59, 130, 246, 0.0));
+  background-size: 200% 100%;
+  animation:
+    splash-scan 1.25s ease-in-out infinite;
+  transform: translateX(-50%);
+}
+
+@keyframes magd-easter {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.78) rotate(0deg);
+    filter: blur(2px);
+  }
+  14% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+    filter: blur(0);
+  }
+  70% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+    filter: blur(0);
+  }
+  74% {
+    opacity: 1;
+    transform: translate3d(-38vw, -26vh, 0) scale(0.92) rotate(260deg);
+  }
+  78% {
+    opacity: 1;
+    transform: translate3d(36vw, -22vh, 0) scale(1.02) rotate(540deg);
+  }
+  82% {
+    opacity: 1;
+    transform: translate3d(30vw, 22vh, 0) scale(0.95) rotate(820deg);
+  }
+  86% {
+    opacity: 1;
+    transform: translate3d(-34vw, 24vh, 0) scale(1.03) rotate(1100deg);
+  }
+  90% {
+    opacity: 1;
+    transform: translate3d(0, -10vh, 0) scale(0.98) rotate(1320deg);
+  }
+  94% {
+    opacity: 1;
+    transform: translate3d(0, 8vh, 0) scale(1.02) rotate(1460deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(1) rotate(1600deg);
+    filter: blur(0);
+  }
+}
+
+.magd-easter {
+  animation: magd-easter 6s ease-out forwards;
+  will-change: transform, opacity, filter;
+}
+
+@keyframes matcha-intro-dock {
+  0% {
+    opacity: 0;
+    left: 50%;
+    top: 58%;
+    width: 72px;
+    height: 72px;
+    transform: translate(-50%, -50%) scale(2.6) rotate(-10deg);
+    filter: blur(1px);
+  }
+  10% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(2.6) rotate(10deg);
+  }
+  38% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(2.55) rotate(-6deg);
+    filter: blur(0);
+  }
+  55% {
+    opacity: 1;
+    left: 50%;
+    top: 58%;
+    width: 72px;
+    height: 72px;
+    transform: translate(-50%, -50%) scale(2.45) rotate(0deg);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    left: 22px;
+    top: 22px;
+    width: 28px;
+    height: 28px;
+    transform: translate(0, 0) scale(1) rotate(0deg);
+    filter: blur(0);
+  }
+}
+
+@keyframes friends-menu-in {
+  from {
+    transform: translateY(-4px) scale(0.985);
+  }
+  to {
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-friendsMenuIn {
+  animation: friends-menu-in 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform;
+}
+
+@keyframes matcha-intro-spark {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.65);
+    filter: blur(1px);
+  }
+  28% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.1);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.45);
+    filter: blur(0);
+  }
+}
+
+@keyframes matcha-intro-text {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.matcha-intro-dock {
+  position: absolute;
+  animation: matcha-intro-dock 1.55s cubic-bezier(0.2, 0.9, 0.2, 1) both;
+  will-change: transform, opacity, left, top, width, height, filter;
+}
+
+.matcha-intro-text {
+  opacity: 0;
+  animation: matcha-intro-text 520ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+  will-change: transform, opacity, filter;
+}
+
+.matcha-intro-spark {
+  position: absolute;
+  left: 22px;
+  top: 22px;
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.45) 0%, rgba(34, 211, 238, 0.20) 35%, rgba(255, 255, 255, 0) 70%);
+  animation: matcha-intro-spark 420ms ease-out both;
+  mix-blend-mode: screen;
+  will-change: transform, opacity, filter;
 }
 
 @keyframes settings-in {
@@ -125,4 +525,58 @@ body::-webkit-scrollbar {
 
 .animate-settings-out {
   animation: settings-out 160ms cubic-bezier(0.55, 0, 1, 0.45);
+}
+
+/* Crystal / Frutiger-aero-ish glass backdrop (light tint, low blur, glossy highlights) */
+/* Because nothing says “modern UI” like faking glass in CSS. */
+.glass-backdrop {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px) saturate(1.45);
+  isolation: isolate;
+}
+
+.glass-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  /* A glossy top sheen, to convince your eyes this is “premium”. */
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.14) 0%,
+      rgba(255, 255, 255, 0.06) 22%,
+      rgba(255, 255, 255, 0.02) 55%,
+      rgba(255, 255, 255, 0.08) 100%
+    );
+  opacity: 0.55;
+}
+
+.glass-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  /* Random highlight blobs: scientifically proven to look “crystalozo”. */
+  background:
+    radial-gradient(
+      900px 420px at 18% 12%,
+      rgba(255, 255, 255, 0.18) 0%,
+      rgba(255, 255, 255, 0.06) 22%,
+      rgba(255, 255, 255, 0) 60%
+    ),
+    radial-gradient(
+      700px 420px at 82% 88%,
+      rgba(255, 255, 255, 0.10) 0%,
+      rgba(255, 255, 255, 0) 58%
+    );
+  opacity: 0.45;
+}
+
+/* Keep all direct children above the sheen layers */
+.glass-backdrop > * {
+  position: relative;
+  z-index: 1;
 }

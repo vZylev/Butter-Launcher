@@ -1,5 +1,22 @@
 /// <reference types="vite/client" />
 
+// Ambient types: the magical scroll that makes TypeScript stop screaming.
+
+declare module "*.ogg" {
+  const src: string;
+  export default src;
+}
+
+declare module "*.mp3" {
+  const src: string;
+  export default src;
+}
+
+declare module "*.wav" {
+  const src: string;
+  export default src;
+}
+
 interface ImportMetaEnv {
   readonly VITE_NEWS_URL?: string;
 }
@@ -51,6 +68,7 @@ type VersionsManifestRoot = {
   last_updated: string;
   latest_release_id: number;
   latest_prerelease_id: number;
+  emergency_mode?: boolean;
   versions: Record<string, VersionManifest>;
   pre_releases: Record<string, VersionManifest>;
 };
@@ -60,4 +78,13 @@ type InstallProgress = {
   percent: number;
   total?: number;
   current?: number;
+  stepIndex?: number;
+  stepTotal?: number;
 };
+
+// Electron renderer: allow using <webview> in TSX.
+declare namespace JSX {
+  interface IntrinsicElements {
+    webview: any;
+  }
+}

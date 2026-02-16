@@ -1,5 +1,7 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { IconX } from "@tabler/icons-react";
+import { useTranslation } from "react-i18next";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -15,16 +17,24 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   open,
   title,
   message,
-  confirmText = "Confirm",
-  cancelText = "Cancel",
+  confirmText,
+  cancelText,
   onConfirm,
   onCancel,
 }) => {
+  const { t } = useTranslation();
+  const resolvedConfirmText = confirmText ?? t("common.confirm");
+  const resolvedCancelText = cancelText ?? t("common.cancel");
+
   if (!open) return null;
 
-  return (
+  // Portal to <body> so this modal reliably overlays even when opened
+  // from within another modal that uses transforms/filters.
+  if (typeof document === "undefined" || !document.body) return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md animate-fade-in"
+      className="fixed inset-0 z-[1000] flex items-center justify-center glass-backdrop animate-fadeIn"
       onClick={onCancel}
     >
       <div
@@ -38,7 +48,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             type="button"
             className="w-8 h-8 rounded-full bg-[#23293a] text-gray-400 hover:text-white hover:bg-[#2f3650] transition flex items-center justify-center"
             onClick={onCancel}
-            title="Close"
+            title={t("common.close")}
           >
             <IconX size={20} />
           </button>
@@ -56,18 +66,19 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             className="px-4 py-2 rounded-lg border border-[#2a3146] text-gray-300 hover:text-white hover:bg-[#2f3650] transition"
             onClick={onCancel}
           >
-            {cancelText}
+            {resolvedCancelText}
           </button>
           <button
             type="button"
-            className="px-4 py-2 rounded-lg bg-linear-to-r from-[#2563eb] to-[#60a5fa] text-white font-bold hover:scale-[1.02] transition"
+            className="px-4 py-2 rounded-lg bg-linear-to-r from-[#0268D4] to-[#02D4D4] text-white font-bold hover:scale-[1.02] transition"
             onClick={onConfirm}
           >
-            {confirmText}
+            {resolvedConfirmText}
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 

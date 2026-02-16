@@ -1,7 +1,65 @@
 const BASE_URL = "https://game-patches.hytale.com/patches";
 
+// Game version plumbing: mostly string concatenation, occasionally tears.
+
 const VERSION_DETAILS_CACHE_KEY = "versionDetailsCache:v1";
 const VERSION_DETAILS_META_KEY = "versionDetailsMeta:v1";
+
+let lastEmergencyMode = false;
+export const getEmergencyMode = () => lastEmergencyMode;
+
+let lastVersionDetails: VersionsManifestRoot | null = null;
+
+export const getManifestInfoForBuild = (
+  versionType: VersionType,
+  buildIndex: number,
+): Partial<GameVersion> | null => {
+  const details = lastVersionDetails ?? loadCachedVersionDetails();
+  if (!details) return null;
+
+  const namesMap = versionType === "release" ? details.versions : details.pre_releases;
+  const entry = (namesMap as any)?.[buildIndex];
+  if (!entry) return null;
+
+  const os = useSystemOS();
+  const detailsEntry = entry?.[os];
+
+  const listedName = detailsEntry?.name;
+  const build_name =
+    typeof listedName === "string" && listedName.trim().length > 0
+      ? listedName
+      : `Build-${buildIndex}`;
+
+  const patch_url = typeof (detailsEntry as any)?.url === "string" ? (detailsEntry as any).url : undefined;
+  const patch_hash = typeof (detailsEntry as any)?.hash === "string" ? (detailsEntry as any).hash : undefined;
+  const original_url = typeof (detailsEntry as any)?.original === "string" ? (detailsEntry as any).original : undefined;
+  const proper_patch = typeof (detailsEntry as any)?.proper_patch === "boolean" ? (detailsEntry as any).proper_patch : undefined;
+  const patch_note = typeof (detailsEntry as any)?.patch_note === "string" ? (detailsEntry as any).patch_note : undefined;
+
+  const server_url =
+    typeof (entry as any)?.server_url === "string"
+      ? (entry as any).server_url
+      : typeof (entry as any)?.server === "string"
+        ? (entry as any).server
+        : undefined;
+  const unserver_url =
+    typeof (entry as any)?.unserver_url === "string"
+      ? (entry as any).unserver_url
+      : typeof (entry as any)?.unserver === "string"
+        ? (entry as any).unserver
+        : undefined;
+
+  return {
+    build_name,
+    patch_url: patch_url && patch_hash ? patch_url : undefined,
+    patch_hash: patch_url && patch_hash ? patch_hash : undefined,
+    original_url: patch_url && patch_hash ? original_url : undefined,
+    patch_note: patch_url && patch_hash ? patch_note : undefined,
+    proper_patch: patch_url && patch_hash ? proper_patch : undefined,
+    server_url,
+    unserver_url,
+  };
+};
 
 const useSystemOS = () => {
   if (window.config.OS === "win32") return "windows";
@@ -20,6 +78,16 @@ const buildPwrUrl = (
   versionType: VersionType,
   buildIndex: number,
 ) => `${BASE_URL}/${os}/${arch}/${versionType}/0/${buildIndex}.pwr`;
+
+export const buildDifferentialPwrUrl = (
+  versionType: VersionType,
+  fromBuildIndex: number,
+  toBuildIndex: number,
+): string => {
+  const os = useSystemOS();
+  const arch = useSystemArch(os);
+  return `${BASE_URL}/${os}/${arch}/${versionType}/${fromBuildIndex}/${toBuildIndex}.pwr`;
+};
 
 const formatYMD = (d: Date) => {
   const y = d.getFullYear();
@@ -82,51 +150,16 @@ const fetchVersionDetailsIfOnline =
     }
   };
 
-const headPwrExists = async (
-  versionType: VersionType,
-  buildIndex: number,
-): Promise<boolean> => {
-  const os = useSystemOS();
-  const arch = useSystemArch(os);
-  const url = buildPwrUrl(os, arch, versionType, buildIndex);
-  try {
-    const status = await window.ipcRenderer.invoke("fetch:head", url);
-    return status === 200;
-  } catch {
-    return false;
-  }
-};
 
-const probeBeyondLatest = async (
-  versionType: VersionType,
-  startFrom: number,
-  maxExtra: number,
-): Promise<number[]> => {
-  const found: number[] = [];
-  let current = startFrom;
-  for (let i = 0; i < maxExtra; i++) {
-    const ok = await headPwrExists(versionType, current);
-    if (!ok) break;
-    found.push(current);
-    current++;
-  }
-  return found;
-};
-
-const probeFromBuild1 = async (
-  versionType: VersionType,
-  maxScan: number,
-): Promise<number[]> => {
-  const found: number[] = [];
-  for (let buildIndex = 1; buildIndex <= maxScan; buildIndex++) {
-    const ok = await headPwrExists(versionType, buildIndex);
-    if (!ok) break;
-    found.push(buildIndex);
-  }
-  return found;
+const normalizeLatestId = (manifestLatestId: unknown): number | null => {
+  const latestId =
+    typeof manifestLatestId === "number" && Number.isFinite(manifestLatestId)
+      ? manifestLatestId
+      : NaN;
+  return Number.isFinite(latestId) && latestId > 0 ? latestId : null;
 };
 export const getGameVersions = async (versionType: VersionType = "release") => {
-  // 1) Fetch the official versions list (your provided API format). If offline, use cache.
+  // Step 1: ask the manifest nicely. If it ghosts us, we use cache and call it “resilience”.
   const today = startOfToday();
   const details =
     (await fetchVersionDetailsIfOnline()) ?? loadCachedVersionDetails();
@@ -135,32 +168,13 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
     saveCachedVersionDetails(details, { fetchedAt: formatYMD(today) });
   }
 
-  // Fallback: if the versions list is unavailable/incompatible (maintenance, schema change, etc)
-  // probe PWRs from build-1 upwards so new users still see installable builds.
-  if (!details) {
-    const os = useSystemOS();
-    const arch = useSystemArch(os);
+  // No manifest, no versions. We stopped poking game-patches with sticks on purpose.
+  if (!details) return [];
 
-    const maxScan = 500; // safety cap
-    const ids = await probeFromBuild1(versionType, maxScan);
-    if (!ids.length) return [];
+  // Manifest global gate.
+  lastEmergencyMode = !!(details as any)?.emergency_mode;
+  lastVersionDetails = details;
 
-    const versions: GameVersion[] = ids.map((buildIndex) => ({
-      url: buildPwrUrl(os, arch, versionType, buildIndex),
-      type: versionType,
-      build_index: buildIndex,
-      build_name: `Build-${buildIndex}`,
-      isLatest: false,
-    }));
-
-    const actualLatest = Math.max(...versions.map((v) => v.build_index));
-    for (const v of versions) v.isLatest = v.build_index === actualLatest;
-
-    versions.sort((a, b) => b.build_index - a.build_index);
-    return versions;
-  }
-
-  parseISODateOnly(details.last_updated);
   const latestId =
     versionType === "release"
       ? details.latest_release_id
@@ -169,43 +183,39 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
   const namesMap =
     versionType === "release" ? details.versions : details.pre_releases;
 
-  // 2) Build candidate IDs from list.
-  let ids = Object.keys(namesMap || {})
+  // Step 2: turn map keys into numbers and pretend this is a stable API contract.
+  const ids = Object.keys(namesMap || {})
     .map((k) => parseInt(k, 10))
     .filter((n) => Number.isFinite(n) && n > 0)
     .sort((a, b) => a - b);
 
-  // Ensure latestId is included even if not present in map.
-  if (typeof latestId === "number" && latestId > 0 && !ids.includes(latestId)) {
-    ids.push(latestId);
+  // Ensure “latest” exists even if it doesn't have a name. We'll slap on Build-<id> and move on.
+  const normalizedLatestId = normalizeLatestId(latestId);
+  if (normalizedLatestId && !ids.includes(normalizedLatestId)) {
+    ids.push(normalizedLatestId);
     ids.sort((a, b) => a - b);
   }
-
-  // 3) HEAD-check each listed build to ensure it exists.
-  const existingListed: number[] = [];
-  for (const id of ids) {
-    const ok = await headPwrExists(versionType, id);
-    if (ok) existingListed.push(id);
-  }
-
-  // 4) Probe latest+1, latest+2, ... until it stops being 500.
-  // This catches new builds even when the versions list hasn't updated yet.
-  const shouldProbe = typeof latestId === "number" && latestId > 0;
-  const maxExtra = 100; // safety cap
-  const extras = shouldProbe
-    ? await probeBeyondLatest(versionType, latestId + 1, maxExtra)
-    : [];
-
-  const finalIds = Array.from(new Set([...existingListed, ...extras])).sort(
-    (a, b) => a - b,
-  );
 
   const os = useSystemOS();
   const arch = useSystemArch(os);
 
-  const versions: GameVersion[] = finalIds.map((buildIndex) => {
+  const effectiveLatestId = normalizedLatestId ?? (ids.length ? Math.max(...ids) : null);
+
+  const versions: GameVersion[] = ids
+    .slice()
+    .sort((a, b) => b - a)
+    .map((buildIndex) => {
     const versionEntry = namesMap?.[buildIndex];
     const detailsEntry = versionEntry?.[os];
+
+    // Optional gating: if the manifest provides `available: false`, do not show the build.
+    // If the field is missing, keep the build for backwards compatibility.
+    const availableRaw =
+      (detailsEntry as any)?.available ?? (versionEntry as any)?.available;
+    if (typeof availableRaw === "boolean" && availableRaw === false) {
+      return null;
+    }
+
     const listedName = detailsEntry?.name;
     const build_name =
       typeof listedName === "string" && listedName.trim().length > 0
@@ -252,7 +262,7 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
       type: versionType,
       build_index: buildIndex,
       build_name,
-      isLatest: false,
+      isLatest: !!effectiveLatestId && buildIndex === effectiveLatestId,
       patch_url: patch_url && patch_hash ? patch_url : undefined,
       patch_hash: patch_url && patch_hash ? patch_hash : undefined,
       original_url: patch_url && patch_hash ? original_url : undefined,
@@ -262,18 +272,9 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
       unserver_url: unserver_url,
     };
     return version;
-  });
+    })
+    .filter((v): v is GameVersion => !!v);
 
-  // Mark the actual latest build based on what exists (includes probeBeyondLatest).
-  if (versions.length) {
-    const actualLatest = Math.max(...versions.map((v) => v.build_index));
-    for (const v of versions) {
-      v.isLatest = v.build_index === actualLatest;
-    }
-  }
-
-  // Newest first in UI.
-  versions.sort((a, b) => b.build_index - a.build_index);
   return versions;
 };
 

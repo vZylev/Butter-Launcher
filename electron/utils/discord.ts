@@ -1,6 +1,8 @@
 import { Client, type SetActivity } from "@kostya-main/discord-rpc";
 import { logger } from "./logger";
 
+// Discord RPC: because nothing says "serious launcher" like presence updates.
+
 const dateElapsed = Date.now();
 
 const clientId = "1461691220454543484";
@@ -70,7 +72,10 @@ export const clearActivity = async () => {
   logger.info("Clearing Discord RPC activity");
 
   try {
-    await client.user?.clearActivity();
+    // Depending on timing, client.user may be undefined even if the IPC pipe is open.
+    // Try both surfaces (library versions differ).
+    await Promise.resolve((client.user as any)?.clearActivity?.());
+    await Promise.resolve((client as any)?.clearActivity?.());
   } catch (err: any) {
     logger.error("An error occurred while clearing Discord RPC activity", err);
   }
@@ -82,7 +87,17 @@ export const disconnectRPC = async () => {
 
   // Destroy/close the IPC connection to Discord so presence doesn't linger.
   try {
-    (client as any).destroy?.();
+    await Promise.resolve((client as any).destroy?.());
+
+    // Extra belt-and-suspenders: close underlying transport if exposed.
+    try {
+      (client as any).transport?.close?.();
+    } catch {
+      // ignore
+    }
+
+    // Give Discord a beat to receive the clear message.
+    await new Promise((r) => setTimeout(r, 150));
   } catch (err: any) {
     logger.error("An error occurred while disconnecting Discord RPC", err);
   }

@@ -6,7 +6,19 @@ import {
   useCallback,
   useRef,
 } from "react";
-import { getGameVersions } from "../utils/game";
+import { useTranslation } from "react-i18next";
+import {
+  buildDifferentialPwrUrl,
+  getEmergencyMode,
+  getGameVersions,
+  getManifestInfoForBuild,
+} from "../utils/game";
+
+type SmartUpdateInfo = {
+  fromBuildIndex: number;
+  toBuildIndex: number;
+  patchUrl: string;
+};
 
 interface GameContextType {
   gameDir: string | null;
@@ -16,10 +28,13 @@ interface GameContextType {
   setVersionType: (t: VersionType) => void;
   availableVersions: GameVersion[];
   setAvailableVersions: (versions: GameVersion[]) => void;
+  hasBuild1Installed: boolean;
   selectedVersion: number;
   setSelectedVersion: (idx: number) => void;
   updateAvailable: boolean;
   updateDismissed: boolean;
+  smartUpdate: SmartUpdateInfo | null;
+  checkingSmartUpdate: boolean;
   dismissUpdateForNow: () => void;
   restoreUpdatePrompt: () => void;
   installing: boolean;
@@ -31,9 +46,12 @@ interface GameContextType {
   patchProgress: InstallProgress;
   pendingOnlinePatch: boolean;
   checkingUpdates: boolean;
+  emergencyMode: boolean;
   launching: boolean;
   gameLaunched: boolean;
+  runningVersion: GameVersion | null;
   installGame: (version: GameVersion) => void;
+  smartInstallGame: (version: GameVersion, fromBuildIndex: number) => void;
   launchGame: (version: GameVersion, username: string) => void;
   checkForUpdates: (reason?: "startup" | "manual") => Promise<void>;
   startPendingOnlinePatch: () => void;
@@ -47,6 +65,12 @@ export const GameContextProvider = ({
 }: {
   children: React.ReactNode;
 }) => {
+  const { t } = useTranslation();
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
+
   const [gameDir, setGameDir] = useState<string | null>(null);
 
   const [offlineMode, setOfflineMode] = useState(false);
@@ -65,6 +89,9 @@ export const GameContextProvider = ({
   const [updateDismissed, setUpdateDismissed] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
 
+  const [smartUpdate, setSmartUpdate] = useState<SmartUpdateInfo | null>(null);
+  const [checkingSmartUpdate, setCheckingSmartUpdate] = useState(false);
+
   const [installing, setInstalling] = useState(false);
   const [installingVersion, setInstallingVersion] = useState<GameVersion | null>(
     null,
@@ -82,8 +109,10 @@ export const GameContextProvider = ({
     percent: -1,
   });
   const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [emergencyMode, setEmergencyMode] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [gameLaunched, setGameLaunched] = useState(false);
+  const [runningVersion, setRunningVersion] = useState<GameVersion | null>(null);
 
   useEffect(() => {
     releaseVersionsRef.current = releaseVersions;
@@ -96,6 +125,17 @@ export const GameContextProvider = ({
   const availableVersions =
     versionType === "release" ? releaseVersions : preReleaseVersions;
   const selectedVersion = selectedIndexByType[versionType] ?? 0;
+
+  const hasReleaseBuild1Installed = releaseVersions.some(
+    (v) => v.installed && v.build_index === 1,
+  );
+  const hasPreReleaseBuild1Installed = preReleaseVersions.some(
+    (v) => v.installed && v.build_index === 1,
+  );
+
+  // No-Premium gating should be per-channel: release Build-1 doesn't unlock pre-releases.
+  const hasBuild1Installed =
+    versionType === "release" ? hasReleaseBuild1Installed : hasPreReleaseBuild1Installed;
 
   const setSelectedVersion = useCallback(
     (idx: number) => {
@@ -147,7 +187,26 @@ export const GameContextProvider = ({
       // because the universe hates stateless ui
       setInstallingVersion(version);
       setCancelingBuildDownload(false);
-      window.ipcRenderer.send("install-game", gameDir, version);
+      const accountType = (localStorage.getItem("accountType") || "").trim();
+      window.ipcRenderer.send("install-game", gameDir, version, accountType);
+    },
+    [gameDir],
+  );
+
+  const smartInstallGame = useCallback(
+    (version: GameVersion, fromBuildIndex: number) => {
+      if (!gameDir) return;
+      if (!Number.isFinite(fromBuildIndex) || fromBuildIndex <= 0) return;
+      setInstallingVersion(version);
+      setCancelingBuildDownload(false);
+      const accountType = (localStorage.getItem("accountType") || "").trim();
+      window.ipcRenderer.send(
+        "install-game-smart",
+        gameDir,
+        version,
+        fromBuildIndex,
+        accountType,
+      );
     },
     [gameDir],
   );
@@ -169,6 +228,7 @@ export const GameContextProvider = ({
     (version: GameVersion, username: string) => {
       if (!gameDir || !version.installed) return;
       setLaunching(true);
+      setRunningVersion(version);
 
       // Persist last executed version so it becomes the default selection next launch.
       try {
@@ -188,10 +248,12 @@ export const GameContextProvider = ({
       window.ipcRenderer.once("launch-finished", () => {
         setLaunching(false);
         setGameLaunched(false);
+        setRunningVersion(null);
       });
       window.ipcRenderer.once("launch-error", (_, error?: unknown) => {
         setLaunching(false);
         setGameLaunched(false);
+        setRunningVersion(null);
         const payload: any = error;
         const code =
           payload && typeof payload === "object" && typeof payload.code === "number"
@@ -206,6 +268,8 @@ export const GameContextProvider = ({
       const customUUID = (localStorage.getItem("customUUID") || "").trim();
       const uuidArg = customUUID.length ? customUUID : null;
 
+      const accountType = (localStorage.getItem("accountType") || "").trim();
+
       window.ipcRenderer.send(
         "launch-game",
         gameDir,
@@ -213,6 +277,7 @@ export const GameContextProvider = ({
         username,
         uuidArg,
         offlineMode,
+        accountType,
       );
     },
     [gameDir, offlineMode],
@@ -264,6 +329,50 @@ export const GameContextProvider = ({
     [],
   );
 
+  const mergeRemoteWithInstalled = useCallback(
+    (
+      remote: GameVersion[],
+      installed: Array<{
+        type: VersionType;
+        build_index: number;
+        build_name?: string;
+        isLatest?: boolean;
+      }>,
+      t: VersionType,
+    ): GameVersion[] => {
+      const byIndex = new Map<number, GameVersion>();
+      for (const v of remote) {
+        if (!v || !Number.isFinite(v.build_index)) continue;
+        byIndex.set(v.build_index, v);
+      }
+
+      for (const item of installed) {
+        if (item.type !== t) continue;
+        const idx = Number(item.build_index);
+        if (!Number.isFinite(idx) || idx <= 0) continue;
+        if (byIndex.has(idx)) continue;
+
+        const fromManifest = getManifestInfoForBuild(t, idx) ?? {};
+
+        byIndex.set(idx, {
+          type: t,
+          build_index: idx,
+          build_name:
+            (typeof fromManifest.build_name === "string" && fromManifest.build_name.trim())
+              ? (fromManifest.build_name as string)
+              : item.build_name || `Build-${idx}`,
+          isLatest: !!item.isLatest,
+          installed: true,
+          url: "",
+          ...(fromManifest as any),
+        });
+      }
+
+      return Array.from(byIndex.values()).sort((a, b) => b.build_index - a.build_index);
+    },
+    [],
+  );
+
   const checkForUpdates = useCallback(
     async (_reason: "startup" | "manual" = "startup") => {
       if (!gameDir) return;
@@ -283,6 +392,10 @@ export const GameContextProvider = ({
         const isOnline = await checkConnectivity();
         if (!isOnline) {
           setOfflineMode(true);
+          setSmartUpdate(null);
+          setCheckingSmartUpdate(false);
+          // Offline mode already blocks downloads; keep emergency gate disabled here.
+          setEmergencyMode(false);
 
           // Offline Mode: we stop pretending we can reach the internet.
           // Installed builds only. No remote fetches. No drama.
@@ -342,6 +455,9 @@ export const GameContextProvider = ({
           getGameVersions("pre-release"),
         ]);
 
+        // Emergency mode is a manifest-level flag.
+        setEmergencyMode(getEmergencyMode());
+
         // If remote fetch fails, do NOT wipe the list; just refresh installed flags.
         const releaseBase = remoteRelease.length
           ? remoteRelease
@@ -359,10 +475,15 @@ export const GameContextProvider = ({
           installed: isInstalled("pre-release", v.build_index),
         }));
 
-        setReleaseVersions(nextRelease);
-        setPreReleaseVersions(nextPre);
+        // If the manifest omits a build (or it was filtered out) but it's installed locally,
+        // keep showing it in the list.
+        const mergedRelease = mergeRemoteWithInstalled(nextRelease, installed, "release");
+        const mergedPre = mergeRemoteWithInstalled(nextPre, installed, "pre-release");
 
-        const newestInstalledRelease = nextRelease
+        setReleaseVersions(mergedRelease);
+        setPreReleaseVersions(mergedPre);
+
+        const newestInstalledRelease = mergedRelease
           .filter((v) => v.installed)
           .reduce<GameVersion | undefined>((best, v) => {
             if (!best) return v;
@@ -370,12 +491,55 @@ export const GameContextProvider = ({
           }, undefined);
 
         const latestRelease =
-          nextRelease.find((v) => v.isLatest) ?? nextRelease[0];
+          mergedRelease.find((v) => v.isLatest) ?? mergedRelease[0];
         const hasUpdate =
           !!newestInstalledRelease &&
           !!latestRelease &&
           latestRelease.build_index > newestInstalledRelease.build_index;
         setUpdateAvailable(hasUpdate);
+
+        // Smart update detection (release only): if we have an installed release build and a newer latest,
+        // check whether a differential PWR exists at /<from>/<to>.pwr.
+        setSmartUpdate(null);
+        setCheckingSmartUpdate(false);
+        if (
+          hasUpdate &&
+          newestInstalledRelease &&
+          latestRelease &&
+          latestRelease.type === "release"
+        ) {
+          const fromBuildIndex = newestInstalledRelease.build_index;
+          const toBuildIndex = latestRelease.build_index;
+          if (
+            Number.isFinite(fromBuildIndex) &&
+            Number.isFinite(toBuildIndex) &&
+            fromBuildIndex > 0 &&
+            emergencyMode,
+            toBuildIndex > fromBuildIndex
+          ) {
+            setCheckingSmartUpdate(true);
+            try {
+              const patchUrl = buildDifferentialPwrUrl(
+                "release",
+                fromBuildIndex,
+                toBuildIndex,
+              );
+              const status = await window.ipcRenderer.invoke(
+                "fetch:head",
+                patchUrl,
+              );
+              if (status === 200) {
+                setSmartUpdate({ fromBuildIndex, toBuildIndex, patchUrl });
+              } else {
+                setSmartUpdate(null);
+              }
+            } catch {
+              setSmartUpdate(null);
+            } finally {
+              setCheckingSmartUpdate(false);
+            }
+          }
+        }
 
         // Default selection behavior (priority):
         // 1) Last used (persisted) per channel
@@ -459,10 +623,16 @@ export const GameContextProvider = ({
         const now = Date.now();
         const last = lastProgressRef.current;
 
+        const stepsChanged =
+          !!last &&
+          (last.stepIndex !== progress.stepIndex ||
+            last.stepTotal !== progress.stepTotal);
+
         // Never drop phase changes (this was causing the UI to get stuck on "Downloading...").
         const phaseChanged = !last || last.phase !== progress.phase;
         const allowThrough =
           phaseChanged ||
+          stepsChanged ||
           progress.percent === -1 ||
           progress.percent === 100 ||
           !lastUpdateProgress ||
@@ -525,6 +695,10 @@ export const GameContextProvider = ({
     window.ipcRenderer.on("install-started", () => {
       setInstalling(true);
       setCancelingBuildDownload(false);
+
+      // Reset debounce so the first progress event (often step 1/N) always shows.
+      lastUpdateProgress = 0;
+      lastProgressRef.current = null;
     });
     window.ipcRenderer.on("install-finished", (_, version) => {
       setInstalling(false);
@@ -604,7 +778,35 @@ export const GameContextProvider = ({
           : typeof payload === "number"
             ? payload
             : 1000;
+      const message =
+        payload && typeof payload === "object" && typeof payload.message === "string"
+          ? payload.message
+          : null;
+
+      const i18nKey =
+        payload && typeof payload === "object" && typeof payload.i18nKey === "string"
+          ? payload.i18nKey
+          : null;
+      const i18nVars =
+        payload && typeof payload === "object" && payload.i18nVars && typeof payload.i18nVars === "object"
+          ? payload.i18nVars
+          : undefined;
+
       console.error("Install error code:", code);
+      if (i18nKey && i18nKey.trim()) {
+        try {
+          alert(tRef.current(i18nKey, i18nVars as any));
+          return;
+        } catch {
+          // fallback below
+        }
+      }
+
+      if (message && message.trim()) {
+        alert(message);
+        return;
+      }
+
       alert(`Error #${code}`);
     });
 
@@ -663,10 +865,13 @@ export const GameContextProvider = ({
         setVersionType,
         availableVersions,
         setAvailableVersions,
+        hasBuild1Installed,
         selectedVersion,
         setSelectedVersion,
         updateAvailable,
         updateDismissed,
+        smartUpdate,
+        checkingSmartUpdate,
         dismissUpdateForNow,
         restoreUpdatePrompt,
         installing,
@@ -678,9 +883,12 @@ export const GameContextProvider = ({
         patchProgress,
         pendingOnlinePatch: false,
         checkingUpdates,
+        emergencyMode,
         launching,
         gameLaunched,
+        runningVersion,
         installGame,
+        smartInstallGame,
         launchGame,
         checkForUpdates,
         startPendingOnlinePatch: () => {},

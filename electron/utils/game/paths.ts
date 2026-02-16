@@ -104,17 +104,46 @@ export const resolveInstallDir = (baseDir: string, version: GameVersion): string
 // For launching/patching: prefer the existing latest alias if it matches the build.
 // This keeps older "latest" installs launchable even after newer builds appear.
 export const resolveExistingInstallDir = (baseDir: string, version: GameVersion): string => {
+  const directDir = resolveInstallDir(baseDir, version);
+
+  // Prefer the explicit build directory when it exists and looks usable.
+  // This prevents launching the wrong binaries if `game/latest` has a stale/incorrect manifest.
+  try {
+    if (fs.existsSync(directDir)) {
+      const clientDir = path.join(directDir, "Client");
+      const serverDir = path.join(directDir, "Server");
+      const hasClient = fs.existsSync(clientDir);
+      const hasServer = fs.existsSync(serverDir);
+      const manifest = readInstallManifest(directDir);
+      if (hasClient && hasServer && manifest?.build_index === version.build_index) {
+        return directDir;
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // For launching/patching: fall back to the existing latest alias if it matches the build.
+  // This keeps older "latest" installs launchable even after newer builds appear.
   if (version.type === "release") {
     try {
       const latestDir = getLatestDir(baseDir);
       const manifest = readInstallManifest(latestDir);
-      if (manifest?.build_index === version.build_index) return latestDir;
+
+      // Only accept latestDir if it also contains expected folders.
+      if (
+        manifest?.build_index === version.build_index &&
+        fs.existsSync(path.join(latestDir, "Client")) &&
+        fs.existsSync(path.join(latestDir, "Server"))
+      ) {
+        return latestDir;
+      }
     } catch {
       // ignore
     }
   }
 
-  return resolveInstallDir(baseDir, version);
+  return directDir;
 };
 
 const findFirstFileNamed = (

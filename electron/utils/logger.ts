@@ -35,6 +35,32 @@ const logFile = getUniqueLogPath();
  */
 function formatMessage(level: string, ...args: any[]) {
   const timestamp = new Date().toISOString();
+
+  const redactUrlQueryForLogs = (input: string): string => {
+    // Redact query-string parts of http(s) URLs so we don't persist signed tokens in log files.
+    // Only affects logs; callers still use the original URLs for requests.
+    const urlRegex = /https?:\/\/[^\s]+/g;
+    return input.replace(urlRegex, (raw) => {
+      // Some log strings may include trailing punctuation after the URL.
+      // Peel off common trailing chars until we can safely operate.
+      let candidate = raw;
+      let suffix = "";
+      while (candidate.length) {
+        const last = candidate[candidate.length - 1];
+        if (last && ")]}>,.;\"'".includes(last)) {
+          suffix = last + suffix;
+          candidate = candidate.slice(0, -1);
+          continue;
+        }
+        break;
+      }
+
+      const q = candidate.indexOf("?");
+      if (q === -1) return raw;
+      return candidate.slice(0, q) + suffix;
+    });
+  };
+
   const render = (arg: any): string => {
     if (arg instanceof Error) {
       const base = `${arg.name}: ${arg.message}`;
@@ -64,7 +90,8 @@ function formatMessage(level: string, ...args: any[]) {
   };
 
   const message = args.map(render).join(" ");
-  return `[${timestamp}] [${level.toUpperCase()}] ${message}`;
+  const redacted = redactUrlQueryForLogs(message);
+  return `[${timestamp}] [${level.toUpperCase()}] ${redacted}`;
 }
 
 const writeToLog = (msg: string) => {

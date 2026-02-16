@@ -5,6 +5,8 @@ import stream from "node:stream";
 import { promisify } from "util";
 import { BrowserWindow } from "electron";
 import { spawnSync } from "node:child_process";
+
+// Online patcher: if it works, it was an accident (and we should not mention it).
 import {
   migrateLegacyChannelInstallIfNeeded,
   resolveClientPath,
@@ -191,6 +193,22 @@ const unlinkIfExists = (filePath: string) => {
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   } catch {
     // ignore
+  }
+};
+
+const removeDirIfExists = (dirPath: string) => {
+  try {
+    if (!fs.existsSync(dirPath)) return;
+    // Node 14+ (Electron 30+) supports rmSync.
+    fs.rmSync(dirPath, { recursive: true, force: true });
+  } catch {
+    // Best-effort fallback for older runtimes / edge cases.
+    try {
+      // @ts-ignore - best-effort fallback for runtimes where rmSync is unreliable.
+      fs.rmdirSync(dirPath, { recursive: true });
+    } catch {
+      // ignore
+    }
   }
 };
 
@@ -1478,6 +1496,61 @@ export const disableOnlinePatch = async (
   }
 
   return clientResult;
+};
+
+export const removeOnlinePatch = async (
+  gameDir: string,
+  version: GameVersion,
+  win: BrowserWindow,
+  progressChannel: "online-unpatch-progress" = "online-unpatch-progress",
+): Promise<"disabled" | "already-disabled" | "skipped"> => {
+  // 1) Restore original binaries first.
+  const result = await disableOnlinePatch(gameDir, version, win, progressChannel);
+
+  // 2) Then delete patch storage so the launcher treats it as fully removed.
+  const roots = new Set<string>();
+
+  try {
+    const clientPath = getClientPath(gameDir, version);
+    if (fs.existsSync(clientPath)) {
+      roots.add(getPatchPaths(clientPath).root);
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    const serverPath = getServerPath(gameDir, version);
+    if (fs.existsSync(serverPath)) {
+      roots.add(getPatchPaths(serverPath).root);
+    }
+  } catch {
+    // ignore
+  }
+
+  if (roots.size) {
+    win.webContents.send(progressChannel, {
+      phase: "online-unpatch",
+      percent: -1,
+    });
+  }
+
+  for (const root of roots) {
+    // Safety belt: only delete folders that are clearly within our patch namespace.
+    const resolved = path.resolve(root);
+    const marker = `${path.sep}${PATCH_ROOT_DIRNAME}`;
+    if (!resolved.includes(marker) && !resolved.endsWith(marker)) continue;
+    removeDirIfExists(resolved);
+  }
+
+  if (roots.size) {
+    win.webContents.send(progressChannel, {
+      phase: "online-unpatch",
+      percent: 100,
+    });
+  }
+
+  return result;
 };
 
 export const getOnlinePatchState = (

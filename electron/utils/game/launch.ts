@@ -4,10 +4,14 @@ import { join, dirname } from "path";
 import { spawn } from "child_process";
 import fs from "fs";
 import { genUUID } from "./uuid";
-import { installGame } from "./install";
+import { installGame, installGameNoPremiumFull } from "./install";
 import { logger } from "../logger";
 import { getOnlinePatchState } from "./onlinePatch";
-import { fetchAuthTokens } from "./auth";
+import {
+  fetchAuthTokens,
+  fetchPremiumLaunchAuth,
+  fetchPremiumLauncherPrimaryProfile,
+} from "./auth";
 import { resolveExistingInstallDir } from "./paths";
 import { mapErrorToCode } from "../errorCodes";
 
@@ -41,6 +45,7 @@ export const launchGame = async (
   retryCount: number = 0,
   customUUID: string | null = null,
   forceOfflineAuth: boolean = false,
+  accountType: string | null = null,
   callbacks?: {
     onGameSpawned?: () => void;
     onGameExited?: (info: {
@@ -69,7 +74,10 @@ export const launchGame = async (
       server,
       jre,
     });
-    const installResult = await installGame(baseDir, version, win);
+    const isPremium = accountType === "premium";
+    const installResult = isPremium
+      ? await installGame(baseDir, version, win)
+      : await installGameNoPremiumFull(baseDir, version, win);
     if (!installResult) {
       const msg = "Game installation failed";
       logger.error(msg);
@@ -118,10 +126,23 @@ export const launchGame = async (
   };
 
   const uuidToUse = customUUID ? normalizeUuid(customUUID) : null;
-  const finalUuid = uuidToUse ?? genUUID(username);
+  let finalUuid = uuidToUse ?? genUUID(username);
+  let finalUsername = username;
+
+  if (accountType === "premium") {
+    try {
+      const p = await fetchPremiumLauncherPrimaryProfile();
+      finalUsername = p.username;
+      finalUuid = p.uuid;
+    } catch (e) {
+      logger.error("Premium get-launcher-data failed:", e);
+      win.webContents.send("launch-error", { code: mapErrorToCode(e, { area: "auth" }) });
+      return;
+    }
+  }
 
   logger.info(
-    `Using UUID: ${finalUuid} (${customUUID ? "custom" : "generated"})`,
+    `Using UUID: ${finalUuid} (${accountType === "premium" ? "official" : customUUID ? "custom" : "generated"})`,
   );
 
   const args = [
@@ -134,7 +155,7 @@ export const launchGame = async (
     "--uuid",
     finalUuid,
     "--name",
-    username,
+    finalUsername,
   ];
 
   const patchEnabled = getOnlinePatchState(baseDir, version).enabled;
@@ -146,10 +167,12 @@ export const launchGame = async (
   // Compatibility fallback (when proper_patch is missing):
   // - Legacy behavior was Linux/macOS authenticated when patched.
   const useAuthenticated =
-    !forceOfflineAuth &&
-    patchEnabled &&
-    ((hasProperPatchFlag && version.proper_patch === false) ||
-      (!hasProperPatchFlag && process.platform !== "win32"));
+    accountType === "premium"
+      ? !forceOfflineAuth
+      : !forceOfflineAuth &&
+        patchEnabled &&
+        ((hasProperPatchFlag && version.proper_patch === false) ||
+          (!hasProperPatchFlag && process.platform !== "win32"));
   // Nothing says "fun" like having two auth modes and three operating systems ;w;
   // And now a third input: "the internet is down". Perfect.
 
@@ -160,9 +183,25 @@ export const launchGame = async (
     args.push("--auth-mode", "authenticated");
 
     try {
-      const authTokens = await fetchAuthTokens(username, finalUuid);
-      args.push("--identity-token", authTokens.identityToken);
-      args.push("--session-token", authTokens.sessionToken);
+      if (accountType === "premium") {
+        const r = await fetchPremiumLaunchAuth();
+        // Ensure we launch with the official profile identity.
+        finalUuid = r.uuid;
+        finalUsername = r.username;
+
+        // Keep args consistent if we overwrote after building args.
+        const uuidIdx = args.indexOf("--uuid");
+        if (uuidIdx !== -1 && args[uuidIdx + 1]) args[uuidIdx + 1] = finalUuid;
+        const nameIdx = args.indexOf("--name");
+        if (nameIdx !== -1 && args[nameIdx + 1]) args[nameIdx + 1] = finalUsername;
+
+        args.push("--identity-token", r.identityToken);
+        args.push("--session-token", r.sessionToken);
+      } else {
+        const authTokens = await fetchAuthTokens(username, finalUuid);
+        args.push("--identity-token", authTokens.identityToken);
+        args.push("--session-token", authTokens.sessionToken);
+      }
     } catch (e) {
       logger.error("Authentication failed:", e);
       win.webContents.send("launch-error", { code: mapErrorToCode(e, { area: "auth" }) });
@@ -182,6 +221,8 @@ export const launchGame = async (
   }
 
   logger.info("Launch arguments:", args);
+
+  const appDir = resolveExistingInstallDir(baseDir, version);
 
   const spawnClient = (attempt: number) => {
     logger.info(`Spawning client (attempt ${attempt + 1})...`);
@@ -203,7 +244,9 @@ export const launchGame = async (
       const child = spawn(client, args, {
         windowsHide: true,
         shell: false,
-        cwd: dirname(client),
+        // Many builds assume relative paths resolve from the build root.
+        // Using Client/ as cwd can cause "launch then instant exit" on some versions.
+        cwd: appDir,
         // Critical for Windows: allow the launcher to quit without killing the game.
         // `stdio: "ignore"` + `unref()` prevents the child being tied to the parent lifetime.
         detached: process.platform !== "darwin",

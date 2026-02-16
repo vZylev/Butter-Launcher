@@ -1,26 +1,41 @@
 import { formatBytes } from "../utils/formatNum";
 import cn from "../utils/cn";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   progress: InstallProgress;
   className?: string;
 }
 
-const PHASES: Record<string, string> = {
-  "pwr-download": "Downloading...",
-  patching: "Extracting...",
-  "online-patch": "Patching Online System",
-  "fix-download": "Downloading Fix...",
-  "fix-extract": "Patching Fix...",
-  "jre-download": "Downloading JRE...",
-  "jre-extract": "Extracting JRE...",
+const PHASE_I18N_KEYS: Record<string, string> = {
+  "pwr-download": "progress.phases.pwrDownload",
+  patching: "progress.phases.patching",
+  "online-patch": "progress.phases.onlinePatch",
+  "fix-download": "progress.phases.fixDownload",
+  "fix-extract": "progress.phases.fixExtract",
+  "jre-download": "progress.phases.jreDownload",
+  "jre-extract": "progress.phases.jreExtract",
 };
 
 export default function ProgressBar({ progress, className }: Props) {
+  const { t } = useTranslation();
+
+  const stepIndex =
+    typeof progress.stepIndex === "number" && Number.isFinite(progress.stepIndex)
+      ? progress.stepIndex
+      : null;
+  const stepTotal =
+    typeof progress.stepTotal === "number" && Number.isFinite(progress.stepTotal)
+      ? progress.stepTotal
+      : null;
+  const showSteps =
+    stepIndex != null && stepTotal != null && stepTotal > 1 && stepIndex >= 1;
+
   return (
     <div className={cn("w-full flex flex-col", className)}>
       <div className="text-xs text-white font-semibold">
-        {PHASES[progress.phase]}
+        {t(PHASE_I18N_KEYS[progress.phase] ?? "common.working")}
+        {showSteps ? ` ${stepIndex}/${stepTotal}` : ""}
       </div>
       <div className="flex items-center justify-between mt-1">
         {progress.percent > -1 && (
@@ -51,7 +66,7 @@ export default function ProgressBar({ progress, className }: Props) {
         <div className="absolute inset-0 bg-white/20 rounded-full"></div>
         <div
           className={cn(
-            "h-1 bg-linear-to-r from-[#3b82f6] to-[#60a5fa] rounded-full",
+            "h-1 bg-linear-to-r from-[#0268D4] to-[#02D4D4] rounded-full",
             progress.percent === -1 && "animate-loading-horiz",
           )}
           style={{
