@@ -114,9 +114,8 @@ const startOfToday = () => {
 
 const loadCachedVersionDetails = (): VersionsManifestRoot | null => {
   try {
-    const raw = localStorage.getItem(VERSION_DETAILS_CACHE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
+    const data = await window.ipcRenderer.invoke("fetch:json", VERSIONS_NEW_URL);
+    return data;
   } catch {
     return null;
   }
@@ -260,7 +259,7 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
     const version: GameVersion = {
       url: buildPwrUrl(os, arch, versionType, buildIndex),
       type: versionType,
-      build_index: buildIndex,
+      build_index,
       build_name,
       isLatest: !!effectiveLatestId && buildIndex === effectiveLatestId,
       patch_url: patch_url && patch_hash ? patch_url : undefined,
