@@ -13,6 +13,7 @@ const LANGUAGES = {
   ar: { name: "العربية", flag: "🇸🇦" },
   ru: { name: "Русский", flag: "🇷🇺" },
   de: { name: "Deutsch", flag: "🇩🇪" },
+  sk: { name: "Slovenčina", flag: "🇸🇰"},
 } as const;
 
 const RTL_LANGUAGES = ["ar"] as const;

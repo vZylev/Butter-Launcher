@@ -9,6 +9,7 @@ import cs from "./locales/cs.json";
 import ar from "./locales/ar.json";
 import ru from "./locales/ru.json";
 import de from "./locales/de.json";
+import sk from "./locales/sk.json";
 
 const STORAGE_KEY = "butter:language";
 
@@ -22,7 +23,8 @@ const normalizeLang = (lang: string | null | undefined) => {
     base === "cs" ||
     base === "ar" ||
     base === "ru" ||
-    base === "de"
+    base === "de" ||
+    base === "sk"
   )
     return base;
   return null;
@@ -58,6 +60,7 @@ void i18n
       ar: { translation: ar },
       ru: { translation: ru },
       de: { translation: de },
+      sk: { translation: sk },
     },
     lng: getInitialLanguage(),
     fallbackLng: "en",
