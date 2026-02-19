@@ -1,0 +1,385 @@
+{
+  "common": {
+    "startupSound": "Startton",
+    "close": "Schließen",
+    "cancel": "Abbrechen",
+    "confirm": "Bestätigen",
+    "remove": "Entfernen",
+    "minimize": "Minimieren",
+    "maximize": "Maximieren",
+    "reconnect": "Erneut verbinden",
+    "retryConnection": "Verbindung wiederholen",
+    "back": "Zurück",
+    "search": "Suchen",
+    "folder": "Ordner",
+    "sortBy": "Sortieren nach",
+    "open": "Öffnen",
+    "loading": "Lade...",
+    "refresh": "Aktualisieren",
+    "delete": "Löschen",
+    "toggle": "Umschalten",
+    "enable": "Aktivieren",
+    "disable": "Deaktivieren",
+    "save": "Speichern",
+    "apply": "Anwenden",
+    "selectAll": "Alles auswählen",
+    "selectNone": "Auswahl aufheben",
+    "loadMore": "Mehr laden",
+    "working": "Wird ausgeführt...",
+    "enabled": "Aktiviert",
+    "disabled": "Deaktiviert",
+    "clear": "Leeren",
+    "send": "Senden"
+  },
+  "login": {
+    "prompt": "Gib deinen Nicknamen ein, um fortzufahren",
+    "nicknamePlaceholder": "Nickname",
+    "characters": "{{current}}/{{max}} Zeichen",
+    "enter": "Eintreten",
+    "errors": {
+      "empty": "Bitte gib deinen Nicknamen ein",
+      "minLength": "Der Nickname muss mindestens {{min}} Zeichen lang sein",
+      "maxLength": "Der Nickname darf maximal {{max}} Zeichen lang sein"
+    }
+  },
+  "splash": {
+    "title": "Butter Launcher",
+    "logoAlt": "Butter Launcher",
+    "initializing": "Initialisierung",
+    "preparing": "Sitzung wird vorbereitet"
+  },
+  "launcher": {
+    "offlineMode": "Offline-Modus",
+    "buttons": {
+      "wiki": "Wiki",
+      "chat": "Chat",
+      "servers": "Server",
+      "hostServer": "Server erstellen",
+      "mods": "Mods",
+      "settings": "Einstellungen"
+    },
+    "news": {
+      "loading": "Lade...",
+      "showMore": "Mehr anzeigen",
+      "openLink": "Link öffnen",
+      "openImage": "Bild öffnen"
+    },
+    "updates": {
+      "dismissForNow": "Vorläufig nicht aktualisieren",
+      "available": "Neue Aktualisierung verfügbar.",
+      "fixClient": "Client reparieren",
+      "fixClientTooltip": "Originalen Client wiederherstellen",
+      "update": "Aktualisieren",
+      "install": "Installieren",
+      "installFull": "Vollständig installieren",
+      "installFullTooltip": "Installieren (vollständiger Download)",
+      "smartInstall": "Intelligente Installation",
+      "smartInstallChecking": "Prüfe intelligente Aktualisierung...",
+      "smartInstallTooltip": "Intelligente Installation (nur Differenz-Patch)",
+      "play": "Spielen",
+      "running": "Spiel läuft"
+    },
+    "onlinePatch": {
+      "label": "Online-Patch",
+      "titleEnable": "Online-Patch aktivieren",
+      "titleDisable": "Online-Patch deaktivieren",
+      "titleUpdate": "Online-Patch aktualisieren",
+      "btnEnable": "Online-Patch anwenden",
+      "btnDisable": "Patch deaktivieren",
+      "btnUpdate": "Patch aktualisieren",
+      "notesNone": "Keine Patch-Notizen für diesen Build gefunden.",
+      "confirmTitle": "Online-Patch",
+      "confirmCancel": "Nicht anwenden",
+      "confirmApply": "Anwenden"
+    },
+    "hytaleFeed": {
+      "title": "Hytale-News",
+      "toggleShow": "Hytale-News anzeigen",
+      "toggleHide": "Hytale-News ausblenden",
+      "statusLoading": "Lade...",
+      "statusError": "Fehler",
+      "statusScroll": "Scrollen →",
+      "open": "Öffnen"
+    },
+    "version": {
+      "label": "Version",
+      "select": "Version auswählen",
+      "selectBuild": "Build auswählen",
+      "release": "Release",
+      "preRelease": "Pre-Release",
+      "latest": "Neueste",
+      "show": "Versionen anzeigen",
+      "hide": "Versionen ausblenden",
+      "noInstalledBuilds": "Kein Build installiert.",
+      "delete": "{{name}} löschen",
+      "deleteTitle": "Version löschen",
+      "deleteConfirm": "Möchtest du {{name}} wirklich löschen?",
+      "cannotDeleteRunning": "Kann laufenden Build nicht löschen. Beende das Spiel zuerst."
+    }
+  },
+  "serversModal": {
+    "title": "SERVER",
+    "sections": {
+      "recommended": "Empfohlen",
+      "servers": "Server"
+    },
+    "filters": {
+      "all": "Alle",
+      "premium": "Premium",
+      "noPremium": "Ohne Premium"
+    },
+    "actions": {
+      "copyIp": "IP kopieren"
+    },
+    "labels": {
+      "ip": "IP",
+      "description": "Beschreibung",
+      "details": "Details"
+    },
+    "errors": {
+      "missingUrls": "Serverlisten sind nicht konfiguriert.",
+      "loadFailed": "Serverlisten konnten nicht geladen werden."
+    },
+    "empty": {
+      "noRecommended": "Keine empfohlenen Server vorhanden.",
+      "noServers": "Keine Server vorhanden.",
+      "noDescription": "Keine Beschreibung.",
+      "noDetails": "Keine weiteren Details."
+    },
+    "feedback": {
+      "ipCopied": "IP wurde kopiert"
+    },
+    "notes": {
+      "clickToLearn": "Klicke auf einen Server, um mehr zu erfahren!",
+      "addYourServer": "Möchtest du deinen Server hinzufügen? Tritt unserem Discord bei!"
+    }
+  },
+  "hostServerModal": {
+    "title": "SERVER ERSTELLEN",
+    "comingSoon": "Demnächst",
+    "description": "Dieses Menü hilft dir beim Konfigurieren und Hosten eines Servers (Port, Mods, Version und Start/Stopp-Steuerung).",
+    "placeholder": "Nur Platzhalter-UI — noch keine Hosting-Logik vorhanden.",
+    "warning": {
+      "title": "Server hosten",
+      "versionLine": "Der Server wird mit der aktuell im Launcher ausgewählten Version gestartet: {{version}}.",
+      "dedicated": "Ich bevorzuge einen Dedicated Server",
+      "confirm": "Verstanden, fortfahren"
+    },
+    "errors": {
+      "buildNotInstalled": "Du musst den ausgewählten Build installieren, bevor du einen lokalen Server hosten kannst.\nAusgewählt: {{version}}",
+      "java25Required": "Java 25 ist erforderlich, um einen Server zu hosten. Wir empfehlen Adoptium (Temurin): https://adoptium.net/temurin/releases",
+      "javaTooOld": "Deine Java-Version ist {{found}}. Java 25 ist erforderlich. Wir empfehlen Adoptium (Temurin).",
+      "ramMissing": "Konfiguriere beide RAM-Werte (Min & Max), wenn RAM aktiviert ist.",
+      "ramInvalid": "RAM-Werte müssen positive Zahlen sein.",
+      "ramRange": "Maximaler RAM darf nicht kleiner als minimaler RAM sein.",
+      "serverStartFailed": "Server konnte nicht gestartet werden.",
+      "serverStopFailed": "Server konnte nicht gestoppt werden.",
+      "serverNotRunning": "Server läuft nicht.",
+      "commandFailed": "Befehl konnte nicht an den Server gesendet werden."
+    },
+    "panel": {
+      "authMode": {
+        "label": "Auth-Modus",
+        "offline": "Offline",
+        "authenticated": "Authentifiziert",
+        "insecure": "Unsicher"
+      },
+      "advanced": {
+        "toggle": "Erweiterte Optionen",
+        "ram": "RAM",
+        "min": "Min",
+        "max": "Max",
+        "noAot": "Kein AOT verwenden",
+        "customAssets": "Eigene Assets",
+        "universe": "Universum",
+        "mods": "Mods",
+        "earlyPlugins": "Frühe Plugins",
+        "chooseFile": ".zip wählen",
+        "chooseFolder": "Auswählen"
+      },
+      "actions": {
+        "showConsole": "Konsole anzeigen",
+        "startServer": "Server starten",
+        "stopServer": "Server stoppen"
+      }
+    },
+    "console": {
+      "title": "Server-Konsole",
+      "commandPlaceholder": "Befehl eingeben und Enter drücken..."
+    },
+    "localHost": {
+      "section": "Lokaler Host",
+      "button": "Lokaler Host",
+      "note": "Hinweis: Erfordert Portweiterleitung im Router; alternativ Radmin/Hamachi verwenden."
+    },
+    "proHosting": {
+      "section": "HyCloud Hosting",
+      "button": "Hoste, kaufe oder erstelle deinen 24/7-Server"
+    }
+  },
+  "modsModal": {
+    "title": "Modifikationen",
+    "tabs": {
+      "discover": "Entdecken",
+      "installed": "Installiert",
+      "profiles": "Profile"
+    },
+    "searchPlaceholder": "Modifikationen suchen...",
+    "openModsFolder": "Mod-Ordner öffnen",
+    "noModsFound": "Keine Modifikationen gefunden.",
+    "installedMods": "Installierte Modifikationen",
+    "noInstalledModsFound": "Keine installierten Modifikationen gefunden.",
+    "profileMods": "Profil-Modifikationen",
+    "noInstalledModsToSelect": "Keine Modifikationen zur Auswahl.",
+    "sort": {
+      "relevance": "Relevanz",
+      "popularity": "Beliebtheit",
+      "latestUpdate": "Neueste Aktualisierung",
+      "creationDate": "Erstellungsdatum",
+      "totalDownloads": "Gesamte Downloads",
+      "az": "A–Z"
+    },
+    "details": {
+      "loadingDetails": "Lade Details...",
+      "downloads": "{{value}} Downloads",
+      "created": "Erstellt am {{date}}",
+      "updated": "Aktualisiert am {{date}}",
+      "updatedShort": "Aktualisiert {{date}}",
+      "description": "Beschreibung",
+      "loadingDescription": "Beschreibung wird geladen...",
+      "noDescription": "Keine Beschreibung.",
+      "files": "Dateien",
+      "loadingFiles": "Dateien werden geladen...",
+      "noFilesReturned": "Keine Dateien gefunden.",
+      "selectModForDetails": "Wähle eine Mod aus, um Details zu sehen.",
+      "installThisFile": "Diese Datei installieren",
+      "results": "{{value}} Ergebnis(se)",
+      "loaded": "{{loaded}} geladen",
+      "loadedOf": "{{loaded}} / {{total}} geladen"
+    },
+    "status": {
+      "installing": "Installiere...",
+      "downloading": "Lade herunter...",
+      "downloadingPct": "Lade herunter... {{pct}}%",
+      "downloadingKb": "Lade herunter... {{kb}} KB",
+      "loading": "Lade...",
+      "saving": "Speichere...",
+      "unknownError": "Unbekannter Fehler"
+    },
+    "releaseType": {
+      "stable": "Stabil",
+      "beta": "Beta",
+      "alpha": "Alpha"
+    },
+    "installed": {
+      "enableAll": "Alle aktivieren",
+      "disableAll": "Alle deaktivieren",
+      "openFolder": "Ordner öffnen"
+    },
+    "profiles": {
+      "title": "Profile",
+      "namePlaceholder": "Profilname...",
+      "noProfilesYet": "Noch keine Profile vorhanden.",
+      "selectedCount": "Ausgewählt: {{count}}",
+      "currentlyEnabled": "Derzeit aktiviert",
+      "currentlyDisabled": "Derzeit deaktiviert",
+      "tip": "Tipp: Profil speichern und dann anwenden."
+    },
+    "actions": {
+      "install": "Installieren",
+      "installed": "Installiert",
+      "update": "Aktualisieren"
+    },
+    "countMods": "{{count}} Mod(s)"
+  },
+  "progress": {
+    "phases": {
+      "pwrDownload": "Lade herunter...",
+      "patching": "Entpacke...",
+      "onlinePatch": "Wende Online-Patch an",
+      "fixDownload": "Lade Fix herunter...",
+      "fixExtract": "Wende Fix an...",
+      "jreDownload": "Lade JRE herunter...",
+      "jreExtract": "Entpacke JRE..."
+    }
+  },
+  "launcherUpdate": {
+    "title": "Aktualisierung verfügbar",
+    "description": "Eine neue Version von Butter Launcher ist verfügbar.",
+    "subtitleCurrent": "Aktuell: v{{version}}",
+    "subtitleLatest": "Neueste: v{{version}}",
+    "released": "Veröffentlicht: {{date}}",
+    "whatsNew": "Was ist neu",
+    "noChangelog": "Kein Änderungsprotokoll verfügbar.",
+    "dontRemindAgain": "Nicht mehr erinnern",
+    "notNow": "Jetzt nicht",
+    "update": "Aktualisieren"
+  },
+  "settings": {
+    "title": "SYSTEMEINSTELLUNGEN",
+    "language": {
+      "label": "Sprache",
+      "english": "Englisch",
+      "spanish": "Spanisch"
+    },
+    "teamName": "Butter Launcher Team",
+    "madeBy": "Erstellt von",
+    "gameDirectory": {
+      "label": "Spielverzeichnis",
+      "openFolder": "Ordner öffnen"
+    },
+    "downloadDirectory": {
+      "label": "Download-Ordner",
+      "change": "Ändern",
+      "selecting": "Wähle aus...",
+      "loading": "(lade...)"
+    },
+    "customUUID": {
+      "label": "Eigene UUID",
+      "placeholder": "Zufällig generiert, wenn leer",
+      "usesAuto": "Verwendet automatische UUID-Generierung",
+      "invalid": "Ungültiges UUID-Format",
+      "saved": "Gespeichert: {{uuid}}"
+    },
+    "discordRPC": "Discord RPC",
+    "steamDeck": {
+      "label": "Steam Deck Modus",
+      "applying": "Fix wird angewendet...",
+      "restoring": "Wiederherstellen...",
+      "failed": "Fehler. Überprüfe die Logs.",
+      "linuxOnly": "Nur für Linux/SteamOS",
+      "hintLinux": "Ersetzt die eingebaute libzstd.so durch die Systemversion libzstd.so.1",
+      "hintNonLinux": "Nur auf Linux/Steam Deck verfügbar",
+      "tooltipLinux": "Behebt glibc 2.41+ Absturz durch Verlinkung von libzstd.so auf die Systemversion"
+    },
+    "onlinePatch": {
+      "label": "Online-Patch",
+      "removeButton": "Aktuellen Online-Patch entfernen",
+      "description": "Stellt den originalen Client/Server wieder her und löscht die Patch-Dateien.",
+      "title": "Online-Patch löschen",
+      "confirm": "Möchtest du den Online-Patch von \"{{version}}\" wirklich entfernen?\n\nDas stellt den originalen Client/Server wieder her und löscht die Patch-Dateien.",
+      "confirmFallback": "Möchtest du den Online-Patch der aktuell ausgewählten Spielversion wirklich löschen?",
+      "requireGameDir": "Wähle zuerst das Spielverzeichnis aus",
+      "requireVersion": "Wähle zuerst eine Version aus",
+      "requireInstalled": "Installiere zuerst die ausgewählte Version",
+      "requireGameClosed": "Schließe zuerst das Spiel",
+      "inProgress": "Vorgang läuft...",
+      "checkingState": "Überprüfe Patch-Status...",
+      "requireEnabled": "Dieser Build hat keinen Patch zum Löschen",
+      "hintEnableToRemove": "Wende den Online-Patch an, um ihn löschen zu können.",
+      "hintCloseGame": "Schließe das Spiel, um den Online-Patch zu löschen."
+    },
+    "credits": {
+      "label": "Mitwirkende",
+      "onlineFix": "Online Fix",
+      "systemLauncher": "System Launcher",
+      "designLauncher": "Design Launcher",
+      "language": "Sprache"
+    },
+    "updates": {
+      "check": "AKTUALISIERUNGEN PRÜFEN",
+      "checking": "PRÜFE..."
+    },
+    "logout": "ABMELDEN"
+  }
+}
