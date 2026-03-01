@@ -25,7 +25,7 @@
 </p>
 
 <p align="center">
-  <img src="https://butterlauncher.tech/media/launcher3.png" alt="Butter Launcher Main Interface" width="80%">
+  <img src="https://butterlauncher.tech/media/launcher3w.png" alt="Butter Launcher Main Interface" width="80%">
 </p>
 
 ---
@@ -146,8 +146,8 @@ If you want to integrate Matcha into your own launcher/client/app, see the API d
 * **🟢 Live Status:** See if your friends are online, check if they're playing, and ask to join!
 
 <p align="center">
-  <img src="https://butterlauncher.tech/media/github/friends.png" width="45%">
-  <img src="https://butterlauncher.tech/media/github/chatf.png" width="45%">
+  <img src="https://butterlauncher.tech/media/github/friends2.png" width="45%">
+  <img src="https://butterlauncher.tech/media/github/chatf2.png" width="45%">
 </p>
 
 ---
