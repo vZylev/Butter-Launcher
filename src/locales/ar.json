@@ -1,0 +1,277 @@
+{
+  "common": {
+    "close": "اغلاق",
+    "cancel": "الغاء",
+    "confirm": "تاكيد",
+    "remove": "حذف",
+    "minimize": "تصغير",
+    "reconnect": "اعد الاتصال",
+    "retryConnection": "اعد محاولة الاتصال",
+    "back": "رجوع",
+    "search": "بحث",
+    "folder": "مجلد",
+    "sortBy": "ترتيب حسب",
+    "open": "فتح",
+    "loading": "تحميل...",
+    "refresh": "تحديث",
+    "delete": "حذف",
+    "toggle": "تبديل",
+    "enable": "تفعيل",
+    "disable": "تعطيل",
+    "save": "حفظ",
+    "apply": "تطبيق",
+    "selectAll": "تحديد الكل",
+    "selectNone": "الغاء التحديد",
+    "loadMore": "تحميل المزيد",
+    "working": "جار العمل...",
+    "enabled": "مفعل",
+    "disabled": "معطل",
+    "clear": "مسح",
+    "startupSound": "صوت التشغيل"
+  },
+  "launcher": {
+    "offlineMode": "وضع عدم الاتصال",
+    "buttons": {
+      "wiki": "Wiki",
+      "chat": "دردشة",
+      "servers": "الخوادم",
+      "hostServer": "استضافة خادم",
+      "mods": "Mods",
+      "settings": "Settings"
+    },
+    "news": {
+      "loading": "جارٍ التحميل...",
+      "showMore": "عرض المزيد",
+      "openLink": "فتح الرابط",
+      "openImage": "فتح الصورة"
+    },
+    "hytaleFeed": {
+      "title": "أخبار Hytale",
+      "toggleShow": "عرض أخبار Hytale",
+      "toggleHide": "إخفاء أخبار Hytale",
+      "statusLoading": "جارٍ التحميل...",
+      "statusError": "خطأ",
+      "statusScroll": "مرّر ←",
+      "open": "فتح"
+    },
+    "updates": {
+      "dismissForNow": "عدم التحديث الآن",
+      "available": "يتوفر تحديث جديد.",
+      "fixClient": "إصلاح العميل",
+      "fixClientTooltip": "استعادة العميل غير المعدّل",
+      "update": "تحديث",
+      "install": "تثبيت",
+      "installFull": "تثبيت",
+      "installFullTooltip": "تثبيت (تحميل كامل)",
+      "smartInstall": "تثبيت ذكي",
+      "smartInstallChecking": "جارٍ التحقق من التحديث الذكي...",
+      "smartInstallTooltip": "تثبيت ذكي (تصحيح تفاضلي)",
+      "play": "تشغيل",
+      "running": "اللعبة قيد التشغيل"
+    },
+    "onlinePatch": {
+      "label": "تصحيح عبر الإنترنت",
+      "titleEnable": "تصحيح عبر الإنترنت",
+      "titleDisable": "تعطيل التصحيح عبر الإنترنت",
+      "titleUpdate": "تحديث التصحيح عبر الإنترنت",
+      "btnEnable": "تصحيح عبر الإنترنت",
+      "btnDisable": "تعطيل التصحيح",
+      "btnUpdate": "تحديث التصحيح",
+      "notesNone": "لا توجد ملاحظات تصحيح متاحة لهذا الإصدار.",
+      "confirmTitle": "تصحيح عبر الإنترنت",
+      "confirmCancel": "عدم التصحيح",
+      "confirmApply": "تطبيق التصحيح"
+    },
+    "version": {
+      "label": "الإصدار",
+      "select": "اختر إصدارًا",
+      "selectBuild": "اختر بنية",
+      "release": "إصدار رسمي",
+      "preRelease": "إصدار تجريبي",
+      "latest": "الأحدث",
+      "show": "عرض الإصدارات",
+      "hide": "إخفاء الإصدارات",
+      "noInstalledBuilds": "لم يتم العثور على أي إصدارات مثبتة.",
+      "deleteTitle": "حذف الإصدار",
+      "cannotDeleteRunning": "لا يمكنك حذف الإصدار قيد التشغيل. أغلق اللعبة أولًا.",
+      "delete": "حذف {{name}}",
+      "deleteConfirm": "هل أنت متأكد أنك تريد حذف {{name}}؟"
+    }
+  },
+  "serversModal": {
+    "filters": {
+      "all": "الكل",
+      "premium": "بريميوم",
+      "standard": "بدون بريميوم"
+    }
+  },
+  "settings": {
+    "title": "إعدادات النظام",
+    "language": {
+      "label": "اللغة",
+      "english": "الإنجليزية",
+      "spanish": "الإسبانية"
+    },
+    "gameDirectory": {
+      "label": "مجلد اللعبة",
+      "openFolder": "فتح المجلد"
+    },
+    "downloadDirectory": {
+      "label": "مجلد التحميل",
+      "change": "تغيير",
+      "selecting": "جارِ الاختيار...",
+      "loading": "(جارِ التحميل...)"
+    },
+    "customUUID": {
+      "label": "UUID مخصص",
+      "placeholder": "سيتم إنشاؤه تلقائيًا إذا تُرك فارغًا",
+      "usesAuto": "يستخدم إنشاء UUID تلقائيًا",
+      "invalid": "تنسيق UUID غير صالح",
+      "saved": "تم الحفظ: {{uuid}}"
+    },
+    "discordRPC": "Discord RPC",
+    "steamDeck": {
+      "label": "وضع Steamdeck",
+      "applying": "جارِ تطبيق الإصلاح...",
+      "restoring": "جارِ الاستعادة...",
+      "failed": "فشل. تحقق من السجلات.",
+      "linuxOnly": "Linux / Steamdeck فقط",
+      "hintLinux": "يستبدل libzstd.so المرفق بـ libzstd.so.1 من النظام",
+      "hintNonLinux": "متوفر فقط على Linux / Steamdeck",
+      "tooltipLinux": "يصلح تعطل glibc 2.41+ عبر ربط libzstd.so بإصدار النظام"
+    },
+    "onlinePatch": {
+      "label": "Online Patch",
+      "removeButton": "إزالة Online Patch الحالي",
+      "description": "استعادة العميل والخادم الأصليين وحذف ملفات التعديل.",
+      "title": "إزالة Online Patch",
+      "confirmFallback": "هل أنت متأكد أنك تريد إزالة Online Patch من الإصدار المحدد؟",
+      "requireGameDir": "حدد مجلد اللعبة أولاً",
+      "requireVersion": "حدد الإصدار أولاً",
+      "requireInstalled": "قم بتثبيت الإصدار المحدد أولاً",
+      "requireGameClosed": "أغلق اللعبة أولاً",
+      "checkingState": "جارِ التحقق من حالة Online Patch...",
+      "requireEnabled": "هذا الإصدار لا يحتوي على Online Patch لإزالته",
+      "hintEnableToRemove": "قم بتفعيل Online Patch لإزالته.",
+      "hintCloseGame": "أغلق اللعبة لإزالة Online Patch.",
+      "inProgress": "العملية قيد التنفيذ",
+      "confirm": "هل أنت متأكد أنك تريد إزالة Online Patch من \"{{version}}\"؟\n\nسيتم استعادة العميل والخادم الأصليين وحذف ملفات التعديل."
+    },
+    "credits": {
+      "label": "الاعتمادات",
+      "onlineFix": "إصلاح اللعب عبر الإنترنت",
+      "systemLauncher": "مشغل النظام",
+      "usernameCopied": "Copied!",
+      "designLauncher": "تصميم المشغل"
+    },
+    "updates": {
+      "check": "التحقق من التحديثات",
+      "checking": "جارِ التحقق..."
+    },
+    "logout": "تسجيل الخروج"
+  },
+  "hostServerModal": {
+    "proHosting": {
+      "section": "HyCloud Hosting",
+      "button": "استضف، اشترِ أو أنشئ خادمك 24/7"
+    }
+  },
+  "modsModal": {
+    "title": "Mods",
+    "tabs": {
+      "discover": "استكشاف",
+      "installed": "مثبّتة",
+      "profiles": "الملفات الشخصية"
+    },
+    "searchPlaceholder": "ابحث عن Mods...",
+    "openModsFolder": "فتح مجلد Mods",
+    "noModsFound": "لم يتم العثور على Mods.",
+    "installedMods": "Mods المثبّتة",
+    "noInstalledModsFound": "لا توجد Mods مثبّتة.",
+    "profileMods": "Mods الملف الشخصي",
+    "noInstalledModsToSelect": "لا توجد Mods مثبّتة للاختيار.",
+    "countMods": "{{count}} Mods",
+    "sort": {
+      "relevance": "الأكثر صلة",
+      "popularity": "الأكثر شيوعًا",
+      "latestUpdate": "آخر تحديث",
+      "creationDate": "تاريخ الإنشاء",
+      "totalDownloads": "إجمالي التحميلات",
+      "az": "من A إلى Z"
+    },
+    "details": {
+      "loadingDetails": "جارٍ تحميل التفاصيل...",
+      "created": "تم الإنشاء {{date}}",
+      "updated": "تم التحديث {{date}}",
+      "updatedShort": "تحديث {{date}}",
+      "description": "الوصف",
+      "loadingDescription": "جارٍ تحميل الوصف...",
+      "noDescription": "لا يوجد وصف.",
+      "files": "الملفات",
+      "loadingFiles": "جارٍ تحميل الملفات...",
+      "noFilesReturned": "لم يتم إرجاع أي ملفات.",
+      "selectModForDetails": "اختر Mod لعرض التفاصيل.",
+      "installThisFile": "تثبيت هذا الملف",
+      "results": "{{value}} نتيجة",
+      "loaded": "تم تحميل {{loaded}}",
+      "downloads": "{{value}} تحميل",
+      "loadedOf": "تم تحميل {{loaded}} / {{total}}"
+    },
+    "status": {
+      "installing": "جارٍ التثبيت...",
+      "downloading": "جارٍ التحميل...",
+      "downloadingPct": "جارٍ التحميل... {{pct}}%",
+      "downloadingKb": "جارٍ التحميل... {{kb}} كيلوبايت",
+      "loading": "جارٍ التحميل...",
+      "saving": "جارٍ الحفظ...",
+      "unknownError": "خطأ غير معروف"
+    },
+    "releaseType": {
+      "stable": "مستقر",
+      "beta": "بيتا",
+      "alpha": "ألفا"
+    },
+    "installed": {
+      "enableAll": "تفعيل الكل",
+      "disableAll": "تعطيل الكل",
+      "openFolder": "فتح المجلد"
+    },
+    "profiles": {
+      "title": "الملفات الشخصية",
+      "namePlaceholder": "اسم الملف الشخصي...",
+      "noProfilesYet": "لا توجد ملفات شخصية بعد.",
+      "selectedCount": "المحدد: {{count}}",
+      "currentlyEnabled": "مفعّل حاليًا",
+      "currentlyDisabled": "معطّل حاليًا",
+      "tip": "نصيحة: احفظ ملفًا شخصيًا ثم قم بتطبيقه."
+    },
+    "actions": {
+      "install": "تثبيت",
+      "installed": "مثبّت",
+      "update": "تحديث"
+    }
+  },
+  "progress": {
+    "phases": {
+      "pwrDownload": "جارِ التحميل...",
+      "patching": "جارِ الاستخراج...",
+      "onlinePatch": "جارِ تحديث نظام الأونلاين",
+      "fixDownload": "جارِ تحميل الإصلاح...",
+      "fixExtract": "جارِ تطبيق الإصلاح...",
+      "jreDownload": "جارِ تحميل JRE...",
+      "jreExtract": "جارِ استخراج JRE..."
+    }
+  },
+  "launcherUpdate": {
+    "title": "يتوفر تحديث",
+    "description": "يتوفر إصدار جديد من Butter Launcher.",
+    "whatsNew": "ما الجديد",
+    "noChangelog": "لا توجد ملاحظات تحديث.",
+    "dontRemindAgain": "لا تذكرني مرة أخرى",
+    "notNow": "ليس الآن",
+    "update": "تحديث",
+    "subtitleCurrent": "الحالي: v{{version}}",
+    "subtitleLatest": "الأحدث: v{{version}}",
+    "released": "تاريخ الإصدار: {{date}}"
+  }
+}

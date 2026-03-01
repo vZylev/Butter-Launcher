@@ -1,0 +1,37 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-electron
+dist-ssr
+*.local
+release
+
+# Node2 (download-only) local secrets/artifacts
+tools/node2_internal_token.txt
+tools/pwr_patches/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.env.local
+
+# Optional local extensions (custom environments)
+dynamic_modules/
+
+# Local build notes
+BUILD_COMMANDS.txt

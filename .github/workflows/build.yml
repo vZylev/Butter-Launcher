@@ -1,0 +1,78 @@
+name: Release Build
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    outputs:
+      VERSION: ${{ steps.get_version.outputs.VERSION }}
+      TAG_EXISTS: ${{ steps.check_tag.outputs.EXISTS }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get version from package.json
+        id: get_version
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Check if tag exists
+        id: check_tag
+        run: |
+          git fetch --tags
+          if git tag -l | grep -q "^v${{ steps.get_version.outputs.VERSION }}$"; then
+            echo "EXISTS=true" >> $GITHUB_OUTPUT
+            echo "Version v${{ steps.get_version.outputs.VERSION }} already exists."
+          else
+            echo "EXISTS=false" >> $GITHUB_OUTPUT
+            echo "Version v${{ steps.get_version.outputs.VERSION }} is new."
+          fi
+
+      - name: Create Git Tag
+        if: steps.check_tag.outputs.EXISTS == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag v${{ steps.get_version.outputs.VERSION }}
+          git push origin v${{ steps.get_version.outputs.VERSION }}
+
+  build:
+    needs: prepare-release
+    if: needs.prepare-release.outputs.TAG_EXISTS == 'false'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder rpm
+          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          flatpak remotes --user
+
+      - name: Build & Publish (Electron Builder)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LAUNCHER_SECRET_KEY: ${{ secrets.LAUNCHER_SECRET_KEY }}
+        run: npm run release
