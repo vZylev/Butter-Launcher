@@ -137,6 +137,10 @@ We provide two powerful ways to host:
 
 **Matcha!** is our integrated social platform. Forget external tools—stay connected right from the launcher.
 
+If you want to integrate Matcha into your own launcher/client/app, see the API docs:
+
+- [docs/matcha/README.md](docs/matcha/README.md)
+
 * **🔗 Never Lose a Connection:** Met someone cool on a random server? Don't risk losing them forever! Just ask for their **Matcha!** handle to add them, chat, and play together later.
 * **💬 Global & Private Chat:** Meet new players in the global chat or coordinate privately with your squad.
 * **🟢 Live Status:** See if your friends are online, check if they're playing, and ask to join!
