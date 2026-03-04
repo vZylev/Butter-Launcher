@@ -2,6 +2,7 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
+import { Box, Button, HStack, IconButton, Text } from "@chakra-ui/react";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -28,73 +29,86 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   const mouseDownOnBackdrop = React.useRef(false);
 
   if (!open) return null;
-
-  // Portal to <body> so this modal reliably overlays even when opened
-  // from within another modal that uses transforms/filters.
   if (typeof document === "undefined" || !document.body) return null;
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center glass-backdrop animate-fadeIn"
-      onMouseDown={(e) => {
+    <Box
+      className="glass-backdrop animate-fadeIn"
+      position="fixed"
+      inset={0}
+      zIndex={1000}
+      display="flex"
+      alignItems="center"
+      justifyContent="center"
+      onMouseDown={(e: React.MouseEvent) => {
         mouseDownOnBackdrop.current = e.target === e.currentTarget;
       }}
-      onMouseUp={() => {
-        mouseDownOnBackdrop.current = false;
-      }}
-      onMouseLeave={() => {
-        mouseDownOnBackdrop.current = false;
-      }}
-      onClick={(e) => {
-        // Only close when the click started on the backdrop itself.
-        // This prevents "click-drag-release outside" from closing the modal.
-        if (mouseDownOnBackdrop.current && e.target === e.currentTarget) {
-          onCancel();
-        }
+      onMouseUp={() => { mouseDownOnBackdrop.current = false; }}
+      onMouseLeave={() => { mouseDownOnBackdrop.current = false; }}
+      onClick={(e: React.MouseEvent) => {
+        if (mouseDownOnBackdrop.current && e.target === e.currentTarget) onCancel();
         mouseDownOnBackdrop.current = false;
       }}
     >
-      <div
-        className="relative w-full max-w-md rounded-xl shadow-2xl bg-linear-to-b from-[#1b2030]/95 to-[#141824]/95 border border-[#2a3146] p-6 animate-settings-in"
-        onClick={(e) => e.stopPropagation()}
+      <Box
+        className="animate-settings-in"
+        position="relative"
+        w="full"
+        maxW="md"
+        rounded="xl"
+        shadow="2xl"
+        bg="linear-gradient(to bottom, rgba(27,32,48,0.97), rgba(20,24,36,0.97))"
+        border="1px solid"
+        borderColor="whiteAlpha.100"
+        p={6}
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div className="text-white font-extrabold text-lg">{title}</div>
-          <button
-            type="button"
-            className="w-8 h-8 rounded-full bg-[#23293a] text-gray-400 hover:text-white hover:bg-[#2f3650] transition flex items-center justify-center"
+        <HStack justify="space-between" align="flex-start">
+          <Text color="white" fontWeight="extrabold" fontSize="lg">{title}</Text>
+          <IconButton
+            aria-label={t("common.close")}
+            size="sm"
+            variant="ghost"
+            color="whiteAlpha.600"
+            _hover={{ color: "white", bg: "whiteAlpha.100" }}
+            rounded="full"
             onClick={onCancel}
-            title={t("common.close")}
           >
-            <IconX size={20} />
-          </button>
-        </div>
+            <IconX size={18} />
+          </IconButton>
+        </HStack>
 
         {/* Message */}
-        <div className="mt-4 text-sm text-gray-200 whitespace-pre-wrap">
+        <Box mt={4} fontSize="sm" color="whiteAlpha.800" whiteSpace="pre-wrap">
           {message}
-        </div>
+        </Box>
 
         {/* Buttons */}
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            className="px-4 py-2 rounded-lg border border-[#2a3146] text-gray-300 hover:text-white hover:bg-[#2f3650] transition"
+        <HStack mt={6} justify="flex-end" gap={3}>
+          <Button
+            variant="outline"
+            size="sm"
+            borderColor="whiteAlpha.200"
+            color="whiteAlpha.700"
+            _hover={{ color: "white", bg: "whiteAlpha.100" }}
             onClick={onCancel}
           >
             {resolvedCancelText}
-          </button>
-          <button
-            type="button"
-            className="px-4 py-2 rounded-lg bg-linear-to-r from-[#0268D4] to-[#02D4D4] text-white font-bold hover:scale-[1.02] transition"
+          </Button>
+          <Button
+            size="sm"
+            color="white"
+            fontWeight="bold"
+            style={{ background: "linear-gradient(90deg,#0268D4,#02D4D4)" }}
+            _hover={{ opacity: 0.9 }}
             onClick={onConfirm}
           >
             {resolvedConfirmText}
-          </button>
-        </div>
-      </div>
-    </div>,
+          </Button>
+        </HStack>
+      </Box>
+    </Box>,
     document.body,
   );
 };

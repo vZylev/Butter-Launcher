@@ -9,82 +9,25 @@ import {
   IconTrash,
   IconX,
 } from "@tabler/icons-react";
+import { Box, HStack, VStack, Text } from "@chakra-ui/react";
 import { useGameContext } from "../hooks/gameContext";
-import cn from "../utils/cn";
 import { sanitizeHtmlAllowImages } from "../utils/sanitize";
 import { useTranslation } from "react-i18next";
 import ConfirmModal from "./ConfirmModal";
 import { decodeModPack, encodeModPack, type ModPackV1 } from "../utils/modPack";
+import type {
+  DiscoverMod,
+  BrowseSort,
+  ModDetails,
+  ModFileInfo,
+  ModRegistryEntry,
+  InstalledModFile,
+  InstalledSort,
+  ModProfile,
+} from "../features/mods/modsTypes";
+import { sortDiscoverInstalledFirst, formatModsError } from "../features/mods/modsTypes";
 
-type DiscoverMod = {
-  id: number;
-  name: string;
-  summary: string;
-  author: string;
-  dateCreated?: string;
-  dateModified?: string;
-  downloadCount?: number;
-  logoThumbnailUrl?: string;
-  latestVersionName?: string;
-  latestFileId?: number;
-};
-
-type BrowseSort =
-  | "relevance"
-  | "installedFirst"
-  | "popularity"
-  | "latestUpdate"
-  | "creationDate"
-  | "totalDownloads"
-  | "az";
-
-type ModDetails = {
-  id: number;
-  name: string;
-  summary: string;
-  slug?: string;
-  author?: string;
-  dateCreated?: string;
-  dateModified?: string;
-  downloadCount?: number;
-  logoUrl?: string;
-  screenshots?: Array<{ title?: string; url?: string; thumbnailUrl?: string }>;
-};
-
-type ModFileInfo = {
-  id: number;
-  displayName?: string;
-  fileName?: string;
-  fileDate?: string;
-  releaseType?: number;
-  downloadCount?: number;
-  gameVersions?: string[];
-};
-
-type ModRegistryEntry = {
-  modId: number;
-  fileId?: number;
-  fileName?: string;
-  installedAt?: string;
-};
-
-type InstalledModFile = {
-  fileName: string;
-  enabled: boolean;
-};
-
-type InstalledSort =
-  | "connectedToLauncher"
-  | "installedManually"
-  | "alphabetical"
-  | "needsUpdate";
-
-type ModProfile = {
-  name: string;
-  mods: string[]; // base names (no .disabled)
-  cf?: Record<string, { modId: number; fileId?: number }>; // key: baseName.toLowerCase()
-  // Yes, we store a tiny CF "memory" here so the UI can pretend it's smart.
-};
+// Types imported from features/mods/modsTypes.ts
 
 const ModsModal: React.FC<{
   open: boolean;
@@ -175,21 +118,9 @@ const ModsModal: React.FC<{
     Record<number, ModRegistryEntry>
   >({});
 
-  const sortDiscoverInstalledFirst = (mods: DiscoverMod[]) => {
-    // Stable sort based on current order.
-    const decorated = mods.map((mod, idx) => ({
-      mod,
-      idx,
-      installed: !!registryByModId[Number(mod?.id)],
-    }));
-    decorated.sort((a, b) => {
-      const ai = a.installed ? 1 : 0;
-      const bi = b.installed ? 1 : 0;
-      if (ai !== bi) return bi - ai;
-      return a.idx - b.idx;
-    });
-    return decorated.map((x) => x.mod);
-  };
+  // sortDiscoverInstalledFirst now imported from features/mods/modsTypes.ts
+  const sortLocal = (mods: DiscoverMod[]) =>
+    sortDiscoverInstalledFirst(mods, registryByModId);
 
   const [profilesLoading, setProfilesLoading] = useState(false);
   const [profilesError, setProfilesError] = useState<string>("");
@@ -275,16 +206,9 @@ const ModsModal: React.FC<{
     return dir;
   };
 
-  const formatModsError = (
-    res: any,
-    fallbackKey: string,
-    fallbackArgs?: Record<string, any>,
-  ) => {
-    if (res?.errorKey) return t(String(res.errorKey), res.errorArgs ?? {});
-    const raw = typeof res?.error === "string" ? res.error.trim() : "";
-    if (raw) return raw;
-    return t(fallbackKey, fallbackArgs ?? {});
-  };
+  // formatModsError imported from features/mods — local wrapper binds `t`
+  const fmtErr = (res: any, fallbackKey: string, fallbackArgs?: Record<string, any>) =>
+    formatModsError(res, fallbackKey, t, fallbackArgs);
 
   const loadDiscover = async (opts?: {
     reset?: boolean;
@@ -310,7 +234,7 @@ const ModsModal: React.FC<{
       });
 
       if (!res?.ok)
-        throw new Error(formatModsError(res, "modsModal.errors.loadModsFailed"));
+        throw new Error(fmtErr(res, "modsModal.errors.loadModsFailed"));
       const mods = Array.isArray(res.mods) ? (res.mods as DiscoverMod[]) : [];
       const pagination = res.pagination ?? null;
       const total =
@@ -323,7 +247,7 @@ const ModsModal: React.FC<{
       setDiscoverMods((prev) => {
         const combined = reset ? mods : [...prev, ...mods];
         return s === "installedFirst"
-          ? sortDiscoverInstalledFirst(combined)
+          ? sortLocal(combined)
           : combined;
       });
 
@@ -393,7 +317,7 @@ const ModsModal: React.FC<{
 
   useEffect(() => {
     if (sort !== "installedFirst") return;
-    setDiscoverMods((prev) => sortDiscoverInstalledFirst(prev));
+    setDiscoverMods((prev) => sortLocal(prev));
   }, [sort, registryByModId]);
 
   const loadDetails = async (modId: number) => {
@@ -406,7 +330,7 @@ const ModsModal: React.FC<{
       const res = await window.config.modsGetDetails(modId);
       if (!res?.ok)
         throw new Error(
-          formatModsError(res, "modsModal.errors.loadModDetailsFailed"),
+          fmtErr(res, "modsModal.errors.loadModDetailsFailed"),
         );
 
       setDetailsMod(res.mod as ModDetails);
@@ -431,7 +355,7 @@ const ModsModal: React.FC<{
       const res = await window.config.modsInstalledList(dir);
       if (!res?.ok)
         throw new Error(
-          formatModsError(res, "modsModal.errors.loadInstalledModsFailed"),
+          fmtErr(res, "modsModal.errors.loadInstalledModsFailed"),
         );
       setModsDir(res.modsDir);
       setInstalledItems(res.items ?? []);
@@ -464,7 +388,7 @@ const ModsModal: React.FC<{
       const res = await window.config.modsRegistry(gameDir);
       if (!res?.ok)
         throw new Error(
-          formatModsError(res, "modsModal.errors.loadModsRegistryFailed"),
+          fmtErr(res, "modsModal.errors.loadModsRegistryFailed"),
         );
 
       const list = Array.isArray(res.items)
@@ -511,7 +435,7 @@ const ModsModal: React.FC<{
       const res = await window.config.modsProfilesList(dir);
       if (!res?.ok)
         throw new Error(
-          formatModsError(res, "modsModal.errors.loadProfilesFailed"),
+          fmtErr(res, "modsModal.errors.loadProfilesFailed"),
         );
       const list = Array.isArray(res.profiles)
         ? (res.profiles as ModProfile[])
@@ -869,15 +793,6 @@ const ModsModal: React.FC<{
     setProfileSelectedMods(new Set((p.mods ?? []).filter(Boolean)));
   }, [open, selectedProfileName, profiles]);
 
-  const tabButtonClass = (active: boolean) =>
-    cn(
-      "px-3 py-1.5 rounded-lg border text-xs font-semibold transition",
-      "border-[#2a3146]",
-      active
-        ? "bg-[#0ea5ff]/20 text-[#b8f1ff] border-[#35c9ff]/60 shadow-[0_0_16px_rgba(14,165,255,0.55)]"
-        : "bg-transparent text-gray-200 hover:bg-[#0ea5ff]/10 hover:text-white",
-    );
-
   const formatNumber = (n?: number) => {
     if (typeof n !== "number" || !Number.isFinite(n)) return "";
     try {
@@ -926,44 +841,80 @@ const ModsModal: React.FC<{
   if (!open && !closing) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center glass-backdrop animate-fade-in">
+    <Box
+      position="fixed"
+      inset={0}
+      zIndex={50}
+      display="flex"
+      alignItems="center"
+      justifyContent="center"
+      bg="rgba(10,14,26,0.85)"
+      backdropFilter="blur(12px)"
+      style={{ animation: "fadeIn 0.18s ease" }}
+    >
       {imageViewer.open
         ? createPortal(
-            <div
-              className="fixed inset-0 z-[10060] glass-backdrop flex items-center justify-center p-6"
+            <Box
+              position="fixed"
+              inset={0}
+              zIndex={10060}
+              bg="rgba(10,14,26,0.92)"
+              backdropFilter="blur(12px)"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              p={6}
               onClick={() => closeImageViewer()}
               role="dialog"
               aria-modal="true"
               aria-label="Image viewer"
             >
-              <button
-                type="button"
-                className="absolute top-4 right-4 w-9 h-9 rounded-full border border-white/10 bg-[#141824]/80 text-gray-200 hover:text-white hover:bg-[#23293a] transition flex items-center justify-center"
-                onClick={(e) => {
+              <Box
+                as="button"
+                position="absolute"
+                top={4}
+                right={4}
+                w={9}
+                h={9}
+                rounded="full"
+                border="1px solid"
+                borderColor="whiteAlpha.100"
+                bg="rgba(20,24,36,0.8)"
+                color="gray.200"
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                cursor="pointer"
+                _hover={{ color: "white", bg: "#23293a" }}
+                transition="all 0.15s"
+                onClick={(e: React.MouseEvent) => {
                   e.stopPropagation();
                   closeImageViewer();
                 }}
                 title={t("common.close")}
               >
                 <IconX size={18} />
-              </button>
+              </Box>
 
-              <div
-                className="max-w-[92vw] max-h-[88vh] overflow-auto"
-                onClick={(e) => e.stopPropagation()}
+              <Box
+                maxW="92vw"
+                maxH="88vh"
+                overflow="auto"
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
               >
                 <img
                   src={imageViewer.src}
                   alt={imageViewer.alt || "Image"}
                   ref={imageViewerImgRef}
-                  className={cn(
-                    "block rounded-xl border border-white/10 bg-white/5 shadow-2xl",
-                    imageViewer.zoomed ? "cursor-zoom-out" : "cursor-zoom-in",
-                  )}
-                  style={
-                    imageViewer.zoomed
+                  style={{
+                    display: "block",
+                    borderRadius: "12px",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    background: "rgba(255,255,255,0.05)",
+                    boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)",
+                    cursor: imageViewer.zoomed ? "zoom-out" : "zoom-in",
+                    ...(imageViewer.zoomed
                       ? {
-                          // Real zoom: increase the rendered dimensions so scroll can reach edges.
                           width: imageViewerZoomDims
                             ? `${imageViewerZoomDims.w}px`
                             : "184vw",
@@ -980,14 +931,12 @@ const ModsModal: React.FC<{
                           maxHeight: "88vh",
                           objectFit: "contain",
                           transition: "width 120ms ease, height 120ms ease",
-                        }
-                  }
-                  // Click to zoom. Click again to un-zoom. The UX equivalent of a light switch.
+                        }),
+                  }}
                   onClick={() => {
                     setImageViewer((v) => {
                       if (!v.zoomed) {
-                        const rect =
-                          imageViewerImgRef.current?.getBoundingClientRect();
+                        const rect = imageViewerImgRef.current?.getBoundingClientRect();
                         if (rect && rect.width > 0 && rect.height > 0) {
                           setImageViewerZoomDims({
                             w: Math.round(rect.width * 2),
@@ -1003,91 +952,127 @@ const ModsModal: React.FC<{
                     });
                   }}
                 />
-              </div>
-            </div>,
+              </Box>
+            </Box>,
             document.body,
           )
         : null}
 
-      <div
-        className={cn(
-          `
-          relative w-[92vw] max-w-[2200px] h-[88vh] mx-auto
-          rounded-xl
-          bg-linear-to-b from-[#1b2030]/95 to-[#141824]/95
-          border border-[#2a3146]
-          shadow-2xl
-          px-10 py-6
-          flex flex-col animate-settings-in`,
-          closing && "animate-settings-out",
-        )}
+      <Box
+        position="relative"
+        w="92vw"
+        maxW="2200px"
+        h="88vh"
+        mx="auto"
+        rounded="xl"
+        bgGradient="to-b"
+        gradientFrom="rgba(27,32,48,0.95)"
+        gradientTo="rgba(20,24,36,0.95)"
+        border="1px solid"
+        borderColor="#2a3146"
+        shadow="2xl"
+        px={10}
+        py={6}
+        display="flex"
+        flexDir="column"
+        style={{ animation: closing ? "settingsOut 0.16s ease forwards" : "settingsIn 0.2s ease" }}
       >
-        <button
-          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-[#23293a] text-gray-400 hover:text-white hover:bg-[#2f3650] transition flex items-center justify-center"
+        <Box
+          as="button"
+          position="absolute"
+          top={3}
+          right={3}
+          w={8}
+          h={8}
+          rounded="full"
+          bg="#23293a"
+          color="gray.400"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          cursor="pointer"
+          _hover={{ color: "white", bg: "#2f3650" }}
+          transition="all 0.15s"
           onClick={close}
           title={t("common.close")}
         >
           <IconX size={18} />
-        </button>
+        </Box>
 
-        <div className="flex items-center justify-between gap-3 mb-4 pr-12">
-          <h2 className="text-lg font-semibold text-white tracking-wide">
+        <HStack justify="space-between" gap={3} mb={4} pr={12}>
+          <Text fontSize="lg" fontWeight="semibold" color="white" letterSpacing="wide">
             {t("modsModal.title")}
-          </h2>
+          </Text>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className={tabButtonClass(tab === "discover")}
-              onClick={() => setTab("discover")}
-            >
-              {t("modsModal.tabs.discover")}
-            </button>
-            <button
-              type="button"
-              className={tabButtonClass(tab === "installed")}
-              onClick={() => {
-                setTab("installed");
-                void loadInstalled();
-                void loadRegistry();
-              }}
-            >
-              {t("modsModal.tabs.installed")}
-            </button>
+          <HStack gap={2}>
+            {(
+              [
+                { key: "discover", label: t("modsModal.tabs.discover"), action: () => setTab("discover") },
+                {
+                  key: "installed",
+                  label: t("modsModal.tabs.installed"),
+                  action: () => { setTab("installed"); void loadInstalled(); void loadRegistry(); },
+                },
+                {
+                  key: "profiles",
+                  label: t("modsModal.tabs.profiles"),
+                  action: () => { setTab("profiles"); void loadProfiles(); void loadInstalled(); void loadRegistry(); },
+                },
+              ] as const
+            ).map((t2) => {
+              const active = tab === t2.key;
+              return (
+                <Box
+                  as="button"
+                  key={t2.key}
+                  px={3}
+                  py={1.5}
+                  rounded="lg"
+                  border="1px solid"
+                  borderColor={active ? "rgba(53,201,255,0.6)" : "#2a3146"}
+                  bg={active ? "rgba(14,165,255,0.2)" : "transparent"}
+                  color={active ? "#b8f1ff" : "gray.200"}
+                  fontSize="xs"
+                  fontWeight="semibold"
+                  cursor="pointer"
+                  transition="all 0.15s"
+                  style={active ? { boxShadow: "0 0 16px rgba(14,165,255,0.55)" } : {}}
+                  _hover={active ? {} : { bg: "rgba(14,165,255,0.1)", color: "white" }}
+                  onClick={t2.action}
+                >
+                  {t2.label}
+                </Box>
+              );
+            })}
+          </HStack>
+        </HStack>
 
-            <button
-              type="button"
-              className={tabButtonClass(tab === "profiles")}
-              onClick={() => {
-                setTab("profiles");
-                void loadProfiles();
-                void loadInstalled();
-                void loadRegistry();
-              }}
-            >
-              {t("modsModal.tabs.profiles")}
-            </button>
-          </div>
-        </div>
-
-        {/* Profiles gets its own inner scroll containers so Apply/Delete don't vanish into the void. */}
-        <div
-          className={cn(
-            "flex-1 min-h-0 pr-2",
-            tab !== "profiles" && "overflow-y-auto",
-          )}
+        <Box
+          flex={1}
+          minH={0}
+          pr={2}
+          overflowY={tab !== "profiles" ? "auto" : undefined}
           ref={scrollRootRef}
         >
           {tab === "discover" ? (
-            <div className="rounded-lg border border-[#2a3146] bg-[#1f2538]/70 p-3">
-              <div className="flex items-center gap-2 mb-3">
+            <Box rounded="lg" border="1px solid" borderColor="#2a3146" bg="rgba(31,37,56,0.7)" p={3}>
+              <HStack gap={2} mb={3}>
                 {detailsId != null ? (
-                  <button
-                    type="button"
-                    className={cn(
-                      "px-3 py-2 rounded-lg border border-[#2a3146]",
-                      "bg-[#23293a] hover:bg-[#2f3650] text-white transition flex items-center gap-2",
-                    )}
+                  <Box
+                    as="button"
+                    px={3}
+                    py={2}
+                    rounded="lg"
+                    border="1px solid"
+                    borderColor="#2a3146"
+                    bg="#23293a"
+                    color="white"
+                    display="flex"
+                    alignItems="center"
+                    gap={2}
+                    cursor="pointer"
+                    _hover={{ bg: "#2f3650" }}
+                    transition="all 0.15s"
                     onClick={() => {
                       setDetailsId(null);
                       setDetailsError("");
@@ -1099,32 +1084,40 @@ const ModsModal: React.FC<{
                   >
                     <IconArrowLeft size={18} />
                     {t("common.back")}
-                  </button>
+                  </Box>
                 ) : null}
 
-                <div className="flex-1 relative">
-                  <IconSearch
-                    size={16}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  />
+                <Box flex={1} position="relative">
+                  <Box position="absolute" left={3} top="50%" transform="translateY(-50%)" color="gray.400" pointerEvents="none">
+                    <IconSearch size={16} />
+                  </Box>
                   <input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
-                        void loadDiscover({
-                          reset: true,
-                          q: query.trim(),
-                          sort,
-                        });
+                        void loadDiscover({ reset: true, q: query.trim(), sort });
                         setDetailsId(null);
                       }
                     }}
                     placeholder={t("modsModal.searchPlaceholder")}
-                    className="w-full pl-9 pr-3 py-2 rounded-lg bg-[#141824]/80 border border-[#2a3146] text-white text-sm outline-none focus:border-blue-400/60"
                     disabled={discoverLoading}
+                    style={{
+                      width: "100%",
+                      paddingLeft: "36px",
+                      paddingRight: "12px",
+                      paddingTop: "8px",
+                      paddingBottom: "8px",
+                      borderRadius: "8px",
+                      background: "rgba(20,24,36,0.8)",
+                      border: "1px solid #2a3146",
+                      color: "white",
+                      fontSize: "0.875rem",
+                      outline: "none",
+                      fontFamily: "inherit",
+                    }}
                   />
-                </div>
+                </Box>
 
                 <select
                   value={sort}
@@ -1132,224 +1125,191 @@ const ModsModal: React.FC<{
                     const next = e.target.value as BrowseSort;
                     setSort(next);
                     setDetailsId(null);
-                    void loadDiscover({
-                      reset: true,
-                      q: query.trim(),
-                      sort: next,
-                    });
+                    void loadDiscover({ reset: true, q: query.trim(), sort: next });
                   }}
-                  className="px-3 py-2 rounded-lg bg-[#141824]/80 border border-[#2a3146] text-white text-sm outline-none focus:border-blue-400/60"
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "8px",
+                    background: "rgba(20,24,36,0.8)",
+                    border: "1px solid #2a3146",
+                    color: "white",
+                    fontSize: "0.875rem",
+                    outline: "none",
+                  }}
                   title={t("common.sortBy")}
                 >
-                  <option value="installedFirst">
-                    {t("modsModal.sort.installedFirst")}
-                  </option>
-                  <option value="relevance">
-                    {t("modsModal.sort.relevance")}
-                  </option>
-                  <option value="popularity">
-                    {t("modsModal.sort.popularity")}
-                  </option>
-                  <option value="latestUpdate">
-                    {t("modsModal.sort.latestUpdate")}
-                  </option>
-                  <option value="creationDate">
-                    {t("modsModal.sort.creationDate")}
-                  </option>
-                  <option value="totalDownloads">
-                    {t("modsModal.sort.totalDownloads")}
-                  </option>
+                  <option value="installedFirst">{t("modsModal.sort.installedFirst")}</option>
+                  <option value="relevance">{t("modsModal.sort.relevance")}</option>
+                  <option value="popularity">{t("modsModal.sort.popularity")}</option>
+                  <option value="latestUpdate">{t("modsModal.sort.latestUpdate")}</option>
+                  <option value="creationDate">{t("modsModal.sort.creationDate")}</option>
+                  <option value="totalDownloads">{t("modsModal.sort.totalDownloads")}</option>
                   <option value="az">{t("modsModal.sort.az")}</option>
                 </select>
 
-                <button
-                  type="button"
-                  className={cn(
-                    "px-3 py-2 rounded-lg border border-[#2a3146]",
-                    "bg-[#23293a] hover:bg-[#2f3650] text-white transition",
-                    discoverLoading && "opacity-60 cursor-not-allowed",
-                  )}
-                  onClick={() => {
-                    setDetailsId(null);
-                    void loadDiscover({ reset: true, q: query.trim(), sort });
-                  }}
-                  disabled={discoverLoading}
+                <Box
+                  as="button"
+                  px={3}
+                  py={2}
+                  rounded="lg"
+                  border="1px solid"
+                  borderColor="#2a3146"
+                  bg="#23293a"
+                  color="white"
+                  cursor="pointer"
+                  opacity={discoverLoading ? 0.6 : 1}
+                  _hover={{ bg: "#2f3650" }}
+                  transition="all 0.15s"
+                  onClick={() => { setDetailsId(null); void loadDiscover({ reset: true, q: query.trim(), sort }); }}
                   title={t("common.search")}
                 >
                   <IconRefresh size={18} />
-                </button>
+                </Box>
 
-                <button
-                  type="button"
-                  className={cn(
-                    "px-3 py-2 rounded-lg border border-[#2a3146]",
-                    "bg-transparent hover:bg-white/5 text-gray-200 transition flex items-center gap-2",
-                  )}
+                <Box
+                  as="button"
+                  px={3}
+                  py={2}
+                  rounded="lg"
+                  border="1px solid"
+                  borderColor="#2a3146"
+                  bg="transparent"
+                  color="gray.200"
+                  display="flex"
+                  alignItems="center"
+                  gap={2}
+                  cursor="pointer"
+                  _hover={{ bg: "whiteAlpha.50" }}
+                  transition="all 0.15s"
                   onClick={() => void handleOpenModsFolder()}
                   title={t("modsModal.openModsFolder")}
                 >
                   <IconFolderOpen size={18} />
                   {t("common.folder")}
-                </button>
-              </div>
+                </Box>
+              </HStack>
 
               {discoverError ? (
-                <div className="text-xs text-red-300 mb-2">{discoverError}</div>
+                <Text fontSize="xs" color="red.300" mb={2}>{discoverError}</Text>
               ) : null}
 
               {registryError ? (
-                <div className="text-xs text-red-300 mb-2">{registryError}</div>
+                <Text fontSize="xs" color="red.300" mb={2}>{registryError}</Text>
               ) : null}
 
               {detailsId != null ? (
-                <div className="rounded-lg border border-[#2a3146] bg-[#141824]/60 p-3">
+                <Box rounded="lg" border="1px solid" borderColor="#2a3146" bg="rgba(20,24,36,0.6)" p={3}>
                   {detailsError ? (
-                    <div className="text-xs text-red-300 mb-2">
-                      {detailsError}
-                    </div>
+                    <Text fontSize="xs" color="red.300" mb={2}>{detailsError}</Text>
                   ) : null}
 
                   {detailsLoading && !detailsMod ? (
-                    <div className="text-xs text-gray-300">
-                      {t("modsModal.details.loadingDetails")}
-                    </div>
+                    <Text fontSize="xs" color="gray.300">{t("modsModal.details.loadingDetails")}</Text>
                   ) : detailsMod ? (
-                    <div className="flex flex-col gap-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-lg font-semibold text-white leading-tight">
+                    <VStack gap={3} align="stretch">
+                      <HStack align="flex-start" justify="space-between" gap={3}>
+                        <Box minW={0}>
+                          <Text fontSize="lg" fontWeight="semibold" color="white" lineHeight="tight">
                             {detailsMod.name}
-                          </div>
-                          <div className="text-xs text-gray-100 mt-1">
-                            {detailsMod.summary}
-                          </div>
-                          <div className="text-[11px] text-gray-200 mt-1">
-                            {(detailsMod.author ?? "") || ""}
-                          </div>
+                          </Text>
+                          <Text fontSize="xs" color="gray.100" mt={1}>{detailsMod.summary}</Text>
+                          <Text fontSize="11px" color="gray.200" mt={1}>{(detailsMod.author ?? "") || ""}</Text>
 
-                          <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                          <HStack mt={2} flexWrap="wrap" gap={2} fontSize="11px">
                             {detailsMod.downloadCount != null ? (
-                              <span className="px-2 py-1 rounded-md border border-white/10 bg-white/5 text-gray-200">
-                                {t("modsModal.details.downloads", {
-                                  value: formatNumber(detailsMod.downloadCount),
-                                })}
-                              </span>
+                              <Box px={2} py={1} rounded="md" border="1px solid" borderColor="whiteAlpha.100" bg="whiteAlpha.50" color="gray.200">
+                                {t("modsModal.details.downloads", { value: formatNumber(detailsMod.downloadCount) })}
+                              </Box>
                             ) : null}
                             {detailsMod.dateCreated ? (
-                              <span className="px-2 py-1 rounded-md border border-white/10 bg-white/5 text-gray-200">
-                                {t("modsModal.details.created", {
-                                  date: formatDate(detailsMod.dateCreated),
-                                })}
-                              </span>
+                              <Box px={2} py={1} rounded="md" border="1px solid" borderColor="whiteAlpha.100" bg="whiteAlpha.50" color="gray.200">
+                                {t("modsModal.details.created", { date: formatDate(detailsMod.dateCreated) })}
+                              </Box>
                             ) : null}
                             {detailsMod.dateModified ? (
-                              <span className="px-2 py-1 rounded-md border border-white/10 bg-white/5 text-gray-200">
-                                {t("modsModal.details.updated", {
-                                  date: formatDate(detailsMod.dateModified),
-                                })}
-                              </span>
+                              <Box px={2} py={1} rounded="md" border="1px solid" borderColor="whiteAlpha.100" bg="whiteAlpha.50" color="gray.200">
+                                {t("modsModal.details.updated", { date: formatDate(detailsMod.dateModified) })}
+                              </Box>
                             ) : null}
-                          </div>
-                        </div>
+                          </HStack>
+                        </Box>
 
-                        <div className="flex flex-col items-end gap-2">
+                        <VStack align="flex-end" gap={2}>
                           {(() => {
-                            const stableId =
-                              detailsFiles.find(
-                                (f) => Number(f?.releaseType) === 1,
-                              )?.id ?? detailsFiles?.[0]?.id;
-                            const status = getInstallStatus(
-                              detailsMod.id,
-                              stableId,
-                            ).state;
+                            const stableId = detailsFiles.find((f) => Number(f?.releaseType) === 1)?.id ?? detailsFiles?.[0]?.id;
+                            const status = getInstallStatus(detailsMod.id, stableId).state;
                             return (
-                              <button
-                                type="button"
-                                className={cn(
-                                  "px-3 py-2 rounded-lg border border-blue-400/30",
-                                  "bg-[linear-gradient(90deg,#0268D4_0%,#02D4D4_100%)] bg-[length:100%_100%] bg-no-repeat bg-left",
-                                  "text-white text-sm font-bold",
-                                  "hover:shadow-[0_0_18px_rgba(2,104,212,0.85)] transition",
-                                  (installingId === detailsMod.id ||
-                                    status === "installed") &&
-                                    "opacity-70 cursor-not-allowed",
-                                )}
+                              <Box
+                                as="button"
+                                px={3}
+                                py={2}
+                                rounded="lg"
+                                border="1px solid"
+                                borderColor="rgba(96,165,250,0.3)"
+                                style={{ background: "linear-gradient(90deg,#0268D4 0%,#02D4D4 100%)" }}
+                                color="white"
+                                fontSize="sm"
+                                fontWeight="bold"
+                                cursor="pointer"
+                                opacity={(installingId === detailsMod.id || status === "installed") ? 0.7 : 1}
+                                _hover={!(installingId === detailsMod.id || status === "installed") ? { boxShadow: "0 0 18px rgba(2,104,212,0.85)" } : {}}
+                                transition="all 0.15s"
                                 onClick={() => {
                                   if (status === "installed") return;
                                   void (async () => {
                                     try {
                                       const dir = await ensureGameDir();
                                       setInstallingId(detailsMod.id);
-                                      // Default install always downloads latest stable.
-                                      await window.config.modsInstall(
-                                        detailsMod.id,
-                                        dir,
-                                      );
+                                      await window.config.modsInstall(detailsMod.id, dir);
                                     } catch {
                                       setInstallingId(null);
                                     }
                                   })();
                                 }}
-                                disabled={
-                                  installingId === detailsMod.id ||
-                                  status === "installed"
-                                }
                                 title={t("modsModal.actions.install")}
                               >
-                                <span className="inline-flex items-center gap-2">
+                                <HStack gap={2}>
                                   <IconDownload size={18} />
-                                  {installingId === detailsMod.id
-                                    ? t("modsModal.status.installing")
-                                    : status === "installed"
-                                      ? t("modsModal.actions.installed")
-                                      : status === "update"
-                                        ? t("modsModal.actions.update")
-                                        : t("modsModal.actions.install")}
-                                </span>
-                              </button>
+                                  <span>
+                                    {installingId === detailsMod.id
+                                      ? t("modsModal.status.installing")
+                                      : status === "installed"
+                                        ? t("modsModal.actions.installed")
+                                        : status === "update"
+                                          ? t("modsModal.actions.update")
+                                          : t("modsModal.actions.install")}
+                                  </span>
+                                </HStack>
+                              </Box>
                             );
                           })()}
                           {installingId === detailsMod.id ? (
-                            <div className="text-[11px] text-gray-300">
+                            <Text fontSize="11px" color="gray.300">
                               {(() => {
                                 const p = downloadProgress[detailsMod.id];
-                                if (!p)
-                                  return t("modsModal.status.downloading");
-                                const pct = p.total
-                                  ? Math.floor((p.received / p.total) * 100)
-                                  : null;
+                                if (!p) return t("modsModal.status.downloading");
+                                const pct = p.total ? Math.floor((p.received / p.total) * 100) : null;
                                 return pct != null
-                                  ? t("modsModal.status.downloadingPct", {
-                                      pct,
-                                    })
-                                  : t("modsModal.status.downloadingKb", {
-                                      kb: Math.floor(p.received / 1024),
-                                    });
+                                  ? t("modsModal.status.downloadingPct", { pct })
+                                  : t("modsModal.status.downloadingKb", { kb: Math.floor(p.received / 1024) });
                               })()}
-                            </div>
+                            </Text>
                           ) : null}
-                        </div>
-                      </div>
+                        </VStack>
+                      </HStack>
 
                       {detailsMod.logoUrl ? (
                         <img
                           src={detailsMod.logoUrl}
                           alt={detailsMod.name}
-                          className="w-full max-h-[220px] object-cover rounded-lg border border-white/10 bg-white/5 cursor-zoom-in"
+                          style={{ width: "100%", maxHeight: "220px", objectFit: "cover", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)", cursor: "zoom-in" }}
                           loading="lazy"
-                          // Clickable because users will click it anyway.
-                          onClick={() =>
-                            openImageViewer(
-                              detailsMod.logoUrl!,
-                              detailsMod.name,
-                            )
-                          }
+                          onClick={() => openImageViewer(detailsMod.logoUrl!, detailsMod.name)}
                         />
                       ) : null}
 
-                      {Array.isArray(detailsMod.screenshots) &&
-                      detailsMod.screenshots.length ? (
-                        <div className="grid grid-cols-3 gap-2">
+                      {Array.isArray(detailsMod.screenshots) && detailsMod.screenshots.length ? (
+                        <Box display="grid" style={{ gridTemplateColumns: "repeat(3,1fr)", gap: "8px" }}>
                           {detailsMod.screenshots.slice(0, 6).map((s, idx) => {
                             const src = s.thumbnailUrl || s.url;
                             if (!src) return null;
@@ -1358,218 +1318,140 @@ const ModsModal: React.FC<{
                                 key={`${detailsMod.id}-shot-${idx}`}
                                 src={src}
                                 alt={s.title || `Screenshot ${idx + 1}`}
-                                className="w-full h-[90px] object-cover rounded-lg border border-white/10 bg-white/5 cursor-zoom-in"
+                                style={{ width: "100%", height: "90px", objectFit: "cover", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)", cursor: "zoom-in" }}
                                 loading="lazy"
-                                // Thumbnail click opens the full image. Revolutionary.
-                                onClick={() =>
-                                  openImageViewer(
-                                    s.url || src,
-                                    s.title || `Screenshot ${idx + 1}`,
-                                  )
-                                }
+                                onClick={() => openImageViewer(s.url || src, s.title || `Screenshot ${idx + 1}`)}
                               />
                             );
                           })}
-                        </div>
+                        </Box>
                       ) : null}
 
-                      <div className="rounded-lg border border-[#2a3146] bg-[#0f1422]/70 p-3">
-                        <div className="text-sm text-white font-semibold mb-2">
-                          {t("modsModal.details.description")}
-                        </div>
+                      <Box rounded="lg" border="1px solid" borderColor="#2a3146" bg="rgba(15,20,34,0.7)" p={3}>
+                        <Text fontSize="sm" color="white" fontWeight="semibold" mb={2}>{t("modsModal.details.description")}</Text>
                         {detailsLoading && !detailsHtml ? (
-                          <div className="text-xs text-gray-100">
-                            {t("modsModal.details.loadingDescription")}
-                          </div>
+                          <Text fontSize="xs" color="gray.100">{t("modsModal.details.loadingDescription")}</Text>
                         ) : detailsHtml ? (
-                          <div
-                            className={cn(
-                              "prose prose-invert max-w-none",
-                              "text-white",
-                              "prose-headings:text-white prose-p:text-gray-100 prose-li:text-gray-100",
-                              "prose-strong:text-white prose-em:text-gray-100",
-                              "prose-a:no-underline prose-a:text-[#8ad8ff] prose-a:hover:text-white",
-                              "prose-code:text-gray-100 prose-pre:bg-[#0b1020] prose-pre:border prose-pre:border-white/10",
-                              "prose-img:rounded-lg prose-img:border prose-img:border-white/10",
-                            )}
-                            onClick={(e) => {
+                          <Box
+                            color="white"
+                            fontSize="sm"
+                            lineHeight={1.7}
+                            style={{ overflowWrap: "break-word" }}
+                            onClick={(e: React.MouseEvent) => {
                               const target = e.target as HTMLElement | null;
                               if (!target) return;
                               if (target.tagName !== "IMG") return;
                               const img = target as HTMLImageElement;
                               const src = img.currentSrc || img.src;
                               if (!src) return;
-                              // Yes, we're event-delegating inside dangerouslySetInnerHTML. It's fine. Probably.
                               openImageViewer(src, img.alt || undefined);
                             }}
                             dangerouslySetInnerHTML={{ __html: detailsHtml }}
                           />
                         ) : (
-                          <div className="text-xs text-gray-200">
-                            {t("modsModal.details.noDescription")}
-                          </div>
+                          <Text fontSize="xs" color="gray.200">{t("modsModal.details.noDescription")}</Text>
                         )}
-                      </div>
+                      </Box>
 
-                      <div className="rounded-lg border border-[#2a3146] bg-[#0f1422]/70 p-3">
-                        <div className="text-sm text-white font-semibold mb-2">
-                          {t("modsModal.details.files")}
-                        </div>
+                      <Box rounded="lg" border="1px solid" borderColor="#2a3146" bg="rgba(15,20,34,0.7)" p={3}>
+                        <Text fontSize="sm" color="white" fontWeight="semibold" mb={2}>{t("modsModal.details.files")}</Text>
                         {detailsLoading && !detailsFiles.length ? (
-                          <div className="text-xs text-gray-300">
-                            {t("modsModal.details.loadingFiles")}
-                          </div>
+                          <Text fontSize="xs" color="gray.300">{t("modsModal.details.loadingFiles")}</Text>
                         ) : detailsFiles.length ? (
-                          <div className="space-y-2">
+                          <VStack gap={2} align="stretch">
                             {detailsFiles.slice(0, 20).map((f) => (
-                              <div
-                                key={f.id}
-                                className="flex items-start justify-between gap-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2"
-                              >
-                                <div className="min-w-0">
-                                  <div className="text-xs text-white font-semibold truncate">
-                                    {f.displayName ||
-                                      f.fileName ||
-                                      `File #${f.id}`}
-                                  </div>
-                                  <div className="text-[11px] text-gray-400 mt-0.5">
-                                    {f.fileDate
-                                      ? t("modsModal.details.updatedShort", {
-                                          date: formatDate(f.fileDate),
-                                        })
-                                      : ""}
-                                    {typeof f.downloadCount === "number"
-                                      ? ` • ${t("modsModal.details.downloads", {
-                                          value: formatNumber(f.downloadCount),
-                                        })}`
-                                      : ""}
-                                  </div>
-                                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px]">
+                              <HStack key={f.id} align="flex-start" justify="space-between" gap={3} rounded="lg" border="1px solid" borderColor="whiteAlpha.100" bg="whiteAlpha.50" px={3} py={2}>
+                                <Box minW={0}>
+                                  <Text fontSize="xs" color="white" fontWeight="semibold" truncate>
+                                    {f.displayName || f.fileName || `File #${f.id}`}
+                                  </Text>
+                                  <Text fontSize="11px" color="gray.400" mt={0.5}>
+                                    {f.fileDate ? t("modsModal.details.updatedShort", { date: formatDate(f.fileDate) }) : ""}
+                                    {typeof f.downloadCount === "number" ? ` • ${t("modsModal.details.downloads", { value: formatNumber(f.downloadCount) })}` : ""}
+                                  </Text>
+                                  <HStack mt={1} flexWrap="wrap" align="center" gap={2} fontSize="10px">
                                     {typeof f.releaseType === "number" ? (
-                                      <span
-                                        className={cn(
-                                          "px-2 py-0.5 rounded-md border border-white/10 bg-white/5",
-                                          Number(f.releaseType) === 1
-                                            ? "text-green-200"
-                                            : Number(f.releaseType) === 2
-                                              ? "text-yellow-200"
-                                              : "text-red-200",
-                                        )}
-                                      >
-                                        {Number(f.releaseType) === 1
-                                          ? t("modsModal.releaseType.stable")
-                                          : Number(f.releaseType) === 2
-                                            ? t("modsModal.releaseType.beta")
-                                            : t("modsModal.releaseType.alpha")}
-                                      </span>
+                                      <Box px={2} py={0.5} rounded="md" border="1px solid" borderColor="whiteAlpha.100" bg="whiteAlpha.50"
+                                        color={Number(f.releaseType) === 1 ? "green.200" : Number(f.releaseType) === 2 ? "yellow.200" : "red.200"}>
+                                        {Number(f.releaseType) === 1 ? t("modsModal.releaseType.stable") : Number(f.releaseType) === 2 ? t("modsModal.releaseType.beta") : t("modsModal.releaseType.alpha")}
+                                      </Box>
                                     ) : null}
-
-                                    {Array.isArray(f.gameVersions) &&
-                                    f.gameVersions.length ? (
-                                      <span className="text-gray-200 line-clamp-1">
+                                    {Array.isArray(f.gameVersions) && f.gameVersions.length ? (
+                                      <Text color="gray.200" style={{ overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" }}>
                                         {f.gameVersions.slice(0, 6).join(", ")}
-                                      </span>
+                                      </Text>
                                     ) : null}
-                                  </div>
-                                </div>
+                                  </HStack>
+                                </Box>
 
-                                <div className="shrink-0 flex flex-col items-end gap-2">
+                                <Box flexShrink={0} display="flex" flexDir="column" alignItems="flex-end" gap={2}>
                                   {(() => {
-                                    const entry =
-                                      registryByModId[detailsMod.id];
-                                    const installedFileId =
-                                      typeof entry?.fileId === "number"
-                                        ? entry.fileId
-                                        : undefined;
-                                    const isInstalledThisFile =
-                                      installedFileId != null &&
-                                      installedFileId === f.id;
+                                    const entry = registryByModId[detailsMod.id];
+                                    const installedFileId = typeof entry?.fileId === "number" ? entry.fileId : undefined;
+                                    const isInstalledThisFile = installedFileId != null && installedFileId === f.id;
                                     return (
-                                      <button
-                                        type="button"
-                                        className={cn(
-                                          "px-3 py-1.5 rounded-lg border border-blue-400/30",
-                                          "bg-[linear-gradient(90deg,#0268D4_0%,#02D4D4_100%)] bg-[length:100%_100%] bg-no-repeat bg-left",
-                                          "text-white text-xs font-bold",
-                                          "hover:shadow-[0_0_18px_rgba(2,104,212,0.85)] transition",
-                                          (installingId === detailsMod.id ||
-                                            isInstalledThisFile) &&
-                                            "opacity-70 cursor-not-allowed",
-                                        )}
-                                        disabled={
-                                          installingId === detailsMod.id ||
-                                          isInstalledThisFile
-                                        }
+                                      <Box
+                                        as="button"
+                                        px={3}
+                                        py={1.5}
+                                        rounded="lg"
+                                        border="1px solid"
+                                        borderColor="rgba(96,165,250,0.3)"
+                                        style={{ background: "linear-gradient(90deg,#0268D4 0%,#02D4D4 100%)" }}
+                                        color="white"
+                                        fontSize="xs"
+                                        fontWeight="bold"
+                                        cursor="pointer"
+                                        opacity={(installingId === detailsMod.id || isInstalledThisFile) ? 0.7 : 1}
+                                        _hover={!(installingId === detailsMod.id || isInstalledThisFile) ? { boxShadow: "0 0 18px rgba(2,104,212,0.85)" } : {}}
+                                        transition="all 0.15s"
                                         onClick={() => {
                                           if (isInstalledThisFile) return;
                                           void (async () => {
                                             try {
                                               const dir = await ensureGameDir();
                                               setInstallingId(detailsMod.id);
-                                              await window.config.modsInstallFile(
-                                                detailsMod.id,
-                                                f.id,
-                                                dir,
-                                              );
+                                              await window.config.modsInstallFile(detailsMod.id, f.id, dir);
                                             } catch {
                                               setInstallingId(null);
                                             }
                                           })();
                                         }}
-                                        title={t(
-                                          "modsModal.details.installThisFile",
-                                        )}
+                                        title={t("modsModal.details.installThisFile")}
                                       >
-                                        {isInstalledThisFile
-                                          ? t("modsModal.actions.installed")
-                                          : t("modsModal.actions.install")}
-                                      </button>
+                                        {isInstalledThisFile ? t("modsModal.actions.installed") : t("modsModal.actions.install")}
+                                      </Box>
                                     );
                                   })()}
-                                </div>
-                              </div>
+                                </Box>
+                              </HStack>
                             ))}
-                          </div>
+                          </VStack>
                         ) : (
-                          <div className="text-xs text-gray-400">
-                            {t("modsModal.details.noFilesReturned")}
-                          </div>
+                          <Text fontSize="xs" color="gray.400">{t("modsModal.details.noFilesReturned")}</Text>
                         )}
-                      </div>
-                    </div>
+                      </Box>
+                    </VStack>
                   ) : (
-                    <div className="text-xs text-gray-300">
-                      {t("modsModal.details.selectModForDetails")}
-                    </div>
+                    <Text fontSize="xs" color="gray.300">{t("modsModal.details.selectModForDetails")}</Text>
                   )}
-                </div>
+                </Box>
               ) : (
                 <>
-                  <div className="text-[11px] text-gray-400 mb-2">
-                    {totalCount != null
-                      ? t("modsModal.details.results", {
-                          value: formatNumber(totalCount),
-                        })
-                      : ""}
-                  </div>
+                  <Text fontSize="11px" color="gray.400" mb={2}>
+                    {totalCount != null ? t("modsModal.details.results", { value: formatNumber(totalCount) }) : ""}
+                  </Text>
 
-                  <div className="pr-1">
+                  <Box pr={1}>
                     {discoverLoading && !discoverMods.length ? (
-                      <div className="text-xs text-gray-100">
-                        {t("common.loading")}
-                      </div>
+                      <Text fontSize="xs" color="gray.100">{t("common.loading")}</Text>
                     ) : discoverMods.length ? (
-                      <div className="grid grid-cols-3 gap-3">
+                      <Box display="grid" style={{ gridTemplateColumns: "repeat(3,1fr)", gap: "12px" }}>
                         {discoverMods.map((m) => {
                           const installing = installingId === m.id;
                           const p = downloadProgress[m.id];
-                          const pct = p?.total
-                            ? Math.floor((p.received / p.total) * 100)
-                            : null;
-                          const status = getInstallStatus(
-                            m.id,
-                            m.latestFileId,
-                          ).state;
+                          const pct = p?.total ? Math.floor((p.received / p.total) * 100) : null;
+                          const status = getInstallStatus(m.id, m.latestFileId).state;
                           const actionLabel =
                             status === "installed"
                               ? t("modsModal.actions.installed")
@@ -1578,80 +1460,74 @@ const ModsModal: React.FC<{
                                 : t("modsModal.actions.install");
 
                           return (
-                            <button
+                            <Box
+                              as="button"
                               key={m.id}
-                              type="button"
-                              className={cn(
-                                "text-left rounded-xl border border-[#2a3146] bg-[#141824]/60",
-                                "hover:bg-[#141824]/80 hover:border-[#35c9ff]/30 transition",
-                                "p-3 flex flex-col gap-2",
-                              )}
+                              textAlign="left"
+                              rounded="xl"
+                              border="1px solid"
+                              borderColor="#2a3146"
+                              bg="rgba(20,24,36,0.6)"
+                              cursor="pointer"
+                              p={3}
+                              display="flex"
+                              flexDir="column"
+                              gap={2}
+                              _hover={{ bg: "rgba(20,24,36,0.8)", borderColor: "rgba(53,201,255,0.3)" }}
+                              transition="all 0.15s"
                               onClick={() => {
                                 setDetailsId(m.id);
                                 void loadDetails(m.id);
                               }}
                             >
-                              <div className="flex items-start gap-3">
+                              <HStack align="flex-start" gap={3}>
                                 {m.logoThumbnailUrl ? (
                                   <img
                                     src={m.logoThumbnailUrl}
                                     alt={m.name}
-                                    className="w-12 h-12 rounded-lg object-cover border border-white/10 bg-white/5 shrink-0"
+                                    style={{ width: "48px", height: "48px", borderRadius: "8px", objectFit: "cover", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)", flexShrink: 0 }}
                                     loading="lazy"
-                                    onError={(e) => {
-                                      (
-                                        e.currentTarget as HTMLImageElement
-                                      ).style.display = "none";
-                                    }}
+                                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                                   />
                                 ) : (
-                                  <div className="w-12 h-12 rounded-lg bg-[#23293a] border border-white/10 shrink-0" />
+                                  <Box w={12} h={12} rounded="lg" bg="#23293a" border="1px solid" borderColor="whiteAlpha.100" flexShrink={0} />
                                 )}
 
-                                <div className="min-w-0 flex-1">
-                                  <div className="text-sm font-semibold text-white leading-tight line-clamp-1">
+                                <Box minW={0} flex={1}>
+                                  <Text fontSize="sm" fontWeight="semibold" color="white" lineHeight="tight" style={{ overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" }}>
                                     {m.name}
-                                  </div>
-                                  <div className="text-[11px] text-gray-100 line-clamp-2 mt-0.5">
+                                  </Text>
+                                  <Text fontSize="11px" color="gray.100" mt={0.5} style={{ overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
                                     {m.summary}
-                                  </div>
-                                  <div className="text-[10px] text-gray-200 mt-1 line-clamp-1">
-                                    {m.author}
-                                    {m.latestVersionName
-                                      ? ` • ${m.latestVersionName}`
-                                      : ""}
-                                  </div>
-                                </div>
-                              </div>
+                                  </Text>
+                                  <Text fontSize="10px" color="gray.200" mt={1} style={{ overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" }}>
+                                    {m.author}{m.latestVersionName ? ` • ${m.latestVersionName}` : ""}
+                                  </Text>
+                                </Box>
+                              </HStack>
 
-                              <div className="flex items-center justify-between gap-2 mt-1">
-                                <div className="text-[10px] text-gray-400">
-                                  {typeof m.downloadCount === "number"
-                                    ? t("modsModal.details.downloads", {
-                                        value: formatNumber(m.downloadCount),
-                                      })
-                                    : ""}
-                                  {m.dateModified
-                                    ? ` • ${t(
-                                        "modsModal.details.updatedShort",
-                                        {
-                                          date: formatDate(m.dateModified),
-                                        },
-                                      )}`
-                                    : ""}
-                                </div>
+                              <HStack justify="space-between" gap={2} mt={1}>
+                                <Text fontSize="10px" color="gray.400">
+                                  {typeof m.downloadCount === "number" ? t("modsModal.details.downloads", { value: formatNumber(m.downloadCount) }) : ""}
+                                  {m.dateModified ? ` • ${t("modsModal.details.updatedShort", { date: formatDate(m.dateModified) })}` : ""}
+                                </Text>
 
-                                <button
-                                  type="button"
-                                  className={cn(
-                                    "px-3 py-1.5 rounded-lg border border-blue-400/30",
-                                    "bg-[linear-gradient(90deg,#0268D4_0%,#02D4D4_100%)] bg-[length:100%_100%] bg-no-repeat bg-left",
-                                    "text-white text-xs font-bold",
-                                    "hover:shadow-[0_0_18px_rgba(2,104,212,0.85)] transition",
-                                    (installing || status === "installed") &&
-                                      "opacity-70 cursor-not-allowed",
-                                  )}
-                                  onClick={(e) => {
+                                <Box
+                                  as="button"
+                                  px={3}
+                                  py={1.5}
+                                  rounded="lg"
+                                  border="1px solid"
+                                  borderColor="rgba(96,165,250,0.3)"
+                                  style={{ background: "linear-gradient(90deg,#0268D4 0%,#02D4D4 100%)" }}
+                                  color="white"
+                                  fontSize="xs"
+                                  fontWeight="bold"
+                                  cursor="pointer"
+                                  opacity={(installing || status === "installed") ? 0.7 : 1}
+                                  _hover={!(installing || status === "installed") ? { boxShadow: "0 0 18px rgba(2,104,212,0.85)" } : {}}
+                                  transition="all 0.15s"
+                                  onClick={(e: React.MouseEvent) => {
                                     e.preventDefault();
                                     e.stopPropagation();
                                     if (status === "installed") return;
@@ -1659,952 +1535,732 @@ const ModsModal: React.FC<{
                                       try {
                                         const dir = await ensureGameDir();
                                         setInstallingId(m.id);
-                                        await window.config.modsInstall(
-                                          m.id,
-                                          dir,
-                                        );
+                                        await window.config.modsInstall(m.id, dir);
                                       } catch {
                                         setInstallingId(null);
                                       }
                                     })();
                                   }}
-                                  disabled={
-                                    installing || status === "installed"
-                                  }
                                   title={t("modsModal.actions.install")}
                                 >
-                                  {installing
-                                    ? t("modsModal.status.installing")
-                                    : actionLabel}
-                                </button>
-                              </div>
+                                  {installing ? t("modsModal.status.installing") : actionLabel}
+                                </Box>
+                              </HStack>
 
                               {installing ? (
-                                <div className="text-[10px] text-gray-300">
-                                  {pct != null
-                                    ? t("modsModal.status.downloadingPct", {
-                                        pct,
-                                      })
-                                    : t("modsModal.status.downloading")}
-                                </div>
+                                <Text fontSize="10px" color="gray.300">
+                                  {pct != null ? t("modsModal.status.downloadingPct", { pct }) : t("modsModal.status.downloading")}
+                                </Text>
                               ) : null}
-                            </button>
+                            </Box>
                           );
                         })}
-                      </div>
+                      </Box>
                     ) : (
-                      <div className="text-xs text-gray-100">
-                        {t("modsModal.noModsFound")}
-                      </div>
+                      <Text fontSize="xs" color="gray.100">{t("modsModal.noModsFound")}</Text>
                     )}
-                  </div>
+                  </Box>
 
-                  <div className="mt-3 flex items-center justify-between gap-2">
-                    <div className="text-[11px] text-gray-400">
+                  <HStack mt={3} justify="space-between" gap={2}>
+                    <Text fontSize="11px" color="gray.400">
                       {totalCount != null
-                        ? t("modsModal.details.loadedOf", {
-                            loaded: formatNumber(
-                              Math.min(discoverMods.length, totalCount),
-                            ),
-                            total: formatNumber(totalCount),
-                          })
+                        ? t("modsModal.details.loadedOf", { loaded: formatNumber(Math.min(discoverMods.length, totalCount)), total: formatNumber(totalCount) })
                         : discoverMods.length
-                          ? t("modsModal.details.loaded", {
-                              loaded: formatNumber(discoverMods.length),
-                            })
+                          ? t("modsModal.details.loaded", { loaded: formatNumber(discoverMods.length) })
                           : ""}
-                    </div>
-                    <div className="text-[11px] text-gray-400">
-                      {discoverLoading && hasMore && discoverMods.length
-                        ? t("common.loading")
-                        : ""}
-                    </div>
-                  </div>
+                    </Text>
+                    <Text fontSize="11px" color="gray.400">
+                      {discoverLoading && hasMore && discoverMods.length ? t("common.loading") : ""}
+                    </Text>
+                  </HStack>
 
-                  <div ref={discoverLoadMoreSentinelRef} className="h-1 w-full" />
+                  <Box ref={discoverLoadMoreSentinelRef} h={1} w="full" />
                 </>
               )}
-            </div>
-          ) :  tab === "installed" ? (
-  <div className="rounded-lg border border-[#2a3146] bg-[#1f2538]/70 p-4">
-    {/* Contenedor de botones principales centrado */}
-    <div className="flex items-center justify-center gap-3 mb-2 w-full">
-      <div className="flex items-center justify-center gap-2 flex-wrap">
-        <button
-          type="button"
-          className={cn(
-            "px-3 py-2 rounded-lg border border-[#2a3146]",
-            "bg-transparent hover:bg-white/5 text-gray-200 transition",
-            (installedLoading || updatesWorking) &&
-              "opacity-60 cursor-not-allowed",
-          )}
-          onClick={() => {
-            void (async () => {
-              try {
-                setUpdatesWorking(true);
-                setInstalledError("");
-                const dir = await ensureGameDir();
-                if (checkedAllOnce) {
-                  const res = await window.config.modsUpdateAll(dir);
-                  if (res && (res as any).ok === false) {
-                    setInstalledError(
-                      formatModsError(
-                        res,
-                        "modsModal.installed.updateFailed",
-                      ),
-                    );
-                  }
-                  setCheckedUpdatesByModId({});
-                  await loadInstalled(false);
-                } else {
-                  const res = await window.config.modsCheckUpdatesAll(
-                    dir,
-                  );
-                  if (res && (res as any).ok === false) {
-                    setInstalledError(
-                      formatModsError(
-                        res,
-                        "modsModal.installed.checkFailed",
-                      ),
-                    );
-                    return;
-                  }
-
-                  const results = Array.isArray(
-                    (res as any).results,
-                  )
-                    ? ((res as any).results as Array<any>)
-                    : [];
-
-                  const next: Record<
-                    number,
-                    {
-                      updateAvailable: boolean;
-                      latestFileId: number | null;
-                      latestName: string;
-                    }
-                  > = {};
-                  for (const r of results) {
-                    const id = Number(r?.modId);
-                    if (!Number.isFinite(id) || id <= 0) continue;
-                    next[id] = {
-                      updateAvailable: !!r?.updateAvailable,
-                      latestFileId:
-                        typeof r?.latestFileId === "number"
-                          ? r.latestFileId
-                          : null,
-                      latestName:
-                        typeof r?.latestName === "string"
-                          ? r.latestName
-                          : "",
-                    };
-                  }
-                  setCheckedUpdatesByModId(next);
-                  setCheckedAllOnce(true);
-                }
-              } catch {
-                // ignore
-              } finally {
-                setUpdatesWorking(false);
-              }
-            })();
-          }}
-          disabled={installedLoading || updatesWorking}
-          title={t("modsModal.installed.checkUpdates")}
-        >
-          {checkedAllOnce
-            ? t("modsModal.installed.updateAll")
-            : t("modsModal.installed.checkUpdates")}
-        </button>
-
-        <button
-          type="button"
-          className={cn(
-            "px-3 py-2 rounded-lg border border-[#2a3146]",
-            "bg-[#23293a] hover:bg-[#2f3650] text-white transition",
-            installedLoading && "opacity-60 cursor-not-allowed",
-          )}
-          onClick={() => {
-            void (async () => {
-              try {
-                const dir = await ensureGameDir();
-                const res = await window.config.modsInstalledSetAll(
-                  dir,
-                  true,
-                );
-                if (res && (res as any).ok === false) {
-                  setInstalledError(
-                    formatModsError(
-                      res,
-                      "modsModal.errors.unknown",
-                    ),
-                  );
-                  return;
-                }
-                await loadInstalled();
-              } catch {
-                // ignore
-              }
-            })();
-          }}
-          disabled={installedLoading}
-          title={t("modsModal.installed.enableAll")}
-        >
-          {t("modsModal.installed.enableAll")}
-        </button>
-
-        <button
-          type="button"
-          className={cn(
-            "px-3 py-2 rounded-lg border border-[#2a3146]",
-            "bg-transparent hover:bg-white/5 text-gray-200 transition",
-            installedLoading && "opacity-60 cursor-not-allowed",
-          )}
-          onClick={() => {
-            void (async () => {
-              try {
-                const dir = await ensureGameDir();
-                const res = await window.config.modsInstalledSetAll(
-                  dir,
-                  false,
-                );
-                if (res && (res as any).ok === false) {
-                  setInstalledError(
-                    formatModsError(
-                      res,
-                      "modsModal.errors.unknown",
-                    ),
-                  );
-                  return;
-                }
-                await loadInstalled();
-              } catch {
-                // ignore
-              }
-            })();
-          }}
-          disabled={installedLoading}
-          title={t("modsModal.installed.disableAll")}
-        >
-          {t("modsModal.installed.disableAll")}
-        </button>
-
-        <button
-          type="button"
-          className={cn(
-            "px-3 py-2 rounded-lg border border-[#2a3146]",
-            "bg-[#23293a] hover:bg-[#2f3650] text-white transition flex items-center gap-2",
-            installedLoading && "opacity-60 cursor-not-allowed",
-          )}
-          onClick={() => void loadInstalled()}
-          disabled={installedLoading}
-          title={t("common.refresh")}
-        >
-          <IconRefresh size={18} />
-          {t("common.refresh")}
-        </button>
-        <button
-          type="button"
-          className="px-3 py-2 rounded-lg border border-[#2a3146] bg-transparent hover:bg-white/5 text-gray-200 transition flex items-center gap-2"
-          onClick={() => void handleOpenModsFolder()}
-        >
-          <IconFolderOpen size={18} />
-          {t("modsModal.installed.openFolder")}
-        </button>
-      </div>
-    </div>
-
-    <div className="text-[11px] text-gray-400 overflow-x-auto whitespace-nowrap mt-2">
-      {t("modsModal.installed.counts", {
-        downloaded: formatNumber(installedItems.length),
-        active: formatNumber(
-          installedItems.reduce(
-            (n, it) => n + (it?.enabled ? 1 : 0),
-            0,
-          ),
-        ),
-      })}
-    </div>
-
-    <div
-      className="text-[11px] text-gray-400 overflow-x-auto whitespace-nowrap select-text"
-      title={modsDir || ""}
-    >
-      {modsDir || ""}
-    </div>
-
-    {installedError ? (
-      <div className="text-xs text-red-300 mb-2">
-        {installedError}
-      </div>
-    ) : null}
-
-    {/* Separador de Ordenamiento con Opciones */}
-    <div className="flex items-center gap-4 px-2 mt-4 mb-2 text-sm border-b border-white/5 pb-2">
-      <span className="text-gray-400 font-medium">{t("common.sortBy")}:</span>
-      
-      <div className="flex items-center gap-3 overflow-x-auto whitespace-nowrap">
-        {[
-          { id: "connectedToLauncher", label: t("modsModal.installed.sort.connectedToLauncher") },
-          { id: "installedManually", label: t("modsModal.installed.sort.installedManually") },
-          { id: "alphabetical", label: t("modsModal.installed.sort.alphabetical") },
-          { id: "needsUpdate", label: t("modsModal.installed.sort.needsUpdate") },
-        ].map((opt) => (
-          <button
-            key={opt.id}
-            type="button"
-            onClick={() => setInstalledSort(opt.id as InstalledSort)}
-            disabled={installedLoading}
-            className={cn(
-              "transition-colors outline-none",
-              installedSort === opt.id 
-                ? "text-blue-400 font-semibold" 
-                : "text-gray-500 hover:text-gray-300"
-            )}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
-
-      <button
-        type="button"
-        onClick={() => setInstalledSortAsc((v) => !v)}
-        disabled={installedLoading}
-        // AQUÍ ESTÁ EL CAMBIO: text-blue-400 y hover:text-blue-300
-        className="ml-auto flex items-center justify-center rounded-md text-blue-400 hover:text-blue-300 hover:bg-white/5 transition outline-none text-xl px-2"
-        title={installedSortAsc ? t("common.ascending") : t("common.descending")}
-      >
-        {installedSortAsc ? "↑" : "↓"}
-      </button>
-    </div>
-
-    <div className="pr-1 rounded-lg border border-[#2a3146] bg-[#141824]/60">
-      {installedLoading ? (
-        <div className="p-3 text-xs text-gray-100">
-          {t("common.loading")}
-        </div>
-      ) : sortedInstalledItems.length ? (
-        sortedInstalledItems.map((it) => (
-          (() => {
-            const base = baseName(it.fileName).trim();
-            const reg = base
-              ? registryByBaseName.get(base.toLowerCase()) ?? null
-              : null;
-            const managedModId = reg?.modId;
-            const isManual = !reg;
-
-            const canCheckUpdate =
-              typeof managedModId === "number" &&
-              Number.isFinite(managedModId) &&
-              managedModId > 0;
-
-            const checked =
-              typeof managedModId === "number"
-                ? checkedUpdatesByModId[managedModId]
-                : undefined;
-
-            return (
-              <div
-                key={it.fileName}
-                className="flex items-center justify-between gap-3 px-3 py-2 border-b border-white/5"
-              >
-                <div className="min-w-0">
-                  <div className="text-xs text-white truncate">
-                    {it.fileName}
-                  </div>
-                  <div className="mt-0.5 flex items-center gap-2">
-                    <div
-                      className={cn(
-                        "px-2 py-0.5 rounded-full border text-[10px] font-semibold",
-                        it.enabled
-                          ? "border-green-400/30 bg-green-500/10 text-green-200"
-                          : "border-gray-500/30 bg-white/5 text-gray-300",
-                      )}
-                    >
-                      {it.enabled ? t("common.enabled") : t("common.disabled")}
-                    </div>
-
-                    {isManual ? (
-                      <div className="text-[10px] text-yellow-300">
-                        {t("modsModal.installed.installedManually")}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  {!isManual && checked?.updateAvailable ? (
-                    <div className="text-[10px] text-gray-400 mt-0.5 truncate">
-                      {t("modsModal.installed.latestVersion")}: {checked.latestName || ""}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {isManual ? (
-                    <button
-                      type="button"
-                      className={cn(
-                        "px-3 py-1.5 rounded-lg border border-[#2a3146] text-xs",
-                        "bg-transparent hover:bg-white/5 text-yellow-100 transition",
-                      )}
-                      onClick={() => openAttachPrompt(it.fileName)}
-                      title={t("modsModal.installed.attachToLauncher")}
-                    >
-                      {t("modsModal.installed.attachToLauncher")}
-                    </button>
-                  ) : canCheckUpdate ? (
-                    <button
-                      type="button"
-                      className={cn(
-                        "px-3 py-1.5 rounded-lg border border-[#2a3146] text-xs",
-                        "bg-transparent hover:bg-white/5 text-gray-200 transition",
-                        (updatesWorking || installingId === managedModId) &&
-                          "opacity-60 cursor-not-allowed",
-                      )}
-                      disabled={updatesWorking || installingId === managedModId}
-                      onClick={() => {
-                        void (async () => {
-                          try {
-                            setUpdatesWorking(true);
-                            setInstalledError("");
-                            const dir = await ensureGameDir();
-                            if (checked?.updateAvailable) {
-                              setInstallingId(managedModId);
-                              const res = await window.config.modsUpdateOne(
-                                dir,
-                                managedModId,
-                              );
-                              if (res && (res as any).ok === false) {
-                                setInstalledError(
-                                  formatModsError(
-                                    res,
-                                    "modsModal.installed.updateFailed",
-                                  ),
-                                );
-                              }
-                              setCheckedUpdatesByModId((prev) => {
-                                const copy = { ...prev };
-                                delete copy[managedModId];
-                                return copy;
-                              });
-                              await loadInstalled(false);
-                            } else {
-                              const res =
-                                await window.config.modsCheckUpdateOne(
-                                  dir,
-                                  managedModId,
-                                );
-                              if (res && (res as any).ok === false) {
-                                setInstalledError(
-                                  formatModsError(
-                                    res,
-                                    "modsModal.installed.checkFailed",
-                                  ),
-                                );
-                                return;
-                              }
-
-                              setCheckedUpdatesByModId((prev) => ({
-                                ...prev,
-                                [managedModId]: {
-                                  updateAvailable: !!(res as any)
-                                    ?.updateAvailable,
-                                  latestFileId:
-                                    typeof (res as any)?.latestFileId ===
-                                    "number"
-                                      ? (res as any).latestFileId
-                                      : null,
-                                  latestName:
-                                    typeof (res as any)?.latestName ===
-                                    "string"
-                                      ? (res as any).latestName
-                                      : "",
-                                },
-                              }));
-                            }
-                          } catch {
-                            // ignore
-                          } finally {
-                            setInstallingId(null);
-                            setUpdatesWorking(false);
-                          }
-                        })();
-                      }}
-                      title={t("modsModal.installed.checkUpdate")}
-                    >
-                      {checked?.updateAvailable
-                        ? t("modsModal.installed.update")
-                        : t("modsModal.installed.checkUpdate")}
-                    </button>
-                  ) : null}
-
-                  <button
-                    type="button"
-                    className={cn(
-                      "px-3 py-1.5 rounded-lg border border-[#2a3146] text-xs",
-                      it.enabled
-                        ? "bg-transparent hover:bg-white/5 text-gray-200"
-                        : "bg-[#23293a] hover:bg-[#2f3650] text-white",
-                      "transition",
-                    )}
-                    onClick={() => {
-                      void (async () => {
-                        try {
-                          const dir = await ensureGameDir();
-                          const res =
-                            await window.config.modsInstalledToggle(
-                            dir,
-                            it.fileName,
-                          );
+            </Box>
+          ) : tab === "installed" ? (
+            <Box rounded="lg" border="1px solid" borderColor="#2a3146" bg="rgba(31,37,56,0.7)" p={4}>
+              <HStack justify="center" gap={3} mb={2} w="full" flexWrap="wrap">
+                <Box
+                  as="button"
+                  px={3}
+                  py={2}
+                  rounded="lg"
+                  border="1px solid"
+                  borderColor="#2a3146"
+                  bg="transparent"
+                  color="gray.200"
+                  cursor="pointer"
+                  opacity={(installedLoading || updatesWorking) ? 0.6 : 1}
+                  _hover={{ bg: "whiteAlpha.50" }}
+                  transition="all 0.15s"
+                  onClick={() => {
+                    void (async () => {
+                      try {
+                        setUpdatesWorking(true);
+                        setInstalledError("");
+                        const dir = await ensureGameDir();
+                        if (checkedAllOnce) {
+                          const res = await window.config.modsUpdateAll(dir);
                           if (res && (res as any).ok === false) {
-                            setInstalledError(
-                              formatModsError(
-                                res,
-                                "modsModal.errors.unknown",
-                              ),
-                            );
+                            setInstalledError(fmtErr(res, "modsModal.installed.updateFailed"));
+                          }
+                          setCheckedUpdatesByModId({});
+                          await loadInstalled(false);
+                        } else {
+                          const res = await window.config.modsCheckUpdatesAll(dir);
+                          if (res && (res as any).ok === false) {
+                            setInstalledError(fmtErr(res, "modsModal.installed.checkFailed"));
                             return;
                           }
-                          await loadInstalled(false);
-                        } catch {
-                          // ignore
+                          const results = Array.isArray((res as any).results) ? ((res as any).results as Array<any>) : [];
+                          const next: Record<number, { updateAvailable: boolean; latestFileId: number | null; latestName: string }> = {};
+                          for (const r of results) {
+                            const id = Number(r?.modId);
+                            if (!Number.isFinite(id) || id <= 0) continue;
+                            next[id] = {
+                              updateAvailable: !!r?.updateAvailable,
+                              latestFileId: typeof r?.latestFileId === "number" ? r.latestFileId : null,
+                              latestName: typeof r?.latestName === "string" ? r.latestName : "",
+                            };
+                          }
+                          setCheckedUpdatesByModId(next);
+                          setCheckedAllOnce(true);
                         }
-                      })();
-                    }}
-                    title={t("common.toggle")}
-                  >
-                    {it.enabled
-                      ? t("common.disable")
-                      : t("common.enable")}
-                  </button>
+                      } catch {
+                        // ignore
+                      } finally {
+                        setUpdatesWorking(false);
+                      }
+                    })();
+                  }}
+                  title={t("modsModal.installed.checkUpdates")}
+                >
+                  {checkedAllOnce ? t("modsModal.installed.updateAll") : t("modsModal.installed.checkUpdates")}
+                </Box>
 
-                  <button
-                    type="button"
-                    className="w-9 h-9 rounded-lg border border-[#2a3146] bg-transparent hover:bg-red-500/15 text-red-300 hover:text-red-200 transition flex items-center justify-center"
-                    onClick={() => {
-                      setDeleteModPrompt({
-                        open: true,
-                        fileName: it.fileName,
-                      });
-                    }}
-                    title={t("common.delete")}
-                  >
-                    <IconTrash size={18} />
-                  </button>
-                </div>
-              </div>
-            );
-          })()
-        ))
-      ) : (
-        <div className="p-3 text-xs text-gray-300">
-          {t("modsModal.noInstalledModsFound")}
-        </div>
-      )}
-    </div>
-  </div>
+                <Box
+                  as="button"
+                  px={3}
+                  py={2}
+                  rounded="lg"
+                  border="1px solid"
+                  borderColor="#2a3146"
+                  bg="#23293a"
+                  color="white"
+                  cursor="pointer"
+                  opacity={installedLoading ? 0.6 : 1}
+                  _hover={{ bg: "#2f3650" }}
+                  transition="all 0.15s"
+                  onClick={() => {
+                    void (async () => {
+                      try {
+                        const dir = await ensureGameDir();
+                        const res = await window.config.modsInstalledSetAll(dir, true);
+                        if (res && (res as any).ok === false) { setInstalledError(fmtErr(res, "modsModal.errors.unknown")); return; }
+                        await loadInstalled();
+                      } catch { /* ignore */ }
+                    })();
+                  }}
+                  title={t("modsModal.installed.enableAll")}
+                >
+                  {t("modsModal.installed.enableAll")}
+                </Box>
+
+                <Box
+                  as="button"
+                  px={3}
+                  py={2}
+                  rounded="lg"
+                  border="1px solid"
+                  borderColor="#2a3146"
+                  bg="transparent"
+                  color="gray.200"
+                  cursor="pointer"
+                  opacity={installedLoading ? 0.6 : 1}
+                  _hover={{ bg: "whiteAlpha.50" }}
+                  transition="all 0.15s"
+                  onClick={() => {
+                    void (async () => {
+                      try {
+                        const dir = await ensureGameDir();
+                        const res = await window.config.modsInstalledSetAll(dir, false);
+                        if (res && (res as any).ok === false) { setInstalledError(fmtErr(res, "modsModal.errors.unknown")); return; }
+                        await loadInstalled();
+                      } catch { /* ignore */ }
+                    })();
+                  }}
+                  title={t("modsModal.installed.disableAll")}
+                >
+                  {t("modsModal.installed.disableAll")}
+                </Box>
+
+                <Box
+                  as="button"
+                  px={3}
+                  py={2}
+                  rounded="lg"
+                  border="1px solid"
+                  borderColor="#2a3146"
+                  bg="#23293a"
+                  color="white"
+                  display="flex"
+                  alignItems="center"
+                  gap={2}
+                  cursor="pointer"
+                  opacity={installedLoading ? 0.6 : 1}
+                  _hover={{ bg: "#2f3650" }}
+                  transition="all 0.15s"
+                  onClick={() => void loadInstalled()}
+                  title={t("common.refresh")}
+                >
+                  <IconRefresh size={18} />
+                  {t("common.refresh")}
+                </Box>
+
+                <Box
+                  as="button"
+                  px={3}
+                  py={2}
+                  rounded="lg"
+                  border="1px solid"
+                  borderColor="#2a3146"
+                  bg="transparent"
+                  color="gray.200"
+                  display="flex"
+                  alignItems="center"
+                  gap={2}
+                  cursor="pointer"
+                  _hover={{ bg: "whiteAlpha.50" }}
+                  transition="all 0.15s"
+                  onClick={() => void handleOpenModsFolder()}
+                >
+                  <IconFolderOpen size={18} />
+                  {t("modsModal.installed.openFolder")}
+                </Box>
+              </HStack>
+
+              <Text fontSize="11px" color="gray.400" overflowX="auto" whiteSpace="nowrap" mt={2}>
+                {t("modsModal.installed.counts", {
+                  downloaded: formatNumber(installedItems.length),
+                  active: formatNumber(installedItems.reduce((n, it) => n + (it?.enabled ? 1 : 0), 0)),
+                })}
+              </Text>
+
+              <Text fontSize="11px" color="gray.400" overflowX="auto" whiteSpace="nowrap" userSelect="text" title={modsDir || ""}>
+                {modsDir || ""}
+              </Text>
+
+              {installedError ? (
+                <Text fontSize="xs" color="red.300" mb={2}>{installedError}</Text>
+              ) : null}
+
+              <HStack gap={4} px={2} mt={4} mb={2} fontSize="sm" borderBottom="1px solid" borderColor="whiteAlpha.50" pb={2}>
+                <Text color="gray.400" fontWeight="medium">{t("common.sortBy")}:</Text>
+                <HStack gap={3} overflowX="auto" whiteSpace="nowrap">
+                  {[
+                    { id: "connectedToLauncher", label: t("modsModal.installed.sort.connectedToLauncher") },
+                    { id: "installedManually", label: t("modsModal.installed.sort.installedManually") },
+                    { id: "alphabetical", label: t("modsModal.installed.sort.alphabetical") },
+                    { id: "needsUpdate", label: t("modsModal.installed.sort.needsUpdate") },
+                  ].map((opt) => (
+                    <Box
+                      as="button"
+                      key={opt.id}
+                      cursor="pointer"
+                      outline="none"
+                      color={installedSort === opt.id ? "blue.400" : "gray.500"}
+                      fontWeight={installedSort === opt.id ? "semibold" : "normal"}
+                      _hover={installedSort !== opt.id ? { color: "gray.300" } : {}}
+                      transition="colors 0.15s"
+                      onClick={() => setInstalledSort(opt.id as InstalledSort)}
+                    >
+                      {opt.label}
+                    </Box>
+                  ))}
+                </HStack>
+                <Box
+                  as="button"
+                  ml="auto"
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  rounded="md"
+                  color="blue.400"
+                  cursor="pointer"
+                  _hover={{ color: "blue.300", bg: "whiteAlpha.50" }}
+                  transition="all 0.15s"
+                  outline="none"
+                  fontSize="xl"
+                  px={2}
+                  onClick={() => setInstalledSortAsc((v) => !v)}
+                  title={installedSortAsc ? t("common.ascending") : t("common.descending")}
+                >
+                  {installedSortAsc ? "↑" : "↓"}
+                </Box>
+              </HStack>
+
+              <Box pr={1} rounded="lg" border="1px solid" borderColor="#2a3146" bg="rgba(20,24,36,0.6)">
+                {installedLoading ? (
+                  <Text p={3} fontSize="xs" color="gray.100">{t("common.loading")}</Text>
+                ) : sortedInstalledItems.length ? (
+                  sortedInstalledItems.map((it) =>
+                    (() => {
+                      const base = baseName(it.fileName).trim();
+                      const reg = base ? registryByBaseName.get(base.toLowerCase()) ?? null : null;
+                      const managedModId = reg?.modId;
+                      const isManual = !reg;
+                      const canCheckUpdate = typeof managedModId === "number" && Number.isFinite(managedModId) && managedModId > 0;
+                      const checked = typeof managedModId === "number" ? checkedUpdatesByModId[managedModId] : undefined;
+
+                      return (
+                        <HStack key={it.fileName} justify="space-between" gap={3} px={3} py={2} borderBottom="1px solid" borderColor="whiteAlpha.50">
+                          <Box minW={0}>
+                            <Text fontSize="xs" color="white" truncate>{it.fileName}</Text>
+                            <HStack mt={0.5} gap={2}>
+                              <Box
+                                px={2}
+                                py={0.5}
+                                rounded="full"
+                                border="1px solid"
+                                borderColor={it.enabled ? "rgba(74,222,128,0.3)" : "rgba(107,114,128,0.3)"}
+                                bg={it.enabled ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.05)"}
+                                color={it.enabled ? "green.200" : "gray.300"}
+                                fontSize="10px"
+                                fontWeight="semibold"
+                              >
+                                {it.enabled ? t("common.enabled") : t("common.disabled")}
+                              </Box>
+                              {isManual ? (
+                                <Text fontSize="10px" color="yellow.300">{t("modsModal.installed.installedManually")}</Text>
+                              ) : null}
+                            </HStack>
+                            {!isManual && checked?.updateAvailable ? (
+                              <Text fontSize="10px" color="gray.400" mt={0.5} truncate>
+                                {t("modsModal.installed.latestVersion")}: {checked.latestName || ""}
+                              </Text>
+                            ) : null}
+                          </Box>
+
+                          <HStack gap={2}>
+                            {isManual ? (
+                              <Box
+                                as="button"
+                                px={3}
+                                py={1.5}
+                                rounded="lg"
+                                border="1px solid"
+                                borderColor="#2a3146"
+                                bg="transparent"
+                                color="yellow.100"
+                                fontSize="xs"
+                                cursor="pointer"
+                                _hover={{ bg: "whiteAlpha.50" }}
+                                transition="all 0.15s"
+                                onClick={() => openAttachPrompt(it.fileName)}
+                                title={t("modsModal.installed.attachToLauncher")}
+                              >
+                                {t("modsModal.installed.attachToLauncher")}
+                              </Box>
+                            ) : canCheckUpdate ? (
+                              <Box
+                                as="button"
+                                px={3}
+                                py={1.5}
+                                rounded="lg"
+                                border="1px solid"
+                                borderColor="#2a3146"
+                                bg="transparent"
+                                color="gray.200"
+                                fontSize="xs"
+                                cursor="pointer"
+                                opacity={(updatesWorking || installingId === managedModId) ? 0.6 : 1}
+                                _hover={{ bg: "whiteAlpha.50" }}
+                                transition="all 0.15s"
+                                onClick={() => {
+                                  void (async () => {
+                                    try {
+                                      setUpdatesWorking(true);
+                                      setInstalledError("");
+                                      const dir = await ensureGameDir();
+                                      if (checked?.updateAvailable) {
+                                        setInstallingId(managedModId!);
+                                        const res = await window.config.modsUpdateOne(dir, managedModId!);
+                                        if (res && (res as any).ok === false) { setInstalledError(fmtErr(res, "modsModal.installed.updateFailed")); }
+                                        setCheckedUpdatesByModId((prev) => { const copy = { ...prev }; delete copy[managedModId!]; return copy; });
+                                        await loadInstalled(false);
+                                      } else {
+                                        const res = await window.config.modsCheckUpdateOne(dir, managedModId!);
+                                        if (res && (res as any).ok === false) { setInstalledError(fmtErr(res, "modsModal.installed.checkFailed")); return; }
+                                        setCheckedUpdatesByModId((prev) => ({
+                                          ...prev,
+                                          [managedModId!]: {
+                                            updateAvailable: !!(res as any)?.updateAvailable,
+                                            latestFileId: typeof (res as any)?.latestFileId === "number" ? (res as any).latestFileId : null,
+                                            latestName: typeof (res as any)?.latestName === "string" ? (res as any).latestName : "",
+                                          },
+                                        }));
+                                      }
+                                    } catch {
+                                      // ignore
+                                    } finally {
+                                      setInstallingId(null);
+                                      setUpdatesWorking(false);
+                                    }
+                                  })();
+                                }}
+                                title={t("modsModal.installed.checkUpdate")}
+                              >
+                                {checked?.updateAvailable ? t("modsModal.installed.update") : t("modsModal.installed.checkUpdate")}
+                              </Box>
+                            ) : null}
+
+                            <Box
+                              as="button"
+                              px={3}
+                              py={1.5}
+                              rounded="lg"
+                              border="1px solid"
+                              borderColor="#2a3146"
+                              bg={it.enabled ? "transparent" : "#23293a"}
+                              color={it.enabled ? "gray.200" : "white"}
+                              fontSize="xs"
+                              cursor="pointer"
+                              _hover={it.enabled ? { bg: "whiteAlpha.50" } : { bg: "#2f3650" }}
+                              transition="all 0.15s"
+                              onClick={() => {
+                                void (async () => {
+                                  try {
+                                    const dir = await ensureGameDir();
+                                    const res = await window.config.modsInstalledToggle(dir, it.fileName);
+                                    if (res && (res as any).ok === false) { setInstalledError(fmtErr(res, "modsModal.errors.unknown")); return; }
+                                    await loadInstalled(false);
+                                  } catch { /* ignore */ }
+                                })();
+                              }}
+                              title={t("common.toggle")}
+                            >
+                              {it.enabled ? t("common.disable") : t("common.enable")}
+                            </Box>
+
+                            <Box
+                              as="button"
+                              w={9}
+                              h={9}
+                              rounded="lg"
+                              border="1px solid"
+                              borderColor="#2a3146"
+                              bg="transparent"
+                              color="red.300"
+                              display="flex"
+                              alignItems="center"
+                              justifyContent="center"
+                              cursor="pointer"
+                              _hover={{ bg: "rgba(239,68,68,0.15)", color: "red.200" }}
+                              transition="all 0.15s"
+                              onClick={() => setDeleteModPrompt({ open: true, fileName: it.fileName })}
+                              title={t("common.delete")}
+                            >
+                              <IconTrash size={18} />
+                            </Box>
+                          </HStack>
+                        </HStack>
+                      );
+                    })()
+                  )
+                ) : (
+                  <Text p={3} fontSize="xs" color="gray.300">{t("modsModal.noInstalledModsFound")}</Text>
+                )}
+              </Box>
+            </Box>
           ) : (
-            <div className="grid grid-cols-[260px_1fr] gap-4 min-h-0 h-full">
-              <div className="rounded-lg border border-[#2a3146] bg-[#1f2538]/70 p-3 flex flex-col min-h-0">
-                <div className="text-sm text-white font-semibold mb-2">
-                  {t("modsModal.profiles.title")}
-                </div>
+            <Box display="grid" style={{ gridTemplateColumns: "260px 1fr", gap: "16px" }} minH={0} h="full">
+              <Box rounded="lg" border="1px solid" borderColor="#2a3146" bg="rgba(31,37,56,0.7)" p={3} display="flex" flexDir="column" minH={0}>
+                <Text fontSize="sm" color="white" fontWeight="semibold" mb={2}>{t("modsModal.profiles.title")}</Text>
 
-                <div className="flex items-center gap-2 mb-3">
+                <HStack gap={2} mb={3}>
                   <input
                     value={profileNameInput}
                     onChange={(e) => setProfileNameInput(e.target.value)}
                     placeholder={t("modsModal.profiles.namePlaceholder")}
-                    className="w-full px-3 py-2 rounded-lg bg-[#141824]/80 border border-[#2a3146] text-white text-sm outline-none focus:border-blue-400/60"
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      borderRadius: "8px",
+                      background: "rgba(20,24,36,0.8)",
+                      border: "1px solid #2a3146",
+                      color: "white",
+                      fontSize: "0.875rem",
+                      outline: "none",
+                      fontFamily: "inherit",
+                    }}
                   />
-                  <button
-                    type="button"
-                    className={cn(
-                      "px-3 py-2 rounded-lg border border-blue-400/30",
-                      "bg-[linear-gradient(90deg,#0268D4_0%,#02D4D4_100%)] bg-[length:100%_100%] bg-no-repeat bg-left",
-                      "text-white text-sm font-bold",
-                      "hover:shadow-[0_0_18px_rgba(2,104,212,0.85)] transition",
-                    )}
+                  <Box
+                    as="button"
+                    px={3}
+                    py={2}
+                    rounded="lg"
+                    border="1px solid"
+                    borderColor="rgba(96,165,250,0.3)"
+                    style={{ background: "linear-gradient(90deg,#0268D4 0%,#02D4D4 100%)" }}
+                    color="white"
+                    fontSize="sm"
+                    fontWeight="bold"
+                    cursor="pointer"
+                    _hover={{ boxShadow: "0 0 18px rgba(2,104,212,0.85)" }}
+                    transition="all 0.15s"
                     onClick={() => {
                       void (async () => {
                         try {
                           const dir = await ensureGameDir();
-                          const name = sanitizeProfileName(
-                            profileNameInput || selectedProfileName,
-                          );
+                          const name = sanitizeProfileName(profileNameInput || selectedProfileName);
                           if (!name) return;
-                          const fallbackMods =
-                            profiles.find((p) => p.name === selectedProfileName)
-                              ?.mods ?? [];
-                          const modsToSave =
-                            profileSelectedMods.size > 0
-                              ? Array.from(profileSelectedMods)
-                              : // If state is empty, we pretend it's intentional and copy from the selected profile.
-                                Array.from(
-                                  new Set((fallbackMods ?? []).filter(Boolean)),
-                                );
-
-                          const cf: Record<
-                            string,
-                            { modId: number; fileId?: number }
-                          > = {};
+                          const fallbackMods = profiles.find((p) => p.name === selectedProfileName)?.mods ?? [];
+                          const modsToSave = profileSelectedMods.size > 0
+                            ? Array.from(profileSelectedMods)
+                            : Array.from(new Set((fallbackMods ?? []).filter(Boolean)));
+                          const cf: Record<string, { modId: number; fileId?: number }> = {};
                           for (const base of modsToSave) {
-                            const key =
-                              typeof base === "string"
-                                ? base.trim().toLowerCase()
-                                : "";
+                            const key = typeof base === "string" ? base.trim().toLowerCase() : "";
                             if (!key) continue;
-                            // We only remember versions for things we can actually identify.
-                            // Everything else gets the classic "good luck" treatment.
                             const reg = registryByBaseName.get(key) ?? null;
-                            if (
-                              !reg ||
-                              typeof reg.modId !== "number" ||
-                              reg.modId <= 0
-                            )
-                              continue;
-                            const entry: { modId: number; fileId?: number } = {
-                              modId: reg.modId,
-                            };
-                            if (
-                              typeof reg.fileId === "number" &&
-                              reg.fileId > 0
-                            )
-                              entry.fileId = reg.fileId;
+                            if (!reg || typeof reg.modId !== "number" || reg.modId <= 0) continue;
+                            const entry: { modId: number; fileId?: number } = { modId: reg.modId };
+                            if (typeof reg.fileId === "number" && reg.fileId > 0) entry.fileId = reg.fileId;
                             cf[key] = entry;
                           }
-                          const res = await window.config.modsProfilesSave(
-                            dir,
-                            {
-                              name,
-                              mods: modsToSave,
-                              cf,
-                            },
-                          );
-                          if (res && (res as any).ok === false) {
-                            setProfilesError(
-                              formatModsError(
-                                res,
-                                "modsModal.errors.unknown",
-                              ),
-                            );
-                            return;
-                          }
+                          const res = await window.config.modsProfilesSave(dir, { name, mods: modsToSave, cf });
+                          if (res && (res as any).ok === false) { setProfilesError(fmtErr(res, "modsModal.errors.unknown")); return; }
                           setProfileNameInput(name);
                           await loadProfiles();
                           setSelectedProfileName(name);
                         } catch (e) {
-                          const message =
-                            e instanceof Error
-                              ? e.message
-                              : t("modsModal.errors.unknown");
-                          setProfilesError(message);
+                          setProfilesError(e instanceof Error ? e.message : t("modsModal.errors.unknown"));
                         }
                       })();
                     }}
                     title={t("common.save")}
                   >
                     {t("common.save")}
-                  </button>
-                </div>
+                  </Box>
+                </HStack>
 
-                {profilesError ? (
-                  <div className="text-xs text-red-300 mb-2">
-                    {profilesError}
-                  </div>
-                ) : null}
+                {profilesError ? <Text fontSize="xs" color="red.300" mb={2}>{profilesError}</Text> : null}
 
-                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pr-1 rounded-lg border border-[#2a3146] bg-[#141824]/60">
+                <Box flex={1} minH={0} overflowY="auto" style={{ overscrollBehavior: "contain" }} pr={1} rounded="lg" border="1px solid" borderColor="#2a3146" bg="rgba(20,24,36,0.6)">
                   {profilesLoading ? (
-                    <div className="p-3 text-xs text-gray-300">
-                      {t("common.loading")}
-                    </div>
+                    <Text p={3} fontSize="xs" color="gray.300">{t("common.loading")}</Text>
                   ) : profiles.length ? (
                     profiles.map((p) => {
                       const active = p.name === selectedProfileName;
                       const isVanilla = p.name.toLowerCase() === "vanilla";
                       return (
-                        <button
+                        <Box
+                          as="button"
                           key={p.name}
-                          type="button"
-                          className={cn(
-                            "w-full text-left px-3 py-2 border-b border-white/5",
-                            "hover:bg-white/5 transition",
-                            active && "bg-[#0ea5ff]/15",
-                          )}
+                          w="full"
+                          textAlign="left"
+                          px={3}
+                          py={2}
+                          borderBottom="1px solid"
+                          borderColor="whiteAlpha.50"
+                          cursor="pointer"
+                          bg={active ? "rgba(14,165,255,0.15)" : "transparent"}
+                          _hover={{ bg: active ? "rgba(14,165,255,0.15)" : "whiteAlpha.50" }}
+                          transition="all 0.15s"
                           onClick={() => {
-                            // Load the profile mods immediately so the UI doesn't gaslight you with "0 mods".
                             setSelectedProfileName(p.name);
                             setProfileNameInput(p.name);
-                            const selected = new Set(
-                              (p.mods ?? []).filter(Boolean),
-                            );
+                            const selected = new Set((p.mods ?? []).filter(Boolean));
                             setProfileSelectedMods(selected);
-
-                            // Only sort "selected-first" at the moment the profile is chosen.
-                            // After that, toggling shouldn't make rows teleport.
                             const union = new Set<string>(installedBaseNames);
                             for (const m of selected) union.add(m);
                             const names = Array.from(union);
                             names.sort((a, b) => {
                               const aSelected = selected.has(a);
                               const bSelected = selected.has(b);
-                              if (aSelected !== bSelected)
-                                return aSelected ? -1 : 1;
+                              if (aSelected !== bSelected) return aSelected ? -1 : 1;
                               return a.localeCompare(b);
                             });
                             setProfileModsOrder(names);
                           }}
-                          onContextMenu={(e) => {
+                          onContextMenu={(e: React.MouseEvent) => {
                             e.preventDefault();
                             if (isVanilla) return;
-                            setProfileCtxMenu({
-                              open: true,
-                              x: e.clientX,
-                              y: e.clientY,
-                              name: p.name,
-                            });
+                            setProfileCtxMenu({ open: true, x: e.clientX, y: e.clientY, name: p.name });
                           }}
                         >
-                          <div className="text-xs text-white truncate">
-                            {p.name}
-                          </div>
-                          <div className="text-[10px] text-gray-400">
-                            {t("modsModal.countMods", {
-                              count: p.mods?.length ?? 0,
-                            })}
-                          </div>
-                        </button>
+                          <Text fontSize="xs" color="white" truncate>{p.name}</Text>
+                          <Text fontSize="10px" color="gray.400">{t("modsModal.countMods", { count: p.mods?.length ?? 0 })}</Text>
+                        </Box>
                       );
                     })
                   ) : (
-                    <div className="p-3 text-xs text-gray-300">
-                      {t("modsModal.profiles.noProfilesYet")}
-                    </div>
+                    <Text p={3} fontSize="xs" color="gray.300">{t("modsModal.profiles.noProfilesYet")}</Text>
                   )}
-                </div>
+                </Box>
 
-                <div className="mt-3 flex items-center gap-2">
-                  <button
-                    type="button"
+                <HStack mt={3} gap={2}>
+                  <Box
+                    as="button"
+                    px={3}
+                    py={2}
+                    rounded="lg"
+                    border="1px solid"
+                    borderColor="#2a3146"
+                    bg="#23293a"
+                    color="white"
+                    cursor="pointer"
+                    opacity={(!selectedProfileName || profilesLoading) ? 0.6 : 1}
+                    _hover={{ bg: "#2f3650" }}
+                    transition="all 0.15s"
                     title={t("common.apply")}
-                    className={cn(
-                      "px-3 py-2 rounded-lg border border-[#2a3146]",
-                      "bg-[#23293a] hover:bg-[#2f3650] text-white transition",
-                      (!selectedProfileName || profilesLoading) &&
-                        "opacity-60 cursor-not-allowed",
-                    )}
-                    disabled={!selectedProfileName || profilesLoading}
                     onClick={() => {
                       void (async () => {
                         try {
                           const dir = await ensureGameDir();
                           if (!selectedProfileName) return;
-                          const res = await window.config.modsProfilesApply(
-                            dir,
-                            selectedProfileName,
-                          );
-                          if (res && (res as any).ok === false) {
-                            setProfilesError(
-                              formatModsError(
-                                res,
-                                "modsModal.errors.unknown",
-                              ),
-                            );
-                            return;
-                          }
+                          const res = await window.config.modsProfilesApply(dir, selectedProfileName);
+                          if (res && (res as any).ok === false) { setProfilesError(fmtErr(res, "modsModal.errors.unknown")); return; }
                           await loadInstalled();
                         } catch (e) {
-                          const message =
-                            e instanceof Error
-                              ? e.message
-                              : t("modsModal.errors.unknown");
-                          setProfilesError(message);
+                          setProfilesError(e instanceof Error ? e.message : t("modsModal.errors.unknown"));
                         }
                       })();
                     }}
                   >
                     {t("common.apply")}
-                  </button>
+                  </Box>
 
-                  <button
-                    type="button"
+                  <Box
+                    as="button"
+                    px={3}
+                    py={2}
+                    rounded="lg"
+                    border="1px solid"
+                    borderColor="#2a3146"
+                    bg="transparent"
+                    color="red.300"
+                    cursor="pointer"
+                    opacity={(!selectedProfileName || profilesLoading || selectedProfileName === "Vanilla") ? 0.6 : 1}
+                    _hover={{ bg: "rgba(239,68,68,0.15)", color: "red.200" }}
+                    transition="all 0.15s"
                     title={t("common.delete")}
-                    className={cn(
-                      "px-3 py-2 rounded-lg border border-[#2a3146]",
-                      "bg-transparent hover:bg-red-500/15 text-red-300 hover:text-red-200 transition",
-                      (!selectedProfileName ||
-                        profilesLoading ||
-                        selectedProfileName === "Vanilla") &&
-                        "opacity-60 cursor-not-allowed",
-                    )}
-                    disabled={
-                      !selectedProfileName ||
-                      profilesLoading ||
-                      selectedProfileName === "Vanilla"
-                    }
                     onClick={() => {
                       void (async () => {
                         try {
                           const dir = await ensureGameDir();
                           if (!selectedProfileName) return;
-                          const res = await window.config.modsProfilesDelete(
-                            dir,
-                            selectedProfileName,
-                          );
-                          if (res && (res as any).ok === false) {
-                            setProfilesError(
-                              formatModsError(
-                                res,
-                                "modsModal.errors.unknown",
-                              ),
-                            );
-                            return;
-                          }
+                          const res = await window.config.modsProfilesDelete(dir, selectedProfileName);
+                          if (res && (res as any).ok === false) { setProfilesError(fmtErr(res, "modsModal.errors.unknown")); return; }
                           setSelectedProfileName("");
                           setProfileNameInput("");
                           await loadProfiles();
                         } catch (e) {
-                          const message =
-                            e instanceof Error
-                              ? e.message
-                              : t("modsModal.errors.unknown");
-                          setProfilesError(message);
+                          setProfilesError(e instanceof Error ? e.message : t("modsModal.errors.unknown"));
                         }
                       })();
                     }}
                   >
                     {t("common.delete")}
-                  </button>
-                </div>
+                  </Box>
+                </HStack>
 
-                {importError ? (
-                  <div className="text-xs text-red-300 mt-2">{importError}</div>
-                ) : null}
-                {importNotice ? (
-                  <div className="text-xs text-gray-200 mt-2">
-                    {importNotice}
-                  </div>
-                ) : null}
+                {importError ? <Text fontSize="xs" color="red.300" mt={2}>{importError}</Text> : null}
+                {importNotice ? <Text fontSize="xs" color="gray.200" mt={2}>{importNotice}</Text> : null}
 
                 {importing && importCurrent ? (
-                  <div className="text-[11px] text-gray-300 mt-2">
+                  <Text fontSize="11px" color="gray.300" mt={2}>
                     {(() => {
-                      const p = importCurrent.modId
-                        ? downloadProgress[importCurrent.modId]
-                        : null;
-                      const pct = p?.total
-                        ? Math.floor((p.received / p.total) * 100)
-                        : null;
+                      const p = importCurrent.modId ? downloadProgress[importCurrent.modId] : null;
+                      const pct = p?.total ? Math.floor((p.received / p.total) * 100) : null;
                       return pct != null
-                        ? t("modsModal.profiles.share.importingPct", {
-                            current: importCurrent.idx,
-                            total: importCurrent.total,
-                            name: importCurrent.name,
-                            pct,
-                          })
-                        : t("modsModal.profiles.share.importing", {
-                            current: importCurrent.idx,
-                            total: importCurrent.total,
-                            name: importCurrent.name,
-                          });
+                        ? t("modsModal.profiles.share.importingPct", { current: importCurrent.idx, total: importCurrent.total, name: importCurrent.name, pct })
+                        : t("modsModal.profiles.share.importing", { current: importCurrent.idx, total: importCurrent.total, name: importCurrent.name });
                     })()}
-                  </div>
+                  </Text>
                 ) : null}
 
-                <div className="mt-2 flex items-center gap-2 relative">
-                  <button
-                    type="button"
-                    className={cn(
-                      "px-3 py-2 rounded-lg border border-blue-400/30",
-                      "bg-[linear-gradient(90deg,#0268D4_0%,#02D4D4_100%)] bg-[length:100%_100%] bg-no-repeat bg-left",
-                      "text-white text-sm font-bold",
-                      "hover:shadow-[0_0_18px_rgba(2,104,212,0.85)] transition",
-                      (importing || shareWorking) &&
-                        "opacity-60 cursor-not-allowed",
-                    )}
-                    disabled={importing || shareWorking}
+                <Box mt={2} display="flex" alignItems="center" gap={2} position="relative">
+                  <Box
+                    as="button"
+                    px={3}
+                    py={2}
+                    rounded="lg"
+                    border="1px solid"
+                    borderColor="rgba(96,165,250,0.3)"
+                    style={{ background: "linear-gradient(90deg,#0268D4 0%,#02D4D4 100%)" }}
+                    color="white"
+                    fontSize="sm"
+                    fontWeight="bold"
+                    cursor="pointer"
+                    opacity={(importing || shareWorking) ? 0.6 : 1}
+                    _hover={{ boxShadow: "0 0 18px rgba(2,104,212,0.85)" }}
+                    transition="all 0.15s"
                     onClick={() => {
-                      setShareError("");
-                      setShareNotice("");
-                      setImportError("");
-                      setImportNotice("");
-                      setImportPromptError("");
-                      setImportPromptText("");
-                      setImportPromptOpen(true);
+                      setShareError(""); setShareNotice(""); setImportError(""); setImportNotice(""); setImportPromptError(""); setImportPromptText(""); setImportPromptOpen(true);
                     }}
                     title={t("modsModal.profiles.share.import")}
                   >
                     {t("modsModal.profiles.share.import")}
-                  </button>
+                  </Box>
 
                   {importPromptOpen ? (
                     <>
-                      <div
-                        className="fixed inset-0 z-[9999]"
-                        onMouseDown={() => {
-                          setImportPromptOpen(false);
-                          setImportPromptError("");
-                        }}
-                      />
-
-                      <div
-                        className={cn(
-                          "absolute left-0 bottom-full mb-2 z-[10000]",
-                          "w-[560px] max-w-[92vw]",
-                          "rounded-lg border border-[#2a3146] bg-[#141824]/60 p-3",
-                        )}
-                        onMouseDown={(e) => e.stopPropagation()}
+                      <Box position="fixed" inset={0} zIndex={9999} onMouseDown={() => { setImportPromptOpen(false); setImportPromptError(""); }} />
+                      <Box
+                        position="absolute"
+                        left={0}
+                        bottom="full"
+                        mb={2}
+                        zIndex={10000}
+                        w="560px"
+                        maxW="92vw"
+                        rounded="lg"
+                        border="1px solid"
+                        borderColor="#2a3146"
+                        bg="rgba(20,24,36,0.6)"
+                        p={3}
+                        onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
                       >
-                        <div className="flex items-center justify-between gap-3 mb-2">
-                          <div className="text-xs text-white font-semibold">
-                            {t("modsModal.profiles.share.importPromptTitle")}
-                          </div>
-                          <button
-                            type="button"
-                            className="text-gray-300 hover:text-white transition-colors text-lg leading-none"
-                            onClick={() => {
-                              setImportPromptOpen(false);
-                              setImportPromptError("");
-                            }}
-                            title={t("common.close")}
-                          >
-                            ×
-                          </button>
-                        </div>
-
-                        <div className="text-[11px] text-gray-300 mb-2">
-                          {t("modsModal.profiles.share.importPromptHint")}
-                        </div>
-
-                        {importPromptError ? (
-                          <div className="text-xs text-red-300 mb-2">
-                            {importPromptError}
-                          </div>
-                        ) : null}
-
+                        <HStack justify="space-between" gap={3} mb={2}>
+                          <Text fontSize="xs" color="white" fontWeight="semibold">{t("modsModal.profiles.share.importPromptTitle")}</Text>
+                          <Box as="button" color="gray.300" cursor="pointer" _hover={{ color: "white" }} transition="colors 0.15s" fontSize="lg" lineHeight={1} onClick={() => { setImportPromptOpen(false); setImportPromptError(""); }} title={t("common.close")}>×</Box>
+                        </HStack>
+                        <Text fontSize="11px" color="gray.300" mb={2}>{t("modsModal.profiles.share.importPromptHint")}</Text>
+                        {importPromptError ? <Text fontSize="xs" color="red.300" mb={2}>{importPromptError}</Text> : null}
                         <textarea
                           value={importPromptText}
-                          onChange={(e) => {
-                            setImportPromptText(e.target.value);
-                            if (importPromptError) setImportPromptError("");
+                          onChange={(e) => { setImportPromptText(e.target.value); if (importPromptError) setImportPromptError(""); }}
+                          placeholder={t("modsModal.profiles.share.importPromptPlaceholder")}
+                          style={{
+                            width: "100%",
+                            height: "92px",
+                            resize: "none",
+                            padding: "8px 12px",
+                            borderRadius: "8px",
+                            background: "rgba(15,20,34,0.7)",
+                            border: "1px solid #2a3146",
+                            color: "white",
+                            fontSize: "11px",
+                            fontFamily: "monospace",
+                            outline: "none",
                           }}
-                          placeholder={t(
-                            "modsModal.profiles.share.importPromptPlaceholder",
-                          )}
-                          className="w-full h-[92px] resize-none px-3 py-2 rounded-lg bg-[#0f1422]/70 border border-[#2a3146] text-white text-[11px] font-mono outline-none"
                         />
-
-                        <div className="mt-2 flex items-center justify-end gap-2">
-                          <button
-                            type="button"
-                            className={cn(
-                              "px-3 py-2 rounded-lg border border-[#2a3146]",
-                              "bg-transparent hover:bg-white/5 text-gray-200 transition",
-                              (importing || shareWorking) &&
-                                "opacity-60 cursor-not-allowed",
-                            )}
-                            disabled={importing || shareWorking}
+                        <HStack mt={2} justify="flex-end" gap={2}>
+                          <Box
+                            as="button"
+                            px={3}
+                            py={2}
+                            rounded="lg"
+                            border="1px solid"
+                            borderColor="#2a3146"
+                            bg="transparent"
+                            color="gray.200"
+                            cursor="pointer"
+                            opacity={(importing || shareWorking) ? 0.6 : 1}
+                            _hover={{ bg: "whiteAlpha.50" }}
+                            transition="all 0.15s"
                             onClick={() => {
                               void (async () => {
                                 setImportPromptError("");
@@ -2616,286 +2272,150 @@ const ModsModal: React.FC<{
                                   setImportPreviewOpen(true);
                                   setImportPromptOpen(false);
                                 } catch (e) {
-                                  const code =
-                                    e instanceof Error
-                                      ? e.message
-                                      : "unknown";
-                                  if (code === "invalid_prefix") {
-                                    setImportPromptError(
-                                      t(
-                                        "modsModal.profiles.share.invalidFormat",
-                                      ),
-                                    );
-                                  } else {
-                                    setImportPromptError(
-                                      t(
-                                        "modsModal.profiles.share.importFailed",
-                                      ),
-                                    );
-                                  }
+                                  const code = e instanceof Error ? e.message : "unknown";
+                                  setImportPromptError(code === "invalid_prefix" ? t("modsModal.profiles.share.invalidFormat") : t("modsModal.profiles.share.importFailed"));
                                 }
                               })();
                             }}
-                            title={t(
-                              "modsModal.profiles.share.importFromClipboard",
-                            )}
+                            title={t("modsModal.profiles.share.importFromClipboard")}
                           >
                             {t("modsModal.profiles.share.importFromClipboard")}
-                          </button>
-
-                          <button
-                            type="button"
-                            className={cn(
-                              "px-3 py-2 rounded-lg border border-blue-400/30",
-                              "bg-[linear-gradient(90deg,#0268D4_0%,#02D4D4_100%)] bg-[length:100%_100%] bg-no-repeat bg-left",
-                              "text-white text-sm font-bold",
-                              "hover:shadow-[0_0_18px_rgba(2,104,212,0.85)] transition",
-                              (!importPromptText.trim() ||
-                                importing ||
-                                shareWorking) &&
-                                "opacity-60 cursor-not-allowed",
-                            )}
-                            disabled={
-                              !importPromptText.trim() || importing || shareWorking
-                            }
+                          </Box>
+                          <Box
+                            as="button"
+                            px={3}
+                            py={2}
+                            rounded="lg"
+                            border="1px solid"
+                            borderColor="rgba(96,165,250,0.3)"
+                            style={{ background: "linear-gradient(90deg,#0268D4 0%,#02D4D4 100%)" }}
+                            color="white"
+                            fontSize="sm"
+                            fontWeight="bold"
+                            cursor="pointer"
+                            opacity={(!importPromptText.trim() || importing || shareWorking) ? 0.6 : 1}
+                            _hover={{ boxShadow: "0 0 18px rgba(2,104,212,0.85)" }}
+                            transition="all 0.15s"
                             onClick={() => {
                               void (async () => {
                                 setImportPromptError("");
                                 try {
-                                  const pack = await decodeModPack(
-                                    importPromptText,
-                                  );
+                                  const pack = await decodeModPack(importPromptText);
                                   setImportPreviewPack(pack);
                                   setImportPreviewOpen(true);
                                   setImportPromptOpen(false);
                                 } catch (e) {
-                                  const code =
-                                    e instanceof Error
-                                      ? e.message
-                                      : "unknown";
-                                  if (code === "invalid_prefix") {
-                                    setImportPromptError(
-                                      t(
-                                        "modsModal.profiles.share.invalidFormatText",
-                                      ),
-                                    );
-                                  } else {
-                                    setImportPromptError(
-                                      t(
-                                        "modsModal.profiles.share.importFailed",
-                                      ),
-                                    );
-                                  }
+                                  const code = e instanceof Error ? e.message : "unknown";
+                                  setImportPromptError(code === "invalid_prefix" ? t("modsModal.profiles.share.invalidFormatText") : t("modsModal.profiles.share.importFailed"));
                                 }
                               })();
                             }}
                             title={t("modsModal.profiles.share.importNow")}
                           >
                             {t("modsModal.profiles.share.importNow")}
-                          </button>
-                        </div>
-                      </div>
+                          </Box>
+                        </HStack>
+                      </Box>
                     </>
                   ) : null}
-                </div>
-              </div>
+                </Box>
+              </Box>
 
-              <div className="rounded-lg border border-[#2a3146] bg-[#1f2538]/70 p-3 flex flex-col min-h-0">
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <div>
-                    <div className="text-sm text-white font-semibold">
-                      {t("modsModal.profileMods")}
-                    </div>
-                    <div className="text-[11px] text-gray-400">
-                      {t("modsModal.profiles.selectedCount", {
-                        count: profileSelectedMods.size,
-                      })}
-                    </div>
-                  </div>
+              <Box rounded="lg" border="1px solid" borderColor="#2a3146" bg="rgba(31,37,56,0.7)" p={3} display="flex" flexDir="column" minH={0}>
+                <HStack justify="space-between" gap={3} mb={2}>
+                  <Box>
+                    <Text fontSize="sm" color="white" fontWeight="semibold">{t("modsModal.profileMods")}</Text>
+                    <Text fontSize="11px" color="gray.400">{t("modsModal.profiles.selectedCount", { count: profileSelectedMods.size })}</Text>
+                  </Box>
+                  <HStack gap={2}>
+                    <button onClick={() => setProfileSelectedMods(new Set(installedBaseNames))} disabled={installedLoading} title={t("common.selectAll") as string} style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #2a3146", background: "#23293a", color: "white", cursor: "pointer", opacity: installedLoading ? 0.6 : 1, transition: "all 0.15s", fontFamily: "inherit", fontSize: "inherit" }}>{t("common.selectAll")}</button>
+                    <button onClick={() => setProfileSelectedMods(new Set())} disabled={installedLoading} title={t("common.selectNone") as string} style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #2a3146", background: "transparent", color: "#d1d5db", cursor: "pointer", opacity: installedLoading ? 0.6 : 1, transition: "all 0.15s", fontFamily: "inherit", fontSize: "inherit" }}>{t("common.selectNone")}</button>
+                    <button onClick={() => void loadInstalled()} disabled={installedLoading} title={t("common.refresh") as string} style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #2a3146", background: "#23293a", color: "white", cursor: "pointer", opacity: installedLoading ? 0.6 : 1, display: "flex", alignItems: "center", gap: "8px", transition: "all 0.15s", fontFamily: "inherit", fontSize: "inherit" }}><IconRefresh size={18} />{t("common.refresh")}</button>
+                    <Box as="button" px={3} py={2} rounded="lg" border="1px solid" borderColor="#2a3146" bg="transparent" color="gray.200" display="flex" alignItems="center" gap={2} cursor="pointer" _hover={{ bg: "whiteAlpha.50" }} transition="all 0.15s" onClick={() => void handleOpenModsFolder()} title={t("modsModal.installed.openFolder")}><IconFolderOpen size={18} />{t("modsModal.installed.openFolder")}</Box>
+                  </HStack>
+                </HStack>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className={cn(
-                        "px-3 py-2 rounded-lg border border-[#2a3146]",
-                        "bg-[#23293a] hover:bg-[#2f3650] text-white transition",
-                        installedLoading && "opacity-60 cursor-not-allowed",
-                      )}
-                      onClick={() =>
-                        setProfileSelectedMods(new Set(installedBaseNames))
-                      }
-                      disabled={installedLoading}
-                      title={t("common.selectAll")}
-                    >
-                      {t("common.selectAll")}
-                    </button>
-
-                    <button
-                      type="button"
-                      className={cn(
-                        "px-3 py-2 rounded-lg border border-[#2a3146]",
-                        "bg-transparent hover:bg-white/5 text-gray-200 transition",
-                        installedLoading && "opacity-60 cursor-not-allowed",
-                      )}
-                      onClick={() => setProfileSelectedMods(new Set())}
-                      disabled={installedLoading}
-                      title={t("common.selectNone")}
-                    >
-                      {t("common.selectNone")}
-                    </button>
-
-                    <button
-                      type="button"
-                      className={cn(
-                        "px-3 py-2 rounded-lg border border-[#2a3146]",
-                        "bg-[#23293a] hover:bg-[#2f3650] text-white transition flex items-center gap-2",
-                        installedLoading && "opacity-60 cursor-not-allowed",
-                      )}
-                      onClick={() => void loadInstalled()}
-                      disabled={installedLoading}
-                      title={t("common.refresh")}
-                    >
-                      <IconRefresh size={18} />
-                      {t("common.refresh")}
-                    </button>
-
-                    <button
-                      type="button"
-                      className={cn(
-                        "px-3 py-2 rounded-lg border border-[#2a3146]",
-                        "bg-transparent hover:bg-white/5 text-gray-200 transition flex items-center gap-2",
-                      )}
-                      onClick={() => void handleOpenModsFolder()}
-                      title={t("modsModal.installed.openFolder")}
-                    >
-                      <IconFolderOpen size={18} />
-                      {t("modsModal.installed.openFolder")}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pr-1 rounded-lg border border-[#2a3146] bg-[#141824]/60">
+                <Box flex={1} minH={0} overflowY="auto" style={{ overscrollBehavior: "contain" }} pr={1} rounded="lg" border="1px solid" borderColor="#2a3146" bg="rgba(20,24,36,0.6)">
                   {installedLoading ? (
-                    <div className="p-3 text-xs text-gray-300">
-                      {t("common.loading")}
-                    </div>
+                    <Text p={3} fontSize="xs" color="gray.300">{t("common.loading")}</Text>
                   ) : profileModsUnionNames.length ? (
-                    (profileModsOrder.length
-                      ? profileModsOrder
-                      : profileModsUnionNames
-                    ).map((name) => {
+                    (profileModsOrder.length ? profileModsOrder : profileModsUnionNames).map((name) => {
                       const info = installedByBase.get(name);
                       const isInstalled = !!info;
                       const checked = profileSelectedMods.has(name);
                       const key = name.trim().toLowerCase();
                       const cfEntry = selectedProfile?.cf?.[key] ?? null;
                       const reg = registryByBaseName.get(key) ?? null;
-
                       const source =
-                        cfEntry &&
-                        typeof cfEntry.modId === "number" &&
-                        cfEntry.modId > 0
+                        cfEntry && typeof cfEntry.modId === "number" && cfEntry.modId > 0
                           ? { modId: cfEntry.modId, fileId: cfEntry.fileId }
-                          : reg &&
-                              typeof reg.modId === "number" &&
-                              reg.modId > 0
+                          : reg && typeof reg.modId === "number" && reg.modId > 0
                             ? { modId: reg.modId, fileId: reg.fileId }
                             : null;
-
-                      // We prefer the profile's pinned version, because reproducibility is a luxury.
-                      // Registry fallback is "whatever was installed last time".
-
-                      const canAutoInstall =
-                        !isInstalled &&
-                        !!source &&
-                        typeof source.modId === "number" &&
-                        source.modId > 0;
+                      const canAutoInstall = !isInstalled && !!source && typeof source.modId === "number" && source.modId > 0;
 
                       return (
-                        <label
+                        <Box
+                          as="label"
                           key={name}
-                          className="flex items-center justify-between gap-3 px-3 py-2 border-b border-white/5 hover:bg-white/5 transition cursor-pointer"
+                          display="flex"
+                          alignItems="center"
+                          justifyContent="space-between"
+                          gap={3}
+                          px={3}
+                          py={2}
+                          borderBottom="1px solid"
+                          borderColor="whiteAlpha.50"
+                          cursor="pointer"
+                          _hover={{ bg: "whiteAlpha.50" }}
+                          transition="all 0.15s"
                         >
-                          <div className="min-w-0 flex-1">
-                            <div className="text-xs text-white truncate">
-                              {name}
-                            </div>
-
+                          <Box minW={0} flex={1}>
+                            <Text fontSize="xs" color="white" truncate>{name}</Text>
                             {isInstalled ? (
-                              <div
-                                className={cn(
-                                  "text-[10px]",
-                                  info?.enabled
-                                    ? "text-green-300"
-                                    : "text-gray-400",
-                                )}
-                              >
-                                {info?.enabled
-                                  ? t("modsModal.profiles.currentlyEnabled")
-                                  : t("modsModal.profiles.currentlyDisabled")}
-                              </div>
+                              <Text fontSize="10px" color={info?.enabled ? "green.300" : "gray.400"}>
+                                {info?.enabled ? t("modsModal.profiles.currentlyEnabled") : t("modsModal.profiles.currentlyDisabled")}
+                              </Text>
                             ) : (
-                              <div className="text-[10px] text-amber-300">
-                                {t("modsModal.profiles.notInstalled")}
-                              </div>
+                              <Text fontSize="10px" color="orange.300">{t("modsModal.profiles.notInstalled")}</Text>
                             )}
-                          </div>
+                          </Box>
 
                           {!isInstalled ? (
-                            <button
-                              type="button"
-                              className={cn(
-                                "px-2.5 py-1.5 rounded-lg border border-[#2a3146]",
-                                "bg-[#23293a] hover:bg-[#2f3650] text-white transition",
-                                (!canAutoInstall ||
-                                  shareWorking ||
-                                  importing ||
-                                  installingId != null) &&
-                                  "opacity-60 cursor-not-allowed",
-                              )}
-                              disabled={
-                                !canAutoInstall ||
-                                shareWorking ||
-                                importing ||
-                                installingId != null
-                              }
-                              onClick={(e) => {
+                            <Box
+                              as="button"
+                              px={2.5}
+                              py={1.5}
+                              rounded="lg"
+                              border="1px solid"
+                              borderColor="#2a3146"
+                              bg="#23293a"
+                              color="white"
+                              cursor="pointer"
+                              opacity={(!canAutoInstall || shareWorking || importing || installingId != null) ? 0.6 : 1}
+                              _hover={{ bg: "#2f3650" }}
+                              transition="all 0.15s"
+                              onClick={(e: React.MouseEvent) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 void (async () => {
                                   if (!source) return;
                                   const modId = source.modId;
-                                  if (typeof modId !== "number" || modId <= 0)
-                                    return;
+                                  if (typeof modId !== "number" || modId <= 0) return;
                                   try {
                                     setInstalledError("");
                                     setInstalledLoading(true);
                                     setInstallingId(modId);
                                     const dir = await ensureGameDir();
-                                    if (
-                                      typeof source.fileId === "number" &&
-                                      source.fileId > 0
-                                    ) {
-                                      // Pin the exact fileId when we can. Because "latest" is just chaos with branding.
-                                      await window.config.modsInstallFile(
-                                        modId,
-                                        source.fileId,
-                                        dir,
-                                      );
+                                    if (typeof source.fileId === "number" && source.fileId > 0) {
+                                      await window.config.modsInstallFile(modId, source.fileId, dir);
                                     } else {
-                                      await window.config.modsInstall(
-                                        modId,
-                                        dir,
-                                      );
+                                      await window.config.modsInstall(modId, dir);
                                     }
                                     await loadInstalled();
                                     await loadRegistry();
                                   } catch (err) {
-                                    const message =
-                                      err instanceof Error
-                                        ? err.message
-                                        : t("modsModal.errors.unknown");
-                                    setInstalledError(message);
+                                    setInstalledError(err instanceof Error ? err.message : t("modsModal.errors.unknown"));
                                   } finally {
                                     setInstalledLoading(false);
                                     setInstallingId(null);
@@ -2905,7 +2425,7 @@ const ModsModal: React.FC<{
                               title={t("modsModal.profiles.install")}
                             >
                               {t("modsModal.profiles.install")}
-                            </button>
+                            </Box>
                           ) : null}
 
                           <input
@@ -2917,171 +2437,87 @@ const ModsModal: React.FC<{
                               else next.delete(name);
                               setProfileSelectedMods(next);
                             }}
-                            className="w-4 h-4 accent-[#0ea5ff]"
+                            style={{ width: "16px", height: "16px", accentColor: "#0ea5ff" }}
                           />
-                        </label>
+                        </Box>
                       );
                     })
                   ) : (
-                    <div className="p-3 text-xs text-gray-300">
-                      {t("modsModal.noInstalledModsToSelect")}
-                    </div>
+                    <Text p={3} fontSize="xs" color="gray.300">{t("modsModal.noInstalledModsToSelect")}</Text>
                   )}
-                </div>
+                </Box>
 
-                <div className="mt-3 flex items-center justify-between gap-2 relative">
-                  <div className="text-[11px] text-gray-400">
-                    {t("modsModal.profiles.tip")}
-                  </div>
+                <HStack mt={3} justify="space-between" gap={2} position="relative">
+                  <Text fontSize="11px" color="gray.400">{t("modsModal.profiles.tip")}</Text>
 
-                  <button
-                    type="button"
-                    className={cn(
-                      "px-2.5 py-1.5 rounded-lg border border-[#2a3146]",
-                      "bg-transparent hover:bg-white/5 text-gray-200 transition",
-                      (!selectedProfileName || shareWorking || importing) &&
-                        "opacity-60 cursor-not-allowed",
-                    )}
-                    disabled={!selectedProfileName || shareWorking || importing}
+                  <Box
+                    as="button"
+                    px={2.5}
+                    py={1.5}
+                    rounded="lg"
+                    border="1px solid"
+                    borderColor="#2a3146"
+                    bg="transparent"
+                    color="gray.200"
+                    cursor="pointer"
+                    opacity={(!selectedProfileName || shareWorking || importing) ? 0.6 : 1}
+                    _hover={{ bg: "whiteAlpha.50" }}
+                    transition="all 0.15s"
                     onClick={() => {
-                      setShareError("");
-                      setShareNotice("");
-                      setExportCode("");
-                      setExportOpen(true);
-
+                      setShareError(""); setShareNotice(""); setExportCode(""); setExportOpen(true);
                       void (async () => {
                         setShareWorking(true);
                         try {
                           const dir = await ensureGameDir();
-
-                          const profile = profiles.find(
-                            (p) => p.name === selectedProfileName,
-                          );
-                          if (!profile)
-                            throw new Error(t("modsModal.errors.profileNotFound"));
-
+                          const profile = profiles.find((p) => p.name === selectedProfileName);
+                          if (!profile) throw new Error(t("modsModal.errors.profileNotFound"));
                           const registryItems = Object.values(registryByModId);
-                          const registryByBase = new Map<
-                            string,
-                            ModRegistryEntry
-                          >();
+                          const registryByBase = new Map<string, ModRegistryEntry>();
                           for (const it of registryItems) {
                             if (!it?.fileName) continue;
-                            registryByBase.set(
-                              baseName(it.fileName).trim().toLowerCase(),
-                              it,
-                            );
+                            registryByBase.set(baseName(it.fileName).trim().toLowerCase(), it);
                           }
-
                           const profileCf = profile.cf ?? {};
-
                           const gv = getSelectedGameVersionLabel();
-
                           const mods: ModPackV1["mods"] = [];
                           const unattached: string[] = [];
-                          for (const base of (profile.mods ?? []).filter(
-                            Boolean,
-                          )) {
+                          for (const base of (profile.mods ?? []).filter(Boolean)) {
                             const baseKey = String(base).trim().toLowerCase();
-                            const fileName =
-                              getPreferredInstalledFileNameForBase(base);
+                            const fileName = getPreferredInstalledFileNameForBase(base);
                             const reg = registryByBase.get(baseKey) ?? null;
                             const cfEntry = profileCf?.[baseKey] ?? null;
-
                             const modId = reg?.modId ?? cfEntry?.modId;
-                            const fileId =
-                              typeof reg?.fileId === "number"
-                                ? reg.fileId
-                                : cfEntry?.fileId;
-                            const canIntegrityCheckCurseforge =
-                              typeof modId === "number" &&
-                              modId > 0 &&
-                              typeof fileId === "number" &&
-                              fileId > 0;
-
+                            const fileId = typeof reg?.fileId === "number" ? reg.fileId : cfEntry?.fileId;
+                            const canIntegrityCheckCurseforge = typeof modId === "number" && modId > 0 && typeof fileId === "number" && fileId > 0;
                             let sha256: string | undefined;
-                            // Only include sha256 when we can guarantee the importer downloads the same file.
                             if (fileName && canIntegrityCheckCurseforge) {
                               try {
-                                const h = await window.config.modsFileHash(
-                                  dir,
-                                  fileName,
-                                );
-                                if (
-                                  h?.ok &&
-                                  typeof h.sha256 === "string" &&
-                                  h.sha256
-                                )
-                                  sha256 = h.sha256;
-                              } catch {
-                                // ignore
-                              }
+                                const h = await window.config.modsFileHash(dir, fileName);
+                                if (h?.ok && typeof h.sha256 === "string" && h.sha256) sha256 = h.sha256;
+                              } catch { /* ignore */ }
                             }
-
-                            if (
-                              reg ||
-                              (cfEntry &&
-                                typeof cfEntry.modId === "number" &&
-                                cfEntry.modId > 0)
-                            ) {
-                              const fileNameFromReg =
-                                typeof reg?.fileName === "string"
-                                  ? reg.fileName
-                                  : undefined;
-                              mods.push({
-                                source: "curseforge",
-                                name: base,
-                                modId: modId as number,
-                                fileId,
-                                fileName: fileNameFromReg,
-                                sha256,
-                              });
+                            if (reg || (cfEntry && typeof cfEntry.modId === "number" && cfEntry.modId > 0)) {
+                              const fileNameFromReg = typeof reg?.fileName === "string" ? reg.fileName : undefined;
+                              mods.push({ source: "curseforge", name: base, modId: modId as number, fileId, fileName: fileNameFromReg, sha256 });
                             } else {
                               unattached.push(String(base));
-                              mods.push({
-                                source: fileName ? "local" : "unknown",
-                                name: base,
-                                fileName: fileName ?? undefined,
-                                sha256,
-                                requiredManual: true,
-                              });
+                              mods.push({ source: fileName ? "local" : "unknown", name: base, fileName: fileName ?? undefined, sha256, requiredManual: true });
                             }
                           }
-
                           const pack: ModPackV1 = {
                             v: 1,
-                            profile: {
-                              name: selectedProfileName,
-                              gameVersion: {
-                                type: gv.type,
-                                buildIndex: gv.buildIndex,
-                                label: gv.label,
-                              },
-                              createdAt: new Date().toISOString(),
-                            },
+                            profile: { name: selectedProfileName, gameVersion: { type: gv.type, buildIndex: gv.buildIndex, label: gv.label }, createdAt: new Date().toISOString() },
                             mods,
                           };
-
                           const code = await encodeModPack(pack);
                           setExportCode(code);
-                          if (unattached.length) {
-                            setShareNotice(
-                              `${t("modsModal.profiles.share.exportReady")} ${t(
-                                "modsModal.profiles.share.exportWarnUnattached",
-                                { count: unattached.length },
-                              )}`,
-                            );
-                          } else {
-                            setShareNotice(
-                              t("modsModal.profiles.share.exportReady"),
-                            );
-                          }
+                          setShareNotice(
+                            unattached.length
+                              ? `${t("modsModal.profiles.share.exportReady")} ${t("modsModal.profiles.share.exportWarnUnattached", { count: unattached.length })}`
+                              : t("modsModal.profiles.share.exportReady"),
+                          );
                         } catch (e) {
-                          const message =
-                            e instanceof Error
-                              ? e.message
-                              : t("modsModal.status.unknownError");
-                          setShareError(message);
+                          setShareError(e instanceof Error ? e.message : t("modsModal.status.unknownError"));
                         } finally {
                           setShareWorking(false);
                         }
@@ -3089,179 +2525,118 @@ const ModsModal: React.FC<{
                     }}
                     title={t("modsModal.profiles.share.export")}
                   >
-                    {shareWorking
-                      ? t("common.working")
-                      : t("modsModal.profiles.share.export")}
-                  </button>
+                    {shareWorking ? t("common.working") : t("modsModal.profiles.share.export")}
+                  </Box>
 
                   {exportOpen ? (
                     <>
-                      <div
-                        className="fixed inset-0 z-[9999]"
-                        onMouseDown={() => setExportOpen(false)}
-                      />
-
-                      <div
-                        className={cn(
-                          "absolute right-0 bottom-full mb-2 z-[10000]",
-                          "w-[560px] max-w-[92vw]",
-                          "rounded-lg border border-[#2a3146] bg-[#141824]/60 p-3",
-                        )}
-                        onMouseDown={(e) => e.stopPropagation()}
+                      <Box position="fixed" inset={0} zIndex={9999} onMouseDown={() => setExportOpen(false)} />
+                      <Box
+                        position="absolute"
+                        right={0}
+                        bottom="full"
+                        mb={2}
+                        zIndex={10000}
+                        w="560px"
+                        maxW="92vw"
+                        rounded="lg"
+                        border="1px solid"
+                        borderColor="#2a3146"
+                        bg="rgba(20,24,36,0.6)"
+                        p={3}
+                        onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
                       >
-                        <div className="flex items-center justify-between gap-3 mb-2">
-                          <div className="text-xs text-white font-semibold">
-                            {t("modsModal.profiles.share.title")}
-                          </div>
-                          <button
-                            type="button"
-                            className="text-gray-300 hover:text-white transition-colors text-lg leading-none"
-                            onClick={() => setExportOpen(false)}
-                            title={t("common.close")}
-                          >
-                            ×
-                          </button>
-                        </div>
-
-                        {shareError ? (
-                          <div className="text-xs text-red-300 mb-2">
-                            {shareError}
-                          </div>
-                        ) : null}
-                        {shareNotice ? (
-                          <div className="text-xs text-gray-200 mb-2">
-                            {shareNotice}
-                          </div>
-                        ) : null}
-
-                        <div className="flex items-center justify-end gap-2 mb-2">
-                          <button
-                            type="button"
-                            className={cn(
-                              "px-3 py-2 rounded-lg border border-[#2a3146]",
-                              "bg-transparent hover:bg-white/5 text-gray-200 transition",
-                              (!exportCode || shareWorking) &&
-                                "opacity-60 cursor-not-allowed",
-                            )}
-                            disabled={!exportCode || shareWorking}
-                            onClick={() => {
-                              void (async () => {
-                                try {
-                                  await copyToClipboard(exportCode);
-                                  setShareNotice(
-                                    t("modsModal.profiles.share.copied"),
-                                  );
-                                } catch {
-                                  // ignore
-                                }
-                              })();
-                            }}
+                        <HStack justify="space-between" gap={3} mb={2}>
+                          <Text fontSize="xs" color="white" fontWeight="semibold">{t("modsModal.profiles.share.title")}</Text>
+                          <Box as="button" color="gray.300" cursor="pointer" _hover={{ color: "white" }} transition="colors 0.15s" fontSize="lg" lineHeight={1} onClick={() => setExportOpen(false)} title={t("common.close")}>×</Box>
+                        </HStack>
+                        {shareError ? <Text fontSize="xs" color="red.300" mb={2}>{shareError}</Text> : null}
+                        {shareNotice ? <Text fontSize="xs" color="gray.200" mb={2}>{shareNotice}</Text> : null}
+                        <HStack justify="flex-end" gap={2} mb={2}>
+                          <Box
+                            as="button"
+                            px={3}
+                            py={2}
+                            rounded="lg"
+                            border="1px solid"
+                            borderColor="#2a3146"
+                            bg="transparent"
+                            color="gray.200"
+                            cursor="pointer"
+                            opacity={(!exportCode || shareWorking) ? 0.6 : 1}
+                            _hover={{ bg: "whiteAlpha.50" }}
+                            transition="all 0.15s"
+                            onClick={() => { void (async () => { try { await copyToClipboard(exportCode); setShareNotice(t("modsModal.profiles.share.copied")); } catch { /* ignore */ } })(); }}
                             title={t("modsModal.profiles.share.copy")}
                           >
                             {t("modsModal.profiles.share.copy")}
-                          </button>
-                        </div>
-
+                          </Box>
+                        </HStack>
                         <textarea
                           value={exportCode}
                           readOnly
-                          placeholder={t(
-                            "modsModal.profiles.share.codePlaceholder",
-                          )}
-                          className="w-full h-[74px] resize-none px-3 py-2 rounded-lg bg-[#0f1422]/70 border border-[#2a3146] text-white text-[11px] font-mono outline-none"
+                          placeholder={t("modsModal.profiles.share.codePlaceholder")}
+                          style={{
+                            width: "100%",
+                            height: "74px",
+                            resize: "none",
+                            padding: "8px 12px",
+                            borderRadius: "8px",
+                            background: "rgba(15,20,34,0.7)",
+                            border: "1px solid #2a3146",
+                            color: "white",
+                            fontSize: "11px",
+                            fontFamily: "monospace",
+                            outline: "none",
+                          }}
                         />
-                      </div>
+                      </Box>
                     </>
                   ) : null}
-                </div>
-              </div>
-            </div>
+                </HStack>
+              </Box>
+            </Box>
           )}
-        </div>
-      </div>
+        </Box>
+      </Box>
 
       <ConfirmModal
         open={renameProfilePrompt.open}
         title={t("modsModal.profiles.rename.title")}
         message={
           <div>
-            <div className="text-xs text-gray-200 mb-2">
-              {t("modsModal.profiles.rename.hint", {
-                name: renameProfilePrompt.oldName,
-              })}
+            <div style={{ fontSize: "0.75rem", color: "#d1d5db", marginBottom: "8px" }}>
+              {t("modsModal.profiles.rename.hint", { name: renameProfilePrompt.oldName })}
             </div>
-
             <input
               value={renameProfileInput}
-              onChange={(e) => {
-                setRenameProfileInput(e.target.value);
-                if (renameProfileError) setRenameProfileError("");
-              }}
+              onChange={(e) => { setRenameProfileInput(e.target.value); if (renameProfileError) setRenameProfileError(""); }}
               placeholder={t("modsModal.profiles.rename.placeholder")}
-              className="w-full px-3 py-2 rounded-lg bg-[#141824]/80 border border-[#2a3146] text-white text-sm outline-none focus:border-blue-400/60"
+              style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", background: "rgba(20,24,36,0.8)", border: "1px solid #2a3146", color: "white", fontSize: "0.875rem", outline: "none" }}
               autoFocus
             />
-
-            {renameProfileError ? (
-              <div className="text-[11px] text-red-300 mt-2">
-                {renameProfileError}
-              </div>
-            ) : null}
+            {renameProfileError ? <div style={{ fontSize: "11px", color: "#fc8181", marginTop: "8px" }}>{renameProfileError}</div> : null}
           </div>
         }
         confirmText={t("common.confirm")}
         cancelText={t("common.cancel")}
-        onCancel={() => {
-          setRenameProfilePrompt({ open: false, oldName: "" });
-          setRenameProfileInput("");
-          setRenameProfileError("");
-        }}
+        onCancel={() => { setRenameProfilePrompt({ open: false, oldName: "" }); setRenameProfileInput(""); setRenameProfileError(""); }}
         onConfirm={() => {
           void (async () => {
             try {
               const oldName = renameProfilePrompt.oldName;
               const nextName = sanitizeProfileName(renameProfileInput);
-              if (!nextName) {
-                setRenameProfileError(t("modsModal.profiles.rename.invalid"));
-                return;
-              }
-
-              const existingName = profiles.find(
-                (p) => p.name.toLowerCase() === nextName.toLowerCase(),
-              )?.name;
-              if (
-                existingName &&
-                existingName.toLowerCase() !== oldName.toLowerCase()
-              ) {
-                setRenameProfileError(t("modsModal.profiles.rename.taken"));
-                return;
-              }
-
+              if (!nextName) { setRenameProfileError(t("modsModal.profiles.rename.invalid")); return; }
+              const existingName = profiles.find((p) => p.name.toLowerCase() === nextName.toLowerCase())?.name;
+              if (existingName && existingName.toLowerCase() !== oldName.toLowerCase()) { setRenameProfileError(t("modsModal.profiles.rename.taken")); return; }
               const profile = profiles.find((p) => p.name === oldName);
-              if (!profile) {
-                setRenameProfileError(t("modsModal.errors.profileNotFound"));
-                return;
-              }
-
+              if (!profile) { setRenameProfileError(t("modsModal.errors.profileNotFound")); return; }
               const dir = await ensureGameDir();
-              const saveRes = await window.config.modsProfilesSave(dir, {
-                name: nextName,
-                mods: Array.isArray(profile.mods) ? profile.mods : [],
-                cf: profile.cf ?? {},
-              } as any);
-
-              if (saveRes && (saveRes as any).ok === false) {
-                setRenameProfileError(
-                  formatModsError(saveRes, "modsModal.errors.unknown"),
-                );
-                return;
-              }
-
-              // If it's only a case change, save already replaced it.
+              const saveRes = await window.config.modsProfilesSave(dir, { name: nextName, mods: Array.isArray(profile.mods) ? profile.mods : [], cf: profile.cf ?? {} } as any);
+              if (saveRes && (saveRes as any).ok === false) { setRenameProfileError(fmtErr(saveRes, "modsModal.errors.unknown")); return; }
               if (oldName.toLowerCase() !== nextName.toLowerCase()) {
                 await window.config.modsProfilesDelete(dir, oldName);
               }
-
               setRenameProfilePrompt({ open: false, oldName: "" });
               setRenameProfileInput("");
               setRenameProfileError("");
@@ -3269,9 +2644,7 @@ const ModsModal: React.FC<{
               setSelectedProfileName(nextName);
               setProfileNameInput(nextName);
             } catch (e) {
-              const message =
-                e instanceof Error ? e.message : t("modsModal.errors.unknown");
-              setRenameProfileError(message);
+              setRenameProfileError(e instanceof Error ? e.message : t("modsModal.errors.unknown"));
             }
           })();
         }}
@@ -3284,43 +2657,21 @@ const ModsModal: React.FC<{
           const pack = importPreviewPack;
           if (!pack) return "";
           const mods = Array.isArray(pack.mods) ? pack.mods : [];
-          const names = mods
-            .map(
-              (m) =>
-                (m?.name ||
-                  m?.fileName ||
-                  (m?.modId ? `#${m.modId}` : "")) as string,
-            )
-            .filter(Boolean);
+          const names = mods.map((m) => (m?.name || m?.fileName || (m?.modId ? `#${m.modId}` : "")) as string).filter(Boolean);
           const gvLabel = (pack.profile?.gameVersion?.label as string) || "";
           return (
             <div>
-              <div className="text-sm text-gray-200">
-                {t("modsModal.profiles.share.previewSummary", {
-                  name: String(pack.profile?.name || ""),
-                  count: names.length,
-                  gameVersion: gvLabel || "-",
-                })}
+              <div style={{ fontSize: "0.875rem", color: "#e2e8f0" }}>
+                {t("modsModal.profiles.share.previewSummary", { name: String(pack.profile?.name || ""), count: names.length, gameVersion: gvLabel || "-" })}
               </div>
-              <div className="mt-3 text-xs text-gray-300">
-                {t("modsModal.profiles.share.previewMods", {
-                  count: names.length,
-                })}
-              </div>
-              <div className="mt-2 max-h-[180px] overflow-y-auto pr-1 rounded-lg border border-[#2a3146] bg-[#141824]/60">
+              <div style={{ marginTop: "12px", fontSize: "0.75rem", color: "#a0aec0" }}>{t("modsModal.profiles.share.previewMods", { count: names.length })}</div>
+              <div style={{ marginTop: "8px", maxHeight: "180px", overflowY: "auto", paddingRight: "4px", borderRadius: "8px", border: "1px solid #2a3146", background: "rgba(20,24,36,0.6)" }}>
                 {names.length ? (
                   names.map((n, idx) => (
-                    <div
-                      key={`${idx}-${n}`}
-                      className="px-3 py-2 border-b border-white/5 text-[11px] text-gray-200"
-                    >
-                      {n}
-                    </div>
+                    <div key={`${idx}-${n}`} style={{ padding: "8px 12px", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: "11px", color: "#e2e8f0" }}>{n}</div>
                   ))
                 ) : (
-                  <div className="px-3 py-2 text-[11px] text-gray-400">
-                    {t("modsModal.profiles.share.previewNoMods")}
-                  </div>
+                  <div style={{ padding: "8px 12px", fontSize: "11px", color: "#718096" }}>{t("modsModal.profiles.share.previewNoMods")}</div>
                 )}
               </div>
             </div>
@@ -3328,10 +2679,7 @@ const ModsModal: React.FC<{
         })()}
         confirmText={t("modsModal.profiles.share.continue")}
         cancelText={t("common.cancel")}
-        onCancel={() => {
-          setImportPreviewOpen(false);
-          setImportPreviewPack(null);
-        }}
+        onCancel={() => { setImportPreviewOpen(false); setImportPreviewPack(null); }}
         onConfirm={() => {
           setImportPreviewOpen(false);
           const pack = importPreviewPack;
@@ -3344,59 +2692,25 @@ const ModsModal: React.FC<{
             setImportCurrent(null);
             try {
               const dir = await ensureGameDir();
-              const profileName = makeUniqueProfileName(
-                String(pack.profile?.name || "Imported"),
-              );
-              const mods = (Array.isArray(pack.mods) ? pack.mods : []).filter(
-                Boolean,
-              );
-              const downloadable = mods.filter(
-                (m) =>
-                  m.source === "curseforge" &&
-                  typeof m.modId === "number" &&
-                  m.modId > 0,
-              );
-
+              const profileName = makeUniqueProfileName(String(pack.profile?.name || "Imported"));
+              const mods = (Array.isArray(pack.mods) ? pack.mods : []).filter(Boolean);
+              const downloadable = mods.filter((m) => m.source === "curseforge" && typeof m.modId === "number" && m.modId > 0);
               const installedBases: string[] = [];
               const errors: string[] = [];
-              const manualMissing: string[] = mods
-                .filter((m) => m.requiredManual)
-                .map(
-                  (m) =>
-                    (m?.name ||
-                      m?.fileName ||
-                      (m?.modId ? `#${m.modId}` : "")) as string,
-                )
-                .filter(Boolean);
+              const manualMissing: string[] = mods.filter((m) => m.requiredManual).map((m) => (m?.name || m?.fileName || (m?.modId ? `#${m.modId}` : "")) as string).filter(Boolean);
 
               for (let i = 0; i < downloadable.length; i++) {
                 const m = downloadable[i];
                 const modId = Number(m.modId);
                 const name = (m?.name || m?.fileName || `#${modId}`) as string;
-                setImportCurrent({
-                  idx: i + 1,
-                  total: downloadable.length,
-                  modId,
-                  name,
-                });
-
+                setImportCurrent({ idx: i + 1, total: downloadable.length, modId, name });
                 setInstallingId(modId);
-                const res =
-                  typeof m.fileId === "number" && m.fileId > 0
-                    ? await window.config.modsInstallFile(modId, m.fileId, dir)
-                    : await window.config.modsInstall(modId, dir);
-
-                if (!res?.ok) {
-                  errors.push(
-                    `${name}: ${formatModsError(res, "modsModal.errors.downloadFailed")}`,
-                  );
-                  continue;
-                }
-
-                const fileName =
-                  typeof res.fileName === "string" ? res.fileName : "";
+                const res = typeof m.fileId === "number" && m.fileId > 0
+                  ? await window.config.modsInstallFile(modId, m.fileId, dir)
+                  : await window.config.modsInstall(modId, dir);
+                if (!res?.ok) { errors.push(`${name}: ${fmtErr(res, "modsModal.errors.downloadFailed")}`); continue; }
+                const fileName = typeof res.fileName === "string" ? res.fileName : "";
                 if (fileName) installedBases.push(baseName(fileName));
-
                 if (m.sha256 && fileName) {
                   try {
                     const h = await window.config.modsFileHash(dir, fileName);
@@ -3406,37 +2720,18 @@ const ModsModal: React.FC<{
                       const ok = await awaitIntegrityDecision(
                         t("modsModal.profiles.share.integrityTitle"),
                         <div>
-                          <div className="text-sm text-gray-200">
-                            {t("modsModal.profiles.share.integrityMismatch", {
-                              name,
-                            })}
-                          </div>
-                          <div className="mt-2 text-[11px] text-gray-300 font-mono break-all">
-                            {t("modsModal.profiles.share.integrityExpected", {
-                              hash: expected,
-                            })}
-                          </div>
-                          <div className="mt-1 text-[11px] text-gray-300 font-mono break-all">
-                            {t("modsModal.profiles.share.integrityGot", {
-                              hash: got,
-                            })}
-                          </div>
+                          <div style={{ fontSize: "0.875rem", color: "#e2e8f0" }}>{t("modsModal.profiles.share.integrityMismatch", { name })}</div>
+                          <div style={{ marginTop: "8px", fontSize: "11px", color: "#a0aec0", fontFamily: "monospace", wordBreak: "break-all" }}>{t("modsModal.profiles.share.integrityExpected", { hash: expected })}</div>
+                          <div style={{ marginTop: "4px", fontSize: "11px", color: "#a0aec0", fontFamily: "monospace", wordBreak: "break-all" }}>{t("modsModal.profiles.share.integrityGot", { hash: got })}</div>
                         </div>,
                       );
-                      if (!ok) {
-                        errors.push(`${name}: hash mismatch`);
-                        break;
-                      }
+                      if (!ok) { errors.push(`${name}: hash mismatch`); break; }
                     }
-                  } catch {
-                    // ignore hash errors
-                  }
+                  } catch { /* ignore hash errors */ }
                 }
               }
 
-              const uniqueBases = Array.from(new Set(installedBases)).filter(
-                Boolean,
-              );
+              const uniqueBases = Array.from(new Set(installedBases)).filter(Boolean);
               const cf: Record<string, { modId: number; fileId?: number }> = {};
               for (const m of downloadable) {
                 const modId = Number(m.modId);
@@ -3446,61 +2741,25 @@ const ModsModal: React.FC<{
                 const key = base.toLowerCase();
                 const entry: { modId: number; fileId?: number } = { modId };
                 const fileId = Number((m as any)?.fileId);
-                if (Number.isFinite(fileId) && fileId > 0)
-                  entry.fileId = fileId;
+                if (Number.isFinite(fileId) && fileId > 0) entry.fileId = fileId;
                 cf[key] = entry;
               }
 
-              const saveRes = await window.config.modsProfilesSave(dir, {
-                name: profileName,
-                mods: uniqueBases,
-                cf,
-              });
-              if (saveRes && (saveRes as any).ok === false) {
-                throw new Error(
-                  formatModsError(
-                    saveRes,
-                    "modsModal.profiles.share.importFailed",
-                  ),
-                );
-              }
+              const saveRes = await window.config.modsProfilesSave(dir, { name: profileName, mods: uniqueBases, cf });
+              if (saveRes && (saveRes as any).ok === false) { throw new Error(fmtErr(saveRes, "modsModal.profiles.share.importFailed")); }
               await loadProfiles();
               setSelectedProfileName(profileName);
               setProfileSelectedMods(new Set(uniqueBases));
-
-              if (manualMissing.length) {
-                setImportNotice(
-                  t("modsModal.profiles.share.importDoneManual", {
-                    profile: profileName,
-                    count: uniqueBases.length,
-                    manual: manualMissing.length,
-                  }),
-                );
-              } else {
-                setImportNotice(
-                  t("modsModal.profiles.share.importDone", {
-                    profile: profileName,
-                    count: uniqueBases.length,
-                  }),
-                );
-              }
-
-              if (errors.length) {
-                setImportError(
-                  t("modsModal.profiles.share.importSomeFailed", {
-                    count: errors.length,
-                  }),
-                );
-              }
-
+              setImportNotice(
+                manualMissing.length
+                  ? t("modsModal.profiles.share.importDoneManual", { profile: profileName, count: uniqueBases.length, manual: manualMissing.length })
+                  : t("modsModal.profiles.share.importDone", { profile: profileName, count: uniqueBases.length }),
+              );
+              if (errors.length) { setImportError(t("modsModal.profiles.share.importSomeFailed", { count: errors.length })); }
               await loadInstalled();
               await loadRegistry(dir);
             } catch (e) {
-              const message =
-                e instanceof Error
-                  ? e.message
-                  : t("modsModal.profiles.share.importFailed");
-              setImportError(message);
+              setImportError(e instanceof Error ? e.message : t("modsModal.profiles.share.importFailed"));
             } finally {
               setInstallingId(null);
               setImportCurrent(null);
@@ -3515,42 +2774,25 @@ const ModsModal: React.FC<{
         title={t("modsModal.installed.deleteConfirmTitle")}
         message={
           <div>
-            <div className="text-sm text-gray-200">
-              {t("modsModal.installed.deleteConfirmMsg", {
-                name: deleteModPrompt.fileName,
-              })}
-            </div>
+            <div style={{ fontSize: "0.875rem", color: "#e2e8f0" }}>{t("modsModal.installed.deleteConfirmMsg", { name: deleteModPrompt.fileName })}</div>
           </div>
         }
         confirmText={t("common.delete")}
         cancelText={t("common.cancel")}
-        onCancel={() => {
-          setDeleteModPrompt({ open: false, fileName: "" });
-        }}
+        onCancel={() => setDeleteModPrompt({ open: false, fileName: "" })}
         onConfirm={() => {
           void (async () => {
             if (!deleteModPrompt.fileName) return;
-
             try {
               setInstalledError("");
               setUpdatesWorking(true);
               const dir = await ensureGameDir();
-              const res = await window.config.modsInstalledDelete(
-                dir,
-                deleteModPrompt.fileName,
-              );
-              if (res && (res as any).ok === false) {
-                setInstalledError(
-                  formatModsError(res, "modsModal.errors.unknown"),
-                );
-                return;
-              }
+              const res = await window.config.modsInstalledDelete(dir, deleteModPrompt.fileName);
+              if (res && (res as any).ok === false) { setInstalledError(fmtErr(res, "modsModal.errors.unknown")); return; }
               setDeleteModPrompt({ open: false, fileName: "" });
               await loadInstalled(false);
             } catch (e) {
-              const message =
-                e instanceof Error ? e.message : t("modsModal.errors.unknown");
-              setInstalledError(message);
+              setInstalledError(e instanceof Error ? e.message : t("modsModal.errors.unknown"));
             } finally {
               setUpdatesWorking(false);
             }
@@ -3563,94 +2805,38 @@ const ModsModal: React.FC<{
         title={t("modsModal.installed.attachToLauncher")}
         message={
           <div>
-            <div className="text-xs text-gray-200 mb-2">
-              {t("modsModal.installed.attachLinkLabel")}
-            </div>
+            <div style={{ fontSize: "0.75rem", color: "#e2e8f0", marginBottom: "8px" }}>{t("modsModal.installed.attachLinkLabel")}</div>
             <input
               value={attachLinkInput}
-              onChange={(e) => {
-                const next = e.target.value;
-                setAttachLinkInput(next);
-                if (attachLinkError && isValidAttachLink(next)) {
-                  setAttachLinkError("");
-                }
-              }}
+              onChange={(e) => { const next = e.target.value; setAttachLinkInput(next); if (attachLinkError && isValidAttachLink(next)) setAttachLinkError(""); }}
               placeholder={t("modsModal.installed.attachLinkPlaceholder")}
-              className="w-full px-3 py-2 rounded-lg bg-[#141824]/80 border border-[#2a3146] text-white text-sm outline-none focus:border-blue-400/60"
+              style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", background: "rgba(20,24,36,0.8)", border: "1px solid #2a3146", color: "white", fontSize: "0.875rem", outline: "none" }}
             />
-
-            {attachLinkError ? (
-              <div className="text-[11px] text-red-300 mt-2">
-                {attachLinkError}
-              </div>
-            ) : null}
-
-            <div className="text-[11px] text-gray-400 mt-2">
-              {t("modsModal.installed.attachLinkExample")}: {ATTACH_LINK_EXAMPLE}
-            </div>
+            {attachLinkError ? <div style={{ fontSize: "11px", color: "#fc8181", marginTop: "8px" }}>{attachLinkError}</div> : null}
+            <div style={{ fontSize: "11px", color: "#718096", marginTop: "8px" }}>{t("modsModal.installed.attachLinkExample")}: {ATTACH_LINK_EXAMPLE}</div>
           </div>
         }
         confirmText={t("common.confirm")}
         cancelText={t("common.cancel")}
-        onCancel={() => {
-          setAttachPrompt({ open: false, fileName: "" });
-          setAttachLinkInput("");
-          setAttachLinkError("");
-        }}
+        onCancel={() => { setAttachPrompt({ open: false, fileName: "" }); setAttachLinkInput(""); setAttachLinkError(""); }}
         onConfirm={() => {
           void (async () => {
             try {
               const dir = await ensureGameDir();
               const link = attachLinkInput.trim();
               if (!link) return;
-              if (!isValidAttachLink(link)) {
-                setAttachLinkError(
-                  t("modsModal.installed.attachLinkInvalid", {
-                    example: ATTACH_LINK_EXAMPLE,
-                  }),
-                );
-                return;
-              }
+              if (!isValidAttachLink(link)) { setAttachLinkError(t("modsModal.installed.attachLinkInvalid", { example: ATTACH_LINK_EXAMPLE })); return; }
               setInstalledError("");
               setUpdatesWorking(true);
-              const res = await window.config.modsAttachManual(
-                dir,
-                attachPrompt.fileName,
-                link,
-              );
+              const res = await window.config.modsAttachManual(dir, attachPrompt.fileName, link);
               if (!res?.ok) {
-                if ((res as any)?.errorKey) {
-                  setInstalledError(
-                    formatModsError(res, "modsModal.installed.attachFailed"),
-                  );
-                  return;
-                }
+                if ((res as any)?.errorKey) { setInstalledError(fmtErr(res, "modsModal.installed.attachFailed")); return; }
                 const code = String((res as any)?.errorCode || "");
-                if (code === "ATTACH_INVALID_LINK") {
-                  setInstalledError(
-                    t("modsModal.installed.attachErrorInvalidLink", {
-                      example: ATTACH_LINK_EXAMPLE,
-                    }),
-                  );
-                } else if (code === "ATTACH_FILE_NOT_FOUND") {
-                  setInstalledError(
-                    t("modsModal.installed.attachErrorFileNotFound"),
-                  );
-                } else if (code === "ATTACH_MOD_NOT_FOUND") {
-                  setInstalledError(
-                    t("modsModal.installed.attachErrorModNotFound", {
-                      example: ATTACH_LINK_EXAMPLE,
-                    }),
-                  );
-                } else if (code === "MODS_SERVICE_UNREACHABLE") {
-                  setInstalledError(
-                    t("modsModal.installed.attachErrorService"),
-                  );
-                } else {
-                  setInstalledError(
-                    (res as any)?.error || t("modsModal.installed.attachFailed"),
-                  );
-                }
+                if (code === "ATTACH_INVALID_LINK") setInstalledError(t("modsModal.installed.attachErrorInvalidLink", { example: ATTACH_LINK_EXAMPLE }));
+                else if (code === "ATTACH_FILE_NOT_FOUND") setInstalledError(t("modsModal.installed.attachErrorFileNotFound"));
+                else if (code === "ATTACH_MOD_NOT_FOUND") setInstalledError(t("modsModal.installed.attachErrorModNotFound", { example: ATTACH_LINK_EXAMPLE }));
+                else if (code === "MODS_SERVICE_UNREACHABLE") setInstalledError(t("modsModal.installed.attachErrorService"));
+                else setInstalledError((res as any)?.error || t("modsModal.installed.attachFailed"));
                 return;
               }
               setAttachPrompt({ open: false, fileName: "" });
@@ -3658,9 +2844,7 @@ const ModsModal: React.FC<{
               setAttachLinkError("");
               await loadInstalled(false);
             } catch (e) {
-              const message =
-                e instanceof Error ? e.message : t("modsModal.errors.unknown");
-              setInstalledError(message);
+              setInstalledError(e instanceof Error ? e.message : t("modsModal.errors.unknown"));
             } finally {
               setUpdatesWorking(false);
             }
@@ -3674,41 +2858,37 @@ const ModsModal: React.FC<{
         message={integrityPrompt.message}
         confirmText={t("modsModal.profiles.share.continue")}
         cancelText={t("common.cancel")}
-        onCancel={() => {
-          const resolve = integrityPrompt.resolve;
-          setIntegrityPrompt({ open: false, title: "", message: "" });
-          resolve?.(false);
-        }}
-        onConfirm={() => {
-          const resolve = integrityPrompt.resolve;
-          setIntegrityPrompt({ open: false, title: "", message: "" });
-          resolve?.(true);
-        }}
+        onCancel={() => { const resolve = integrityPrompt.resolve; setIntegrityPrompt({ open: false, title: "", message: "" }); resolve?.(false); }}
+        onConfirm={() => { const resolve = integrityPrompt.resolve; setIntegrityPrompt({ open: false, title: "", message: "" }); resolve?.(true); }}
       />
 
       {tab === "profiles" && profileCtxMenu.open ? createPortal(
         <>
-          <div
-            className="fixed inset-0 z-[9999]"
-            onMouseDown={() =>
-              setProfileCtxMenu({ open: false, x: 0, y: 0, name: "" })
-            }
-          />
-          <div
-            className={cn(
-              "fixed z-[10000] min-w-[180px]",
-              "rounded-lg border border-[#2a3146] bg-[#141824]/90",
-              "shadow-2xl",
-            )}
+          <Box position="fixed" inset={0} zIndex={9999} onMouseDown={() => setProfileCtxMenu({ open: false, x: 0, y: 0, name: "" })} />
+          <Box
+            position="fixed"
+            zIndex={10000}
+            minW="180px"
+            rounded="lg"
+            border="1px solid"
+            borderColor="#2a3146"
+            bg="rgba(20,24,36,0.9)"
+            shadow="2xl"
             style={{ left: profileCtxMenu.x, top: profileCtxMenu.y }}
-            onMouseDown={(e) => e.stopPropagation()}
+            onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              className={cn(
-                "w-full text-left px-3 py-2 text-xs text-gray-200",
-                "hover:bg-white/5 transition rounded-lg",
-              )}
+            <Box
+              as="button"
+              w="full"
+              textAlign="left"
+              px={3}
+              py={2}
+              fontSize="xs"
+              color="gray.200"
+              cursor="pointer"
+              rounded="lg"
+              _hover={{ bg: "whiteAlpha.50" }}
+              transition="all 0.15s"
               onClick={() => {
                 const name = profileCtxMenu.name;
                 setProfileCtxMenu({ open: false, x: 0, y: 0, name: "" });
@@ -3718,12 +2898,12 @@ const ModsModal: React.FC<{
               }}
             >
               {t("modsModal.profiles.rename.menu")}
-            </button>
-          </div>
+            </Box>
+          </Box>
         </>,
         document.body
       ) : null}
-    </div>
+    </Box>
   );
 };
 

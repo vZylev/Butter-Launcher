@@ -3,7 +3,6 @@ import path from "node:path";
 import fs from "node:fs";
 import electron from "vite-plugin-electron/simple";
 import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
 
 const computeDynamicAliases = () => {
   const asPosixPath = (p: string) => p.replace(/\\/g, "/");
@@ -42,7 +41,6 @@ export default defineConfig(({ mode }) => {
       alias: computeDynamicAliases(),
     },
     plugins: [
-      tailwindcss(),
       react(),
       electron({
         main: {

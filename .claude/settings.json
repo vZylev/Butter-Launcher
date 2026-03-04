@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l /mnt/1C98AD8698AD5F50/Projects/Butter-Launcher/electron/utils/game/*.ts)",
+      "Bash(__NEW_LINE_368db4a05058437c__ echo \"=== Frontend Components Analysis ===\")",
+      "Bash(find src/components -name \"*.tsx\" -exec wc -l {} +)",
+      "Read(//mnt/1C98AD8698AD5F50/Projects/Butter-Launcher/{sum+=$1; count++} END {if\\(count>0\\) print \"\"Average:\"\", int\\(sum/**)",
+      "Bash(__NEW_LINE_f6f94d09ea6c6bfb__ echo \"\")",
+      "Bash(__NEW_LINE_718f1a1fcb80db30__ echo \"\")"
+    ]
+  }
+}

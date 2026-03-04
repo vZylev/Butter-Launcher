@@ -1,10 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { IconFolderOpen } from "@tabler/icons-react";
+import { IconFolderOpen, IconX } from "@tabler/icons-react";
 import { useGameContext } from "../hooks/gameContext";
-import cn from "../utils/cn";
 import ConfirmModal from "./ConfirmModal";
 import { useTranslation } from "react-i18next";
 import { setStoredLanguage } from "../i18n";
+import { StorageService } from "../services/StorageService";
+import {
+  Box,
+  Button,
+  HStack,
+  IconButton,
+  Input,
+  SimpleGrid,
+  Switch,
+  Text,
+  VStack,
+} from "@chakra-ui/react";
 
 const LANGUAGES = {
   en: { name: "English", flag: "🇺🇸" },
@@ -24,14 +35,8 @@ const SettingsModal: React.FC<{
 }> = ({ open, onClose, onLogout }) => {
   const { t, i18n } = useTranslation();
 
-  const readEnableRpcPref = (): boolean => {
-    try {
-      const raw = localStorage.getItem("enableRPC");
-      return raw === null ? true : String(raw).trim().toLowerCase() === "true";
-    } catch {
-      return true;
-    }
-  };
+  const readEnableRpcPref = (): boolean => StorageService.isRPCEnabled();
+
   const {
     gameDir,
     setGameDir,
@@ -44,51 +49,34 @@ const SettingsModal: React.FC<{
     checkForUpdates,
     checkingUpdates,
   } = useGameContext();
+
   const [accountType, setAccountType] = useState<AccountType | null>();
   const [customUUID, setCustomUUID] = useState<string>("");
-  const [enableRPC, setEnableRPC] = useState<boolean>(() =>
-    readEnableRpcPref(),
-  );
-  const [startupSoundEnabled, setStartupSoundEnabled] =
-    useState<boolean>(false);
+  const [enableRPC, setEnableRPC] = useState<boolean>(() => readEnableRpcPref());
+  const [startupSoundEnabled, setStartupSoundEnabled] = useState<boolean>(false);
   const [changingDir, setChangingDir] = useState(false);
-
   const [removeOnlinePatchOpen, setRemoveOnlinePatchOpen] = useState(false);
-
-  const [onlinePatchEnabledForSelected, setOnlinePatchEnabledForSelected] =
-    useState(false);
-  const [checkingOnlinePatchState, setCheckingOnlinePatchState] =
-    useState(false);
+  const [onlinePatchEnabledForSelected, setOnlinePatchEnabledForSelected] = useState(false);
+  const [checkingOnlinePatchState, setCheckingOnlinePatchState] = useState(false);
   const onlinePatchStateSeq = useRef(0);
-
   const [steamDeckMode, setSteamDeckMode] = useState(false);
   const [steamDeckWorking, setSteamDeckWorking] = useState(false);
   const [steamDeckStatus, setSteamDeckStatus] = useState<string>("");
-
   const [creditsOpen, setCreditsOpen] = useState(false);
-
   const [clearingCache, setClearingCache] = useState(false);
-
   const [closing, setClosing] = useState(false);
 
   const normalizedUUID = useMemo(() => {
     const raw = customUUID.trim();
     if (!raw) return "";
-
     const compact = raw.replace(/-/g, "");
     if (/^[0-9a-fA-F]{32}$/.test(compact)) {
       const lower = compact.toLowerCase();
       return `${lower.slice(0, 8)}-${lower.slice(8, 12)}-${lower.slice(12, 16)}-${lower.slice(16, 20)}-${lower.slice(20)}`;
     }
-
-    if (
-      /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
-        raw,
-      )
-    ) {
+    if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(raw)) {
       return raw.toLowerCase();
     }
-
     return "__invalid__";
   }, [customUUID]);
 
@@ -106,13 +94,8 @@ const SettingsModal: React.FC<{
     setChangingDir(true);
     try {
       const res = await window.config.selectDownloadDirectory();
-      if (!res.ok) {
-        alert("Error #1000");
-        return;
-      }
-      if (res.path) {
-        setGameDir(res.path);
-      }
+      if (!res.ok) { alert("Error #1000"); return; }
+      if (res.path) setGameDir(res.path);
     } catch (e) {
       console.error("Failed to select download directory", e);
       alert("Error #1000");
@@ -123,73 +106,36 @@ const SettingsModal: React.FC<{
 
   useEffect(() => {
     if (!open) return;
-    const storedUUID = localStorage.getItem("customUUID") || "";
-    setCustomUUID(storedUUID);
+    setCustomUUID(StorageService.getString("customUUID"));
     setEnableRPC(readEnableRpcPref());
     void (async () => {
       try {
         const res = await window.config.startupSoundGet();
-        if (res.ok) {
-          setStartupSoundEnabled(!!res.playstartupsound);
-        }
-      } catch {
-        // ignore
-      }
+        if (res.ok) setStartupSoundEnabled(!!res.playstartupsound);
+      } catch {}
     })();
-
     (async () => {
-      try {
-        const enabled = await window.config.getSteamDeckMode();
-        setSteamDeckMode(enabled);
-        setSteamDeckStatus("");
-      } catch {
-        // ignore
-      }
+      try { const enabled = await window.config.getSteamDeckMode(); setSteamDeckMode(enabled); setSteamDeckStatus(""); } catch {}
     })();
-
-    (async () => {
-      try {
-        const raw = (localStorage.getItem("accountType") || "").trim();
-        if (raw === "premium") {
-          setAccountType("premium");
-        } else if (raw) {
-          // Normalize any non-empty legacy value to the non-official mode.
-          setAccountType("custom");
-        } else {
-          setAccountType(null);
-        }
-      } catch {
-        // ignore
-      }
-    })();
+    const raw = StorageService.getAccountType();
+    if (raw === "premium") setAccountType("premium");
+    else if (raw === "custom") setAccountType("custom");
+    else setAccountType(null);
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    setCreditsOpen(false);
-  }, [open]);
+  useEffect(() => { if (!open) return; setCreditsOpen(false); }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const raw = customUUID.trim();
-    if (!raw) {
-      localStorage.removeItem("customUUID");
-      return;
-    }
-
+    if (!raw) { StorageService.remove("customUUID"); return; }
     if (normalizedUUID && normalizedUUID !== "__invalid__") {
-      localStorage.setItem("customUUID", normalizedUUID);
+      StorageService.set("customUUID", normalizedUUID);
     }
   }, [customUUID, normalizedUUID, open]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem("enableRPC", enableRPC ? "true" : "false");
-    } catch {
-      // ignore
-    }
-
-    // Flip the switch in the main process.
+    StorageService.setRPCEnabled(enableRPC);
     window.ipcRenderer.send("rpc:enable", !!enableRPC);
   }, [enableRPC]);
 
@@ -198,9 +144,7 @@ const SettingsModal: React.FC<{
     void (async () => {
       try {
         const res = await window.config.startupSoundSet(checked);
-        if (!res.ok) {
-          throw new Error(res.error || "Failed to save");
-        }
+        if (!res.ok) throw new Error(res.error || "Failed to save");
       } catch (e) {
         console.error("Failed to save startup sound setting", e);
         alert("Error #1000");
@@ -209,15 +153,9 @@ const SettingsModal: React.FC<{
   };
 
   const isLinux = window.config.OS === "linux";
-
   const currentLangCode = (i18n.language || "en").split("-")[0].toLowerCase();
   const isRTL = (RTL_LANGUAGES as readonly string[]).includes(currentLangCode);
-  const lang = (
-    Object.prototype.hasOwnProperty.call(LANGUAGES, currentLangCode)
-      ? currentLangCode
-      : "en"
-  ) as keyof typeof LANGUAGES;
-
+  const lang = (Object.prototype.hasOwnProperty.call(LANGUAGES, currentLangCode) ? currentLangCode : "en") as keyof typeof LANGUAGES;
   const changeLanguage = (next: keyof typeof LANGUAGES) => {
     void i18n.changeLanguage(next);
     setStoredLanguage(next);
@@ -227,39 +165,23 @@ const SettingsModal: React.FC<{
   const selectedLabel = selected
     ? selected.build_name?.trim() || `Build-${selected.build_index}`
     : "";
-
-  const selectedIsRunning =
-    !!selected &&
-    !!runningVersion &&
-    gameLaunched &&
-    runningVersion.type === selected.type &&
-    runningVersion.build_index === selected.build_index;
+  const selectedIsRunning = !!selected && !!runningVersion && gameLaunched &&
+    runningVersion.type === selected.type && runningVersion.build_index === selected.build_index;
 
   useEffect(() => {
     if (!open) return;
-
     const seq = ++onlinePatchStateSeq.current;
-
     if (!gameDir || !selected || !selected.installed) {
       setOnlinePatchEnabledForSelected(false);
       setCheckingOnlinePatchState(false);
       return;
     }
-
     setCheckingOnlinePatchState(true);
     void (async () => {
       try {
         const state = (await window.ipcRenderer.invoke(
-          "online-patch:state",
-          gameDir,
-          selected,
-        )) as {
-          supported: boolean;
-          available: boolean;
-          enabled: boolean;
-          downloaded: boolean;
-        };
-
+          "online-patch:state", gameDir, selected,
+        )) as { supported: boolean; available: boolean; enabled: boolean; downloaded: boolean };
         if (seq !== onlinePatchStateSeq.current) return;
         setOnlinePatchEnabledForSelected(!!state?.enabled);
       } catch {
@@ -272,20 +194,12 @@ const SettingsModal: React.FC<{
     })();
   }, [open, gameDir, selected]);
 
-  const canRemoveOnlinePatch =
-    !!gameDir &&
-    !!selected &&
-    !!selected.installed &&
-    !patchingOnline &&
-    !checkingOnlinePatchState &&
-    onlinePatchEnabledForSelected &&
-    !selectedIsRunning &&
-    !launching;
+  const canRemoveOnlinePatch = !!gameDir && !!selected && !!selected.installed &&
+    !patchingOnline && !checkingOnlinePatchState && onlinePatchEnabledForSelected &&
+    !selectedIsRunning && !launching;
 
   const doRemoveOnlinePatch = () => {
     if (!gameDir || !selected) return;
-    // Yes, we need an IPC call to delete a folder. No, I don't like it either.
-    // But at least the dangerous stuff happens in main where the filesystem monster lives.
     window.ipcRenderer.send("online-patch:remove", gameDir, selected);
   };
 
@@ -294,22 +208,14 @@ const SettingsModal: React.FC<{
     const prev = steamDeckMode;
     setSteamDeckMode(next);
     setSteamDeckWorking(true);
-    setSteamDeckStatus(
-      next
-        ? t("settings.steamDeck.applying")
-        : t("settings.steamDeck.restoring"),
-    );
+    setSteamDeckStatus(next ? t("settings.steamDeck.applying") : t("settings.steamDeck.restoring"));
     try {
       const dir = gameDir ?? (await window.config.getDefaultGameDirectory());
       const res = await window.config.setSteamDeckMode(next, dir);
-
-      const msg =
-        res && typeof res === "object"
-          ? res.message ||
-            (typeof res.changed === "number" || typeof res.failed === "number"
-              ? `Done (changed=${res.changed ?? "?"}, failed=${res.failed ?? "?"}).`
-              : "Done.")
-          : "Done.";
+      const msg = res && typeof res === "object"
+        ? res.message || (typeof res.changed === "number" || typeof res.failed === "number"
+          ? `Done (changed=${res.changed ?? "?"}, failed=${res.failed ?? "?"}).` : "Done.")
+        : "Done.";
       setSteamDeckStatus(msg);
     } catch (e) {
       console.error("Failed to toggle SteamDeck mode", e);
@@ -327,16 +233,9 @@ const SettingsModal: React.FC<{
     try {
       const dir = gameDir ?? (await window.config.getDefaultGameDirectory());
       const res = await window.config.clearInstallCache(dir);
-
-      if (!res || typeof res !== "object" || res.ok !== true) {
-        throw new Error("Failed");
-      }
-
-      if ((res.deleted ?? 0) > 0) {
-        alert(t("settings.cache.cleared", { count: res.deleted }));
-      } else {
-        alert(t("settings.cache.noneFound"));
-      }
+      if (!res || typeof res !== "object" || res.ok !== true) throw new Error("Failed");
+      if ((res.deleted ?? 0) > 0) alert(t("settings.cache.cleared", { count: res.deleted }));
+      else alert(t("settings.cache.noneFound"));
     } catch (e) {
       console.error("Failed to clear install cache", e);
       alert("Error #1000");
@@ -347,537 +246,452 @@ const SettingsModal: React.FC<{
 
   if (!open && !closing) return null;
 
+  const labelStyle = {
+    fontSize: "10px",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.08em",
+    color: "var(--chakra-colors-whiteAlpha-500)",
+    fontWeight: "bold",
+  };
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center glass-backdrop animate-fade-in"
+    <Box
+      className="glass-backdrop animate-fade-in"
+      position="fixed"
+      inset={0}
+      zIndex={50}
+      display="flex"
+      alignItems="center"
+      justifyContent="center"
       dir={isRTL ? "rtl" : "ltr"}
     >
-      <div
-        className={cn(
-          `
-          relative w-[92vw] max-w-[1800px] h-[88vh] mx-auto
-          rounded-xl
-          bg-linear-to-b from-[#1b2030]/95 to-[#141824]/95
-          border border-[#2a3146]
-          shadow-2xl
-          px-10 py-6
-          flex flex-col animate-settings-in`,
-          closing && "animate-settings-out",
-        )}
+      <Box
+        className={closing ? "animate-settings-out" : "animate-settings-in"}
+        position="relative"
+        w="92vw"
+        maxW="1800px"
+        h="88vh"
+        mx="auto"
+        rounded="xl"
+        bg="linear-gradient(to bottom, rgba(27,32,48,0.97), rgba(20,24,36,0.97))"
+        border="1px solid"
+        borderColor="whiteAlpha.100"
+        shadow="2xl"
+        px={10}
+        py={6}
+        display="flex"
+        flexDir="column"
       >
-        <button
-          className={cn(
-            "absolute top-3 w-8 h-8 rounded-full bg-[#23293a] text-gray-400 hover:text-white hover:bg-[#2f3650] transition flex items-center justify-center",
-            isRTL ? "left-3" : "right-3",
-          )}
+        <IconButton
+          aria-label={t("common.close")}
+          position="absolute"
+          top={3}
+          {...(isRTL ? { left: 3 } : { right: 3 })}
+          size="sm"
+          variant="ghost"
+          color="whiteAlpha.600"
+          _hover={{ color: "white", bg: "whiteAlpha.100" }}
+          rounded="full"
           onClick={() => {
             setClosing(true);
-            setTimeout(() => {
-              setClosing(false);
-              onClose();
-            }, 160);
+            setTimeout(() => { setClosing(false); onClose(); }, 160);
           }}
-          title={t("common.close")}
         >
-          ×
-        </button>
+          <IconX size={18} />
+        </IconButton>
 
-        <h2 className="text-lg font-semibold text-white tracking-wide mb-4">
+        <Text fontSize="lg" fontWeight="semibold" color="white" letterSpacing="wide" mb={4}>
           {t("settings.title")}
-        </h2>
+        </Text>
 
-        {/* CONTENT */}
-        <div className="flex-1 min-h-0 overflow-y-auto pr-2">
-          <div className="grid grid-cols-2 gap-6">
-            {/* <div>
-              <label className="text-gray-200 text-sm font-semibold mb-1 block">
-                Patchline
-              </label>
-              <select className="w-full mt-1 p-2 rounded bg-[#23293a] text-white border border-[#3b82f6] focus:outline-none">
-                <option>release</option>
-                <option>snapshot</option>
-              </select>
-            </div> */}
+        <Box flex={1} minH={0} overflowY="auto" pr={2} className="dark-scrollbar">
+          <SimpleGrid columns={2} gap={6}>
 
-            <div className="space-y-2">
-              <label className="text-xs uppercase tracking-widest text-gray-400">
-                {t("settings.gameDirectory.label")}
-              </label>
-              <button
-                className="w-full flex items-center justify-between bg-[#1f2538] hover:bg-[#262d44] border border-[#2a3146] rounded-lg px-4 py-2 text-white transition"
+            <VStack align="stretch" gap={2}>
+              <Text style={labelStyle}>{t("settings.gameDirectory.label")}</Text>
+              <Button
+                w="full"
+                justifyContent="space-between"
+                bg="rgba(31,37,56,1)"
+                _hover={{ bg: "rgba(38,45,68,1)" }}
+                border="1px solid"
+                borderColor="whiteAlpha.100"
+                color="white"
                 onClick={handleOpenGameDir}
               >
-                <span className="text-sm">
-                  {t("settings.gameDirectory.openFolder")}
-                </span>
+                <Text fontSize="sm">{t("settings.gameDirectory.openFolder")}</Text>
                 <IconFolderOpen size={18} />
-              </button>
-            </div>
+              </Button>
+            </VStack>
 
-            <div className="space-y-2">
-              <label className="text-xs uppercase tracking-widest text-gray-400">
-                {t("settings.downloadDirectory.label")}
-              </label>
-              <button
-                className="w-full flex items-center justify-between bg-[#1f2538] hover:bg-[#262d44] border border-[#2a3146] rounded-lg px-4 py-2 text-white transition disabled:opacity-60"
-                onClick={handleChangeDownloadDir}
+            <VStack align="stretch" gap={2}>
+              <Text style={labelStyle}>{t("settings.downloadDirectory.label")}</Text>
+              <Button
+                w="full"
+                justifyContent="space-between"
+                bg="rgba(31,37,56,1)"
+                _hover={{ bg: "rgba(38,45,68,1)" }}
+                border="1px solid"
+                borderColor="whiteAlpha.100"
+                color="white"
                 disabled={changingDir}
+                onClick={handleChangeDownloadDir}
               >
-                <span className="text-sm">
-                  {changingDir
-                    ? t("settings.downloadDirectory.selecting")
-                    : t("settings.downloadDirectory.change")}
-                </span>
+                <Text fontSize="sm">
+                  {changingDir ? t("settings.downloadDirectory.selecting") : t("settings.downloadDirectory.change")}
+                </Text>
                 <IconFolderOpen size={18} />
-              </button>
-              <div className="text-[10px] text-gray-400 font-mono break-all">
+              </Button>
+              <Text fontSize="10px" color="whiteAlpha.500" fontFamily="mono" wordBreak="break-all">
                 {gameDir || t("settings.downloadDirectory.loading")}
-              </div>
-            </div>
+              </Text>
+            </VStack>
 
             {accountType === "custom" && (
-              <div className="col-span-2 space-y-2">
-                <label className="text-xs uppercase tracking-widest text-gray-400">
-                  {t("settings.customUUID.label")}
-                </label>
-                <input
-                  value={customUUID}
-                  onChange={(e) => setCustomUUID(e.target.value)}
-                  placeholder={t("settings.customUUID.placeholder")}
-                  className="w-full px-3 py-2 rounded-lg bg-[#1f2538] text-white border border-[#2a3146] focus:outline-none focus:border-blue-500 transition"
-                  spellCheck={false}
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  inputMode="text"
-                />
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-gray-400">
-                    {customUUID.trim().length === 0
-                      ? t("settings.customUUID.usesAuto")
-                      : normalizedUUID === "__invalid__"
-                        ? t("settings.customUUID.invalid")
-                        : t("settings.customUUID.saved", {
-                            uuid: normalizedUUID,
-                          })}
-                  </span>
-                  <button
-                    type="button"
-                    className="text-[10px] text-red-400 hover:text-red-300 transition"
-                    onClick={() => {
-                      setCustomUUID("");
-                      localStorage.removeItem("customUUID");
-                    }}
-                  >
-                    {t("common.clear")}
-                  </button>
-                </div>
-              </div>
+              <Box gridColumn="span 2">
+                <VStack align="stretch" gap={2}>
+                  <Text style={labelStyle}>{t("settings.customUUID.label")}</Text>
+                  <Input
+                    value={customUUID}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCustomUUID(e.target.value)}
+                    placeholder={t("settings.customUUID.placeholder")}
+                    bg="rgba(31,37,56,1)"
+                    border="1px solid"
+                    borderColor="whiteAlpha.100"
+                    color="white"
+                    _focus={{ borderColor: "blue.500" }}
+                    spellCheck={false}
+                  />
+                  <HStack justify="space-between">
+                    <Text fontSize="10px" color="whiteAlpha.500">
+                      {customUUID.trim().length === 0
+                        ? t("settings.customUUID.usesAuto")
+                        : normalizedUUID === "__invalid__"
+                          ? t("settings.customUUID.invalid")
+                          : t("settings.customUUID.saved", { uuid: normalizedUUID })}
+                    </Text>
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      color="red.400"
+                      _hover={{ color: "red.300" }}
+                      onClick={() => { setCustomUUID(""); StorageService.remove("customUUID"); }}
+                    >
+                      {t("common.clear")}
+                    </Button>
+                  </HStack>
+                </VStack>
+              </Box>
             )}
 
-            <label className="w-fit flex gap-2 items-center text-xs uppercase tracking-widest text-gray-400">
-              <p>{t("settings.discordRPC")}:</p>
-              <input
-                type="checkbox"
+            <HStack gap={3} align="center">
+              <Text style={labelStyle}>{t("settings.discordRPC")}:</Text>
+              <Switch.Root
                 checked={enableRPC}
-                onChange={(e) => setEnableRPC(e.target.checked)}
-                className="hidden sr-only peer"
-              />
-              <div
-                className={cn(
-                  "px-4 py-2 flex items-center gap-2 bg-[#1f2538] hover:bg-[#262d44] border border-[#2a3146] rounded-lg text-white transition",
-                  enableRPC && "border-blue-500/60 bg-blue-600/15",
-                )}
+                onCheckedChange={(d) => setEnableRPC(!!d.checked)}
+                colorPalette="blue"
               >
-                <span
-                  className={cn(
-                    "w-4 h-4 rounded-sm border border-[#2a3146] bg-transparent",
-                    enableRPC && "border-blue-300 bg-blue-500",
-                  )}
-                />
-                {enableRPC ? t("common.enabled") : t("common.disabled")}
-              </div>
-            </label>
+                <Switch.HiddenInput />
+                <Switch.Control />
+                <Switch.Label fontSize="xs" color="whiteAlpha.700">
+                  {enableRPC ? t("common.enabled") : t("common.disabled")}
+                </Switch.Label>
+              </Switch.Root>
+            </HStack>
 
-            <label className="w-fit flex gap-2 items-center text-xs uppercase tracking-widest text-gray-400">
-              <p>{t("settings.startupSound")}:</p>
-              <input
-                type="checkbox"
+            <HStack gap={3} align="center">
+              <Text style={labelStyle}>{t("settings.startupSound")}:</Text>
+              <Switch.Root
                 checked={startupSoundEnabled}
-                onChange={(e) => handleStartupSoundChange(e.target.checked)}
-                className="hidden sr-only peer"
-              />
-              <div
-                className={cn(
-                  "px-4 py-2 flex items-center gap-2 bg-[#1f2538] hover:bg-[#262d44] border border-[#2a3146] rounded-lg text-white transition",
-                  startupSoundEnabled && "border-blue-500/60 bg-blue-600/15",
-                )}
+                onCheckedChange={(d) => handleStartupSoundChange(!!d.checked)}
+                colorPalette="blue"
               >
-                <span
-                  className={cn(
-                    "w-4 h-4 rounded-sm border border-[#2a3146] bg-transparent",
-                    startupSoundEnabled && "border-blue-300 bg-blue-500",
-                  )}
-                />
-                {startupSoundEnabled
-                  ? t("common.enabled")
-                  : t("common.disabled")}
-              </div>
-            </label>
+                <Switch.HiddenInput />
+                <Switch.Control />
+                <Switch.Label fontSize="xs" color="whiteAlpha.700">
+                  {startupSoundEnabled ? t("common.enabled") : t("common.disabled")}
+                </Switch.Label>
+              </Switch.Root>
+            </HStack>
 
-            <div className="col-span-2">
-              <label className="w-fit flex gap-2 items-center text-xs uppercase tracking-widest text-gray-400">
-                <p>{t("settings.steamDeck.label")}:</p>
-                <input
-                  type="checkbox"
+            <Box gridColumn="span 2">
+              <HStack gap={3} align="center">
+                <Text style={labelStyle}>{t("settings.steamDeck.label")}:</Text>
+                <Switch.Root
                   checked={steamDeckMode}
                   disabled={!isLinux || steamDeckWorking}
-                  onChange={(e) =>
-                    void handleToggleSteamDeckMode(e.target.checked)
-                  }
-                  className="hidden sr-only peer"
-                />
-                <div
-                  className={cn(
-                    "px-4 py-2 flex items-center gap-2 bg-[#1f2538] hover:bg-[#262d44] border border-[#2a3146] rounded-lg text-white transition disabled:opacity-60",
-                    steamDeckMode && "border-blue-500/60 bg-blue-600/15",
-                    (!isLinux || steamDeckWorking) && "opacity-60",
-                  )}
-                  title={
-                    isLinux
-                      ? t("settings.steamDeck.tooltipLinux")
-                      : t("settings.steamDeck.hintNonLinux")
-                  }
+                  onCheckedChange={(d) => void handleToggleSteamDeckMode(!!d.checked)}
+                  colorPalette="blue"
+                  title={isLinux ? t("settings.steamDeck.tooltipLinux") : t("settings.steamDeck.hintNonLinux")}
                 >
-                  <span
-                    className={cn(
-                      "w-4 h-4 rounded-sm border border-[#2a3146] bg-transparent",
-                      steamDeckMode && "border-blue-300 bg-blue-500",
-                    )}
-                  />
-                  {steamDeckWorking
-                    ? t("common.working")
-                    : steamDeckMode
-                      ? t("common.enabled")
-                      : t("common.disabled")}
-                </div>
-              </label>
-
-              <div className="mt-2 text-[11px] text-gray-400">
-                {isLinux
-                  ? t("settings.steamDeck.hintLinux")
-                  : t("settings.steamDeck.linuxOnly")}
-              </div>
-
+                  <Switch.HiddenInput />
+                  <Switch.Control />
+                  <Switch.Label fontSize="xs" color="whiteAlpha.700">
+                    {steamDeckWorking ? t("common.working") : steamDeckMode ? t("common.enabled") : t("common.disabled")}
+                  </Switch.Label>
+                </Switch.Root>
+              </HStack>
+              <Text mt={2} fontSize="11px" color="whiteAlpha.500">
+                {isLinux ? t("settings.steamDeck.hintLinux") : t("settings.steamDeck.linuxOnly")}
+              </Text>
               {steamDeckStatus ? (
-                <div className="mt-2 text-[11px] text-gray-400 font-mono break-words">
+                <Text mt={2} fontSize="11px" color="whiteAlpha.500" fontFamily="mono" wordBreak="break-words">
                   {steamDeckStatus}
-                </div>
+                </Text>
               ) : null}
-            </div>
+            </Box>
 
-            <div className="col-span-2 space-y-2">
-              <label className="text-xs uppercase tracking-widest text-gray-400">
-                {t("settings.onlinePatch.label")}
-              </label>
-              <button
-                type="button"
-                className={cn(
-                  "w-full flex items-center justify-between bg-[#1f2538] hover:bg-[#262d44] border border-[#2a3146] rounded-lg px-4 py-2 text-white transition disabled:opacity-60",
-                  "border-red-500/30 text-red-300 hover:bg-red-500/10",
-                )}
-                disabled={!canRemoveOnlinePatch}
-                onClick={() => setRemoveOnlinePatchOpen(true)}
-                title={
-                  !gameDir
-                    ? t("settings.onlinePatch.requireGameDir")
-                    : !selected
-                      ? t("settings.onlinePatch.requireVersion")
-                      : !selected.installed
-                        ? t("settings.onlinePatch.requireInstalled")
-                        : selectedIsRunning
-                          ? t("settings.onlinePatch.requireGameClosed")
-                          : checkingOnlinePatchState
-                            ? t("settings.onlinePatch.checkingState")
-                            : !onlinePatchEnabledForSelected
-                              ? t("settings.onlinePatch.requireEnabled")
-                              : patchingOnline
-                                ? t("settings.onlinePatch.inProgress")
-                                : ""
-                }
-              >
-                <span className="text-sm">
-                  {patchingOnline
-                    ? t("common.working")
-                    : t("settings.onlinePatch.removeButton")}
-                </span>
-                <span className="text-xs opacity-80">
-                  {selected ? selectedLabel : ""}
-                </span>
-              </button>
+            <Box gridColumn="span 2">
+              <VStack align="stretch" gap={2}>
+                <Text style={labelStyle}>{t("settings.onlinePatch.label")}</Text>
+                <Button
+                  w="full"
+                  justifyContent="space-between"
+                  bg="rgba(31,37,56,1)"
+                  _hover={{ bg: "rgba(239,68,68,0.08)" }}
+                  border="1px solid"
+                  borderColor="rgba(239,68,68,0.3)"
+                  color="red.300"
+                  disabled={!canRemoveOnlinePatch}
+                  onClick={() => setRemoveOnlinePatchOpen(true)}
+                >
+                  <Text fontSize="sm">
+                    {patchingOnline ? t("common.working") : t("settings.onlinePatch.removeButton")}
+                  </Text>
+                  <Text fontSize="xs" opacity={0.8}>{selected ? selectedLabel : ""}</Text>
+                </Button>
+                {gameDir && selected && selected.installed && !patchingOnline && !checkingOnlinePatchState && !onlinePatchEnabledForSelected ? (
+                  <Text fontSize="11px" color="whiteAlpha.500">{t("settings.onlinePatch.hintEnableToRemove")}</Text>
+                ) : null}
+                {selectedIsRunning ? (
+                  <Text fontSize="11px" color="whiteAlpha.500">{t("settings.onlinePatch.hintCloseGame")}</Text>
+                ) : null}
+                <Text fontSize="11px" color="whiteAlpha.500">{t("settings.onlinePatch.description")}</Text>
+              </VStack>
+            </Box>
 
-              {gameDir &&
-              selected &&
-              selected.installed &&
-              !patchingOnline &&
-              !checkingOnlinePatchState &&
-              !onlinePatchEnabledForSelected ? (
-                <div className="mt-1 text-[11px] text-gray-400">
-                  {t("settings.onlinePatch.hintEnableToRemove")}
-                </div>
-              ) : null}
+            <Box gridColumn="span 2">
+              <VStack align="stretch" gap={2}>
+                <Text style={labelStyle}>{t("settings.cache.label")}</Text>
+                <Button
+                  w="full"
+                  justifyContent="flex-start"
+                  bg="rgba(31,37,56,1)"
+                  _hover={{ bg: "rgba(38,45,68,1)" }}
+                  border="1px solid"
+                  borderColor="whiteAlpha.100"
+                  color="white"
+                  disabled={clearingCache}
+                  onClick={() => void handleClearInstallCache()}
+                >
+                  <Text fontSize="sm">
+                    {clearingCache ? t("settings.cache.clearing") : t("settings.cache.clearButton")}
+                  </Text>
+                </Button>
+                <Text fontSize="11px" color="whiteAlpha.500">{t("settings.cache.description")}</Text>
+              </VStack>
+            </Box>
 
-              {selectedIsRunning ? (
-                <div className="mt-1 text-[11px] text-gray-400">
-                  {t("settings.onlinePatch.hintCloseGame")}
-                </div>
-              ) : null}
+          </SimpleGrid>
+        </Box>
 
-              <div className="text-[11px] text-gray-400">
-                {t("settings.onlinePatch.description")}
-              </div>
-            </div>
-
-            <div className="col-span-2 space-y-2">
-              <label className="text-xs uppercase tracking-widest text-gray-400">
-                {t("settings.cache.label")}
-              </label>
-              <button
-                type="button"
-                className={cn(
-                  "w-full flex items-center justify-between bg-[#1f2538] hover:bg-[#262d44] border border-[#2a3146] rounded-lg px-4 py-2 text-white transition disabled:opacity-60",
-                )}
-                disabled={clearingCache}
-                onClick={() => void handleClearInstallCache()}
-              >
-                <span className="text-sm">
-                  {clearingCache
-                    ? t("settings.cache.clearing")
-                    : t("settings.cache.clearButton")}
-                </span>
-              </button>
-              <div className="text-[11px] text-gray-400">
-                {t("settings.cache.description")}
-              </div>
-            </div>
-
-            {/* <div>
-              <label className="text-gray-200 text-sm font-semibold mb-1 block">
-                Previous Version{" "}
-                <span className="text-xs text-gray-400 font-normal">
-                  (Not available)
-                </span>
-              </label>
-              <button className="w-full bg-[#23293a] text-gray-400 px-4 py-2 rounded mt-1 cursor-not-allowed" disabled>
-                LAUNCH
-              </button>
-            </div> */}
-          </div>
-        </div>
-
-        {/* FOOTER */}
-        <div className="pt-4 mt-4 border-t border-[#2a3146] flex items-center justify-between gap-4">
-          <div className="text-left">
-            <div className="text-xs text-gray-400">
+        <HStack
+          pt={4}
+          mt={4}
+          borderTop="1px solid"
+          borderColor="whiteAlpha.100"
+          justify="space-between"
+          gap={4}
+          flexWrap="wrap"
+        >
+          <VStack align="flex-start" gap={2}>
+            <Text fontSize="xs" color="whiteAlpha.500">
               {t("settings.madeBy")}:{" "}
-              <span className="font-extrabold tracking-wide bg-linear-to-r from-blue-500 via-cyan-400 to-blue-500 bg-clip-text text-transparent bg-chroma-animated animate-chroma-shift">
+              <Text
+                as="span"
+                fontWeight="extrabold"
+                letterSpacing="wide"
+                className="bg-chroma-animated animate-chroma-shift"
+                style={{
+                  background: "linear-gradient(90deg,#3b82f6,#22d3ee,#3b82f6)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundSize: "200% 100%",
+                }}
+              >
                 {t("settings.teamName")}
-              </span>
-            </div>
-
-            <button
-              type="button"
-              className="mt-2 px-4 py-2 rounded-lg font-semibold border border-blue-500/40 text-blue-400 hover:bg-blue-500/10 transition"
+              </Text>
+            </Text>
+            <Button
+              variant="outline"
+              size="sm"
+              borderColor="rgba(59,130,246,0.4)"
+              color="blue.400"
+              _hover={{ bg: "rgba(59,130,246,0.1)" }}
               onClick={() => setCreditsOpen(true)}
             >
               {t("settings.credits.label")}
-            </button>
-          </div>
+            </Button>
+          </VStack>
 
-          <div className="flex flex-col gap-2 items-center">
-            <label className="text-[10px] text-gray-400 font-bold uppercase">
+          <VStack gap={1} align="center">
+            <Text style={{ ...labelStyle, color: "var(--chakra-colors-whiteAlpha-400)" }}>
               {t("settings.language.label")} {LANGUAGES[lang].flag}
-            </label>
+            </Text>
             <select
               value={lang}
-              onChange={(e) =>
-                changeLanguage(e.target.value as keyof typeof LANGUAGES)
-              }
-              className="bg-[#1a1f2e] border border-[#2a3146] text-white rounded-lg p-2 outline-none"
+              onChange={(e) => changeLanguage(e.target.value as keyof typeof LANGUAGES)}
+              style={{
+                background: "rgba(26,31,46,1)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                color: "white",
+                borderRadius: "8px",
+                padding: "8px",
+                outline: "none",
+                fontSize: "0.875rem",
+              }}
             >
               {Object.entries(LANGUAGES).map(([code, info]) => (
                 <option
                   key={code}
                   value={code}
-                  dir={
-                    (RTL_LANGUAGES as readonly string[]).includes(code)
-                      ? "rtl"
-                      : "ltr"
-                  }
+                  dir={(RTL_LANGUAGES as readonly string[]).includes(code) ? "rtl" : "ltr"}
                 >
                   {info.flag} {info.name}
                 </option>
               ))}
             </select>
-          </div>
+          </VStack>
 
-          <div className="flex flex-col gap-3">
-            <div className="text-[11px] font-mono text-gray-400">
+          <VStack gap={3} align="flex-end">
+            <Text fontSize="11px" fontFamily="mono" color="whiteAlpha.500">
               {`${window.config.BUILD_DATE} V${window.config.VERSION}`}
-            </div>
-            <button
-              className="px-4 py-2 rounded-lg font-semibold border border-blue-500/40 text-blue-400 hover:bg-blue-500/10 transition disabled:opacity-50"
+            </Text>
+            <Button
+              variant="outline"
+              size="sm"
+              borderColor="rgba(59,130,246,0.4)"
+              color="blue.400"
+              _hover={{ bg: "rgba(59,130,246,0.1)" }}
               disabled={checkingUpdates}
               onClick={() => checkForUpdates("manual")}
             >
-              {checkingUpdates
-                ? t("settings.updates.checking")
-                : t("settings.updates.check")}
-            </button>
-
+              {checkingUpdates ? t("settings.updates.checking") : t("settings.updates.check")}
+            </Button>
             {onLogout && (
-              <button
-                className="px-5 py-2 rounded-lg font-bold text-white bg-linear-to-r from-blue-500 to-cyan-400 hover:from-blue-600 hover:to-cyan-500 transition shadow-lg"
+              <Button
+                size="sm"
+                color="white"
+                fontWeight="bold"
+                shadow="lg"
+                style={{ background: "linear-gradient(90deg,#3b82f6,#22d3ee)" }}
+                _hover={{ opacity: 0.9 }}
                 onClick={onLogout}
               >
                 {t("settings.logout")}
-              </button>
+              </Button>
             )}
-          </div>
-        </div>
+          </VStack>
+        </HStack>
 
         {creditsOpen ? (
-          <div className="absolute inset-0 rounded-xl glass-backdrop flex items-center justify-center p-6">
-            <div className="relative w-full max-w-xl rounded-xl border border-[#2a3146] bg-linear-to-b from-[#1b2030]/95 to-[#141824]/95 shadow-2xl px-6 py-5">
-              <button
-                type="button"
-                className={cn(
-                  "absolute top-3 w-8 h-8 rounded-full bg-[#23293a] text-gray-400 hover:text-white hover:bg-[#2f3650] transition flex items-center justify-center",
-                  isRTL ? "left-3" : "right-3",
-                )}
+          <Box
+            position="absolute"
+            inset={0}
+            rounded="xl"
+            className="glass-backdrop"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            p={6}
+          >
+            <Box
+              position="relative"
+              w="full"
+              maxW="xl"
+              rounded="xl"
+              border="1px solid"
+              borderColor="whiteAlpha.100"
+              bg="linear-gradient(to bottom, rgba(27,32,48,0.97), rgba(20,24,36,0.97))"
+              shadow="2xl"
+              px={6}
+              py={5}
+            >
+              <IconButton
+                aria-label={t("common.close")}
+                position="absolute"
+                top={3}
+                {...(isRTL ? { left: 3 } : { right: 3 })}
+                size="sm"
+                variant="ghost"
+                color="whiteAlpha.600"
+                _hover={{ color: "white", bg: "whiteAlpha.100" }}
+                rounded="full"
                 onClick={() => setCreditsOpen(false)}
-                title={t("common.close")}
               >
-                ×
-              </button>
+                <IconX size={18} />
+              </IconButton>
 
-              <h3 className="text-lg font-semibold text-white tracking-wide">
+              <Text fontSize="lg" fontWeight="semibold" color="white" letterSpacing="wide">
                 {t("settings.credits.label")}
-              </h3>
+              </Text>
 
-              <div className="mt-4 max-h-[320px] overflow-y-auto pr-1 space-y-2">
-                <div className="rounded-lg border border-[#2a3146] bg-[#1f2538]/70 px-4 py-3">
-                  <div className="text-[11px] text-gray-400 font-bold uppercase">
-                    Project Lead &amp; Lead Developer
-                  </div>
-                  <div className="mt-1 text-sm text-gray-200">
-                    <span className="text-blue-400">vZyle</span> (Project
-                    Concept, Launcher Development, Online Client Patching
-                    System)
-                  </div>
+              <Box mt={4} maxH="320px" overflowY="auto" pr={1} className="dark-scrollbar">
+                <Box rounded="lg" border="1px solid" borderColor="whiteAlpha.100" bg="rgba(31,37,56,0.7)" px={4} py={3}>
+                  {[
+                    ["Project Lead & Lead Developer", [["vZyle", "Project Concept, Launcher Development, Online Client Patching System"]]],
+                    ["Launcher Developer", [["Fitzxel", "Launcher Programming"]]],
+                    ["Lead Graphic Designer", [["primeisonline", "Graphic Design and Matcha! system"]]],
+                    ["Operations Manager & Localization Lead", [["KaiZorakDEV", "Discord Management, Server Organization, Translation Systems"]]],
+                    ["Server Patching & Deployment Specialist", [["Nexusatko", "Online Server Patching, Dedicated Server Setup, Czech & Slovak Translation"]]],
+                    ["Technical Advisor", [["IkyMax", "Game Server Architecture Consultant"]]],
+                    ["Web Designer", [["Lunar Katsu", "Website Design"]]],
+                  ].map(([role, members]) => (
+                    <Box key={role as string} mt={4} _first={{ mt: 0 }}>
+                      <Text fontSize="11px" color="whiteAlpha.400" fontWeight="bold" textTransform="uppercase">
+                        {role as string}
+                      </Text>
+                      {(members as [string, string][]).map(([name, desc]) => (
+                        <Text key={name} mt={1} fontSize="sm" color="whiteAlpha.800">
+                          <Text as="span" color="blue.400">{name}</Text> ({desc})
+                        </Text>
+                      ))}
+                    </Box>
+                  ))}
 
-                  <div className="mt-4 text-[11px] text-gray-400 font-bold uppercase">
-                    Launcher Developer
-                  </div>
-                  <div className="mt-1 text-sm text-gray-200">
-                    <span className="text-blue-400">Fitzxel</span> (Launcher
-                    Programming)
-                  </div>
+                  <Box mt={4}>
+                    <Text fontSize="11px" color="whiteAlpha.400" fontWeight="bold" textTransform="uppercase">
+                      Localization Team
+                    </Text>
+                    {[
+                      ["Kapugoat", "Spanish"], ["SaYrZ", "Arabic"], ["multyfora", "Russian"],
+                      ["bimbimbamreal", "German"], ["mobun", "Vietnamese"], ["polished_mercury", "Polish"],
+                      ["farrdev", "Indonesian"], ["fine_xd_", "Persian/Farsi"], ["Astinix", "Ukrainian"],
+                    ].map(([name, lang]) => (
+                      <Text key={name} mt={1} fontSize="sm" color="whiteAlpha.800">
+                        <Text as="span" color="blue.400">{name}</Text> ({lang})
+                      </Text>
+                    ))}
+                  </Box>
 
-                  <div className="mt-4 text-[11px] text-gray-400 font-bold uppercase">
-                    Lead Graphic Designer
-                  </div>
-                  <div className="mt-1 text-sm text-gray-200">
-                    <span className="text-blue-400">primeisonline</span>{" "}
-                    (Graphic Design and Matcha! system)
-                  </div>
+                  <Box mt={4}>
+                    <Text fontSize="11px" color="whiteAlpha.400" fontWeight="bold" textTransform="uppercase">
+                      Special Thanks
+                    </Text>
+                    <Text mt={1} fontSize="sm" color="whiteAlpha.800">
+                      <Text as="span" color="blue.400">Magd &amp; Kyo</Text> (Honorable Mentions)
+                    </Text>
+                  </Box>
 
-                  <div className="mt-4 text-[11px] text-gray-400 font-bold uppercase">
-                    Operations Manager &amp; Localization Lead
-                  </div>
-                  <div className="mt-1 text-sm text-gray-200">
-                    <span className="text-blue-400">KaiZorakDEV</span> (Discord
-                    Management, Server Organization, Translation Systems)
-                  </div>
-
-                  <div className="mt-4 text-[11px] text-gray-400 font-bold uppercase">
-                    Server Patching &amp; Deployment Specialist
-                  </div>
-                  <div className="mt-1 text-sm text-gray-200">
-                    <span className="text-blue-400">Nexusatko</span> (Online
-                    Server Patching, Dedicated Server Setup Support, Czech &amp;
-                    Slovak Translation)
-                  </div>
-
-                  <div className="mt-4 text-[11px] text-gray-400 font-bold uppercase">
-                    Technical Advisor
-                  </div>
-                  <div className="mt-1 text-sm text-gray-200">
-                    <span className="text-blue-400">IkyMax</span> (Game Server
-                    Architecture Consultant)
-                  </div>
-
-                  <div className="mt-4 text-[11px] text-gray-400 font-bold uppercase">
-                    Web Designer
-                  </div>
-                  <div className="mt-1 text-sm text-gray-200">
-                    <span className="text-blue-400">Lunar Katsu</span> (Website
-                    Design)
-                  </div>
-
-                  <div className="mt-4 text-[11px] text-gray-400 font-bold uppercase">
-                    Localization Team
-                  </div>
-                  <div className="mt-2 space-y-1 text-sm text-gray-200">
-                    <div>
-                      <span className="text-blue-400">Kapugoat</span> (Spanish)
-                    </div>
-                    <div>
-                      <span className="text-blue-400">SaYrZ</span> (Arabic)
-                    </div>
-                    <div>
-                      <span className="text-blue-400">multyfora</span> (Russian)
-                    </div>
-                    <div>
-                      <span className="text-blue-400">bimbimbamreal</span>{" "}
-                      (German)
-                    </div>
-                    <div>
-                      <span className="text-blue-400">mobun</span> (Vietnamese)
-                    </div>
-                    <div>
-                      <span className="text-blue-400">polished_mercury</span>{" "}
-                      (Polish)
-                    </div>
-                    <div>
-                      <span className="text-blue-400">farrdev</span>{" "}
-                      (Indonesian)
-                    </div>
-                    <div>
-                      <span className="text-blue-400">fine_xd_</span>{" "}
-                      (Persian/Farsi)
-                    </div>
-                    <div>
-                      <span className="text-blue-400">Astinix</span> (Ukrainian)
-                    </div>
-                  </div>
-
-                  <div className="mt-4 text-[11px] text-gray-400 font-bold uppercase">
-                    Special Thanks
-                  </div>
-                  <div className="mt-1 text-sm text-gray-200">
-                    <span className="text-blue-400">Magd &amp; Kyo</span>{" "}
-                    (Honorable Mentions)
-                  </div>
-
-                  <div className="mt-4 text-sm text-gray-200">
+                  <Text mt={4} fontSize="sm" color="whiteAlpha.800">
                     Thank you to everyone who made this project possible &lt;3
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+                  </Text>
+                </Box>
+              </Box>
+            </Box>
+          </Box>
         ) : null}
-      </div>
+      </Box>
 
       <ConfirmModal
         open={removeOnlinePatchOpen}
@@ -890,13 +704,9 @@ const SettingsModal: React.FC<{
         confirmText={t("common.remove")}
         cancelText={t("common.cancel")}
         onCancel={() => setRemoveOnlinePatchOpen(false)}
-        onConfirm={() => {
-          // One click to undo chaos. Another click to commit to it. Perfect.
-          setRemoveOnlinePatchOpen(false);
-          doRemoveOnlinePatch();
-        }}
+        onConfirm={() => { setRemoveOnlinePatchOpen(false); doRemoveOnlinePatch(); }}
       />
-    </div>
+    </Box>
   );
 };
 

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from "react";
+import { StorageService } from "../services/StorageService";
 
 interface UserContextType {
   ready: boolean;
@@ -16,32 +17,8 @@ export const UserContextProvider = ({
   const [ready, setReady] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
 
-  const safeLocalStorage = {
-    getItem: (key: string) => {
-      try {
-        return localStorage.getItem(key);
-      } catch {
-        return null;
-      }
-    },
-    setItem: (key: string, value: string) => {
-      try {
-        localStorage.setItem(key, value);
-      } catch {
-        // ignore
-      }
-    },
-    removeItem: (key: string) => {
-      try {
-        localStorage.removeItem(key);
-      } catch {
-        // ignore
-      }
-    },
-  };
-
   useEffect(() => {
-    const storedUsername = safeLocalStorage.getItem("username");
+    const storedUsername = StorageService.get("username");
     if (storedUsername) {
       setUsername(storedUsername);
     }
@@ -53,9 +30,9 @@ export const UserContextProvider = ({
 
   useEffect(() => {
     if (username) {
-      safeLocalStorage.setItem("username", username);
+      StorageService.set("username", username);
     } else {
-      safeLocalStorage.removeItem("username");
+      StorageService.remove("username");
     }
   }, [username]);
 

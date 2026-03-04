@@ -4,6 +4,16 @@ import butterLogo from "../assets/butter-logo.png";
 import DragBar from "./DragBar";
 import { useTranslation } from "react-i18next";
 import { customAlternativeLoginProvider } from "../utils/dynamicModules/customAlternativeLoginProvider";
+import { StorageService } from "../services/StorageService";
+import {
+  Box,
+  Button,
+  Input,
+  Text,
+  VStack,
+  HStack,
+  Spinner,
+} from "@chakra-ui/react";
 
 const Login: React.FC<{ onLogin: (username: string) => void }> = ({
   onLogin,
@@ -14,14 +24,10 @@ const Login: React.FC<{ onLogin: (username: string) => void }> = ({
   const alternativeLabel = customAlternativeLoginProvider.alternativeLabel;
 
   const storedAccountType = useMemo<AccountType | null>(() => {
-    try {
-      const raw = (localStorage.getItem("accountType") || "").trim();
-      if (raw === "premium") return "premium";
-      if (raw) return "custom";
-      return null;
-    } catch {
-      return null;
-    }
+    const raw = StorageService.getAccountType();
+    if (raw === "premium") return "premium";
+    if (raw === "custom") return "custom";
+    return null;
   }, []);
 
   const [accountType, setAccountType] = useState<AccountType | null>(
@@ -76,17 +82,7 @@ const Login: React.FC<{ onLogin: (username: string) => void }> = ({
   }, [premiumWorking]);
 
   const persistAccountType = (next: AccountType) => {
-    try {
-      localStorage.setItem("accountType", next);
-    } catch {
-      // ignore
-    }
-
-    try {
-      window.dispatchEvent(new Event("accountType:changed"));
-    } catch {
-      // ignore
-    }
+    StorageService.setAccountType(next);
     setAccountType(next);
   };
 
@@ -100,12 +96,7 @@ const Login: React.FC<{ onLogin: (username: string) => void }> = ({
   }, [allowAlternative, accountType]);
 
   const goBackToAccountType = () => {
-    try {
-      localStorage.removeItem("accountType");
-    } catch {
-      // ignore
-    }
-
+    StorageService.remove("accountType");
     try {
       window.dispatchEvent(new Event("accountType:changed"));
     } catch {
@@ -197,163 +188,208 @@ const Login: React.FC<{ onLogin: (username: string) => void }> = ({
   };
 
   return (
-    <div className="w-screen h-screen flex bg-black overflow-hidden">
-      <div className="fixed top-0 left-0 w-full z-50">
+    <Box w="100vw" h="100vh" display="flex" bg="black" overflow="hidden">
+      {/* DragBar overlaid on top */}
+      <Box position="fixed" top={0} left={0} w="full" zIndex={50}>
         <DragBar />
-      </div>
+      </Box>
 
-      <div className="w-[380px] h-full bg-[#0f131a] flex flex-col justify-center px-10 relative">
-        <img
-          src={butterLogo}
-          alt="Logo"
-          draggable={false}
-          className="
-            w-[220px]
-            h-auto
-            top-[10px]
-            left-[74px]
-            mb-10
-            select-none
-            absolute"
-        />
+      {/* Left panel */}
+      <Box
+        w="380px"
+        minW="380px"
+        h="full"
+        bg="rgba(10,14,22,0.98)"
+        display="flex"
+        flexDir="column"
+        alignItems="stretch"
+        px={10}
+        pt="88px"
+        pb={8}
+        position="relative"
+        borderRight="1px solid"
+        borderColor="whiteAlpha.50"
+        backdropFilter="blur(12px)"
+      >
+        {/* Logo */}
+        <Box mb={10} display="flex" justifyContent="center">
+          <img
+            src={butterLogo}
+            alt="Logo"
+            draggable={false}
+            style={{ width: 180, userSelect: "none" }}
+          />
+        </Box>
 
+        {/* Forms */}
         {accountType === null ? (
-          <div className="flex flex-col gap-2">
-            <p className="mb-2 text-gray-400 text-sm text-center">
+          <VStack gap={3}>
+            <Text color="whiteAlpha.600" fontSize="sm" textAlign="center">
               {t("login.accountTypePrompt")}
-            </p>
-            <button
-              type="button"
+            </Text>
+            <Button
+              w="full"
+              h={11}
+              fontWeight="semibold"
+              color="white"
+              style={{ background: "linear-gradient(90deg,#0268D4,#02D4D4)" }}
+              _hover={{ opacity: 0.9 }}
               onClick={() => persistAccountType("premium")}
-              className="h-11 w-full bg-linear-to-r from-[#0268D4] to-[#02D4D4] text-white font-semibold rounded hover:from-[#025bb8] hover:to-[#02baba] transition"
             >
               {t("login.premium")}
-            </button>
+            </Button>
             {allowAlternative && alternativeLabel ? (
-              <button
-                type="button"
+              <Button
+                w="full"
+                h={11}
+                fontWeight="semibold"
+                bg="whiteAlpha.100"
+                color="white"
+                _hover={{ bg: "whiteAlpha.150" }}
                 onClick={() => persistAccountType("custom")}
-                className="h-11 w-full bg-[#1a1f2e] text-white font-semibold rounded hover:bg-[#232a3d] transition"
               >
                 {alternativeLabel}
-              </button>
+              </Button>
             ) : null}
-          </div>
+          </VStack>
         ) : accountType === "premium" ? (
-          <div className="flex flex-col gap-2">
-            <p className="mb-2 text-gray-400 text-sm text-center">
+          <VStack gap={3} align="stretch">
+            <Text color="whiteAlpha.600" fontSize="sm" textAlign="center">
               {t("login.premiumPrompt")}
-            </p>
-            <button
-              type="button"
-              onClick={startPremiumLogin}
+            </Text>
+            <Button
+              w="full"
+              h={11}
+              fontWeight="semibold"
+              color="white"
               disabled={premiumWorking}
-              className={
-                "h-11 w-full text-white font-semibold rounded transition " +
-                (premiumWorking
-                  ? "bg-[#1a1f2e] cursor-not-allowed opacity-80"
-                  : "bg-linear-to-r from-[#0268D4] to-[#02D4D4] hover:from-[#025bb8] hover:to-[#02baba]")
-              }
+              style={premiumWorking ? { background: "rgba(255,255,255,0.08)" } : { background: "linear-gradient(90deg,#0268D4,#02D4D4)" }}
+              _hover={premiumWorking ? {} : { opacity: 0.9 }}
+              onClick={startPremiumLogin}
             >
-              {premiumWorking ? t("common.working") : t("login.premiumLogin")}
-            </button>
+              {premiumWorking ? (
+                <HStack>
+                  <Spinner size="sm" color="white" />
+                  <span>{t("common.working")}</span>
+                </HStack>
+              ) : t("login.premiumLogin")}
+            </Button>
             {premiumError ? (
-              <span className="text-red-400 text-xs">{premiumError}</span>
+              <Text color="red.400" fontSize="xs">{premiumError}</Text>
             ) : null}
-
             {premiumWorking && showPremiumCancel ? (
-              <button
-                type="button"
+              <Button
+                w="full"
+                h={10}
+                variant="outline"
+                colorScheme="whiteAlpha"
+                color="whiteAlpha.700"
+                fontSize="sm"
+                borderColor="whiteAlpha.200"
+                _hover={{ bg: "whiteAlpha.100" }}
                 onClick={cancelPremiumLogin}
-                className="h-10 w-full rounded text-sm transition bg-transparent border border-gray-600 text-gray-300 hover:bg-[#1a1f2e]"
               >
                 {t("common.cancel")}
-              </button>
+              </Button>
             ) : null}
-
             {allowAlternative ? (
-              <button
-                type="button"
-                onClick={goBackToAccountType}
+              <Button
+                position="absolute"
+                bottom={16}
+                left={10}
+                right={10}
+                h={10}
+                variant="outline"
+                fontSize="sm"
+                color="whiteAlpha.600"
+                borderColor="whiteAlpha.200"
+                _hover={{ bg: "whiteAlpha.100", color: "white" }}
                 disabled={premiumWorking}
-                className={
-                  "absolute bottom-16 left-10 right-10 h-10 rounded text-sm transition " +
-                  (premiumWorking
-                    ? "opacity-70 cursor-not-allowed bg-transparent border border-gray-700 text-gray-400"
-                    : "bg-transparent border border-gray-600 text-gray-300 hover:bg-[#1a1f2e]")
-                }
+                onClick={goBackToAccountType}
               >
                 {t("common.back")}
-              </button>
+              </Button>
             ) : null}
-          </div>
+          </VStack>
         ) : (
           <>
-            <p className="mb-3 text-gray-400 text-sm text-center">
-              {t("login.prompt")}
-            </p>
-            <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-2">
-              <input
-                type="text"
-                placeholder={t("login.nicknamePlaceholder")}
-                value={nick}
-                maxLength={MAX_NICK_LEN}
-                onChange={(e) => setNick(e.target.value)}
-                className="
-                  w-full h-11 px-4
-                  bg-[#1a1f2e]
-                  text-white
-                  placeholder-gray-500
-                  rounded
-                  focus:outline-none
-                  focus:ring-2 focus:ring-[#4a90e2]
-                "
-              />
-              {error ? (
-                <span className="text-red-400 text-xs">
-                  {t(error.key, error.params)}
-                </span>
-              ) : null}
-              <p className="px-2 text-gray-400 text-xs">
-                {t("login.characters", {
-                  current: nick.length,
-                  max: MAX_NICK_LEN,
-                })}
-              </p>
-              <button
-                type="submit"
-                className="
-                  mt-2 h-11 w-full
-                  bg-linear-to-r from-[#0268D4] to-[#02D4D4]
-                  text-white font-semibold
-                  rounded
-                  hover:from-[#025bb8] hover:to-[#02baba]
-                  transition
-                "
-              >
-                {t("login.enter")}
-              </button>
-            </form>
-
-            <button
-              type="button"
+            <VStack gap={2} align="stretch">
+              <Text color="whiteAlpha.600" fontSize="sm" textAlign="center" mb={1}>
+                {t("login.prompt")}
+              </Text>
+              <Box as="form" onSubmit={handleSubmit as any} {...({noValidate: true} as any)} display="flex" flexDir="column" gap={2}>
+                <Input
+                  type="text"
+                  placeholder={t("login.nicknamePlaceholder")}
+                  value={nick}
+                  maxLength={MAX_NICK_LEN}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNick(e.target.value)}
+                  bg="whiteAlpha.50"
+                  border="1px solid"
+                  borderColor="whiteAlpha.150"
+                  color="white"
+                  h={11}
+                  px={4}
+                  borderRadius="lg"
+                  _placeholder={{ color: "whiteAlpha.400" }}
+                  _focus={{ borderColor: "#4a90e2", boxShadow: "0 0 0 1px #4a90e2" }}
+                  _hover={{ borderColor: "whiteAlpha.300" }}
+                />
+                {error ? (
+                  <Text color="red.400" fontSize="xs">{t(error.key, error.params as any) as string}</Text>
+                ) : null}
+                <Text px={1} color="whiteAlpha.500" fontSize="xs">
+                  {t("login.characters", { current: nick.length, max: MAX_NICK_LEN }) as string}
+                </Text>
+                <Button
+                  type="submit"
+                  w="full"
+                  h={11}
+                  fontWeight="semibold"
+                  color="white"
+                  mt={1}
+                  style={{ background: "linear-gradient(90deg,#0268D4,#02D4D4)" }}
+                  _hover={{ opacity: 0.9 }}
+                >
+                  {t("login.enter")}
+                </Button>
+              </Box>
+            </VStack>
+            <Button
+              position="absolute"
+              bottom={16}
+              left={10}
+              right={10}
+              h={10}
+              variant="outline"
+              fontSize="sm"
+              color="whiteAlpha.600"
+              borderColor="whiteAlpha.200"
+              _hover={{ bg: "whiteAlpha.100", color: "white" }}
               onClick={goBackToAccountType}
-              className="absolute bottom-16 left-10 right-10 h-10 rounded text-sm transition bg-transparent border border-gray-600 text-gray-300 hover:bg-[#1a1f2e]"
             >
               {t("common.back")}
-            </button>
+            </Button>
           </>
         )}
-        <div className="absolute bottom-6 left-10 text-xs text-gray-500">
-          {`${window.config.BUILD_DATE} V${window.config.VERSION}`}
-        </div>
-      </div>
 
-      <div
-        className="flex-1 h-full bg-cover bg-center"
-        style={{ backgroundImage: `url(${butterLoginBg})` }}
+        {/* Version */}
+        <Text position="absolute" bottom={6} left={10} fontSize="xs" color="whiteAlpha.300">
+          {`${window.config.BUILD_DATE} V${window.config.VERSION}`}
+        </Text>
+      </Box>
+
+      {/* Right background panel */}
+      <Box
+        flex={1}
+        h="full"
+        style={{
+          backgroundImage: `url(${butterLoginBg})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
       />
-    </div>
+    </Box>
   );
 };
 

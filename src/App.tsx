@@ -21,6 +21,8 @@ import kaizorakdevOgg from "./assets/kaizorakdev.ogg";
 import ikymaxOgg from "./assets/ikymax.ogg";
 import cryptkeeperPng from "./assets/cryptkeeper.png";
 import nickJpg from "./assets/nick.jpg";
+import { StorageService } from "./services/StorageService";
+import { genSupportTicketCode } from "./features/auth/supportTicket";
 
 type RemoteLauncherVersion = {
   version: string;
@@ -33,7 +35,6 @@ const LAUNCHER_VERSION_URL =
   (import.meta as any).env?.VITE_LAUNCHER_VERSION_URL ||
   "https://updates.butterlauncher.tech/version.json";
 
-const SUPPRESS_KEY = "suppressLauncherUpdateVersion";
 const MAGD_EASTER_KEY = "magdmagdmydear";
 const MAGD_EASTER_MS = 6000;
 const SIMON_EASTER_KEY = "simon";
@@ -68,27 +69,7 @@ const SUPPORT_TICKET_POLL_MS = 2500;
 const SUPPORT_TICKET_API_BASE =
   (import.meta as any).env?.VITE_SUPPORT_TICKET_API_BASE || "https://butter.lat";
 
-const SUPPORT_TICKET_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-const genSupportTicketCode = (): string => {
-  const out: string[] = [];
-  const bytes = new Uint8Array(16);
-  try {
-    crypto.getRandomValues(bytes);
-  } catch {
-    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
-  }
-
-  for (let i = 0; i < 12; i++) {
-    const b = bytes[i % bytes.length] ?? 0;
-    out.push(SUPPORT_TICKET_ALPHABET[b % SUPPORT_TICKET_ALPHABET.length]);
-  }
-
-  const a = out.slice(0, 4).join("");
-  const b = out.slice(4, 8).join("");
-  const c = out.slice(8, 12).join("");
-  return `BL:${a}-${b}-${c}`;
-};
+// genSupportTicketCode imported from features/auth/supportTicket
 
 const LUNARKATSU_EASTER_KEY = "lunarkatsu";
 const PRIMESTO_EASTER_KEY = "primesto";
@@ -217,31 +198,21 @@ export default function App() {
   const [showLoader, setShowLoader] = useState(true);
   const [fade, setFade] = useState(false);
 
-  const hasValidAccountType = (() => {
-    // Legacy upgrade guard: older versions had a stored username but no explicit account mode.
-    // If we don't gate on this, the launcher can "time travel" into an authenticated mode by accident.
-    try {
-      const raw = (localStorage.getItem("accountType") || "").trim();
-      // If we have some non-empty legacy value, normalize it to the non-official mode.
-      if (raw && raw !== "premium" && raw !== "custom") localStorage.setItem("accountType", "custom");
-      return raw === "premium" || raw === "custom";
-    } catch {
-      return false;
-    }
-  })();
+  const hasValidAccountType = StorageService.hasValidAccountType();
 
   useEffect(() => {
+    // Best-effort offline token refresh.
     if (!username) return;
     if (!hasValidAccountType) return;
     if (!window.config?.offlineTokenRefresh) return;
     let cancelled = false;
 
+    const accountType = StorageService.getAccountType();
+    if (accountType !== "premium" && accountType !== "custom") return;
+    const customUUID = StorageService.getString("customUUID" as any);
+
     void (async () => {
       try {
-        const rawAccountType = (localStorage.getItem("accountType") || "").trim();
-        const accountType = rawAccountType === "premium" ? "premium" : rawAccountType ? "custom" : rawAccountType;
-        if (accountType !== "premium" && accountType !== "custom") return;
-        const customUUID = (localStorage.getItem("customUUID") || "").trim();
         const res = await window.config.offlineTokenRefresh({
           username,
           accountType,
@@ -254,24 +225,15 @@ export default function App() {
       }
     })();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [username, hasValidAccountType]);
 
   useEffect(() => {
-    // Best-effort: keep Butter JWKS cached whenever we have internet.
-    // This allows offline-token validation to work after the user deletes AppData.
+    // Best-effort: keep Butter JWKS cached.
     if (!hasValidAccountType) return;
     if (!window.config?.customJwksRefresh) return;
-
-    try {
-      const rawAccountType = (localStorage.getItem("accountType") || "").trim();
-      const accountType = rawAccountType === "premium" ? "premium" : rawAccountType ? "custom" : rawAccountType;
-      if (accountType !== "custom") return;
-    } catch {
-      return;
-    }
+    const accountType = StorageService.getAccountType();
+    if (accountType !== "custom") return;
 
     let cancelled = false;
     void (async () => {
@@ -279,75 +241,42 @@ export default function App() {
         const res = await window.config.customJwksRefresh();
         if (cancelled) return;
         if (!res || (res as any).ok !== true) return;
-      } catch {
-        // ignore
-      }
+      } catch { /* ignore */ }
     })();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [hasValidAccountType]);
 
   useEffect(() => {
     if (!hasValidAccountType) return;
     if (!window.config?.officialJwksRefresh) return;
+    const accountType = StorageService.getAccountType();
+    if (accountType !== "premium" && accountType !== "custom") return;
 
-    // Best-effort: cache official JWKS in case the user switches to Premium.
     let cancelled = false;
     void (async () => {
       try {
-        const rawAccountType = (localStorage.getItem("accountType") || "").trim();
-        const accountType = rawAccountType === "premium" ? "premium" : rawAccountType ? "custom" : rawAccountType;
-        if (accountType !== "premium" && accountType !== "custom") return;
         const res = await window.config.officialJwksRefresh();
         if (cancelled) return;
         if (!res || (res as any).ok !== true) return;
-      } catch {
-        // ignore
-      }
+      } catch { /* ignore */ }
     })();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [hasValidAccountType]);
 
   useEffect(() => {
     if (!window.ipcRenderer) return;
     const onForceLogout = () => {
-      try {
-        setUsername(null);
-      } catch {
-        // ignore
-      }
-
-      try {
-        void window.config.premiumLogout?.();
-      } catch {
-        // ignore
-      }
-
-      try {
-        localStorage.removeItem("accountType");
-      } catch {
-        // ignore
-      }
-
-      try {
-        window.dispatchEvent(new Event("accountType:changed"));
-      } catch {
-        // ignore
-      }
+      try { setUsername(null); } catch { /* ignore */ }
+      try { void window.config.premiumLogout?.(); } catch { /* ignore */ }
+      StorageService.remove("accountType");
+      StorageService.setAccountType("");
     };
 
     window.ipcRenderer.on("premium:force-logout", onForceLogout);
     return () => {
-      try {
-        window.ipcRenderer.off("premium:force-logout", onForceLogout);
-      } catch {
-        // ignore
-      }
+      try { window.ipcRenderer.off("premium:force-logout", onForceLogout); } catch { /* ignore */ }
     };
   }, [setUsername]);
 
@@ -487,26 +416,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    let enableRPC = true;
-    try {
-      const raw = window.localStorage.getItem("enableRPC");
-      // New default: RPC is on unless the user *explicitly* opted out.
-      // (Yes, we store a boolean in localStorage. It's fine. It's 2026, not 1996.)
-      enableRPC = raw === null ? true : String(raw).trim().toLowerCase() === "true";
+    const enableRPC = StorageService.isRPCEnabled();
+    // Ensure the key is written so Settings UI reflects reality.
+    StorageService.setRPCEnabled(enableRPC);
 
-      // If the key is missing (common on upgrades), write it once so Settings reflects reality.
-      // Future flips are still fully user-controlled.
-      if (raw === null) {
-        try {
-          window.localStorage.setItem("enableRPC", "true");
-        } catch {
-          // ignore
-        }
-      }
-    } catch {
-      // If storage is unavailable, prefer "on" so the feature behaves consistently.
-      enableRPC = true;
-    }
     window.ipcRenderer.send("ready", {
       enableRPC,
     });
@@ -540,7 +453,7 @@ export default function App() {
         if (!latestVersion) return;
 
         try {
-          const suppressed = safeString(localStorage.getItem(SUPPRESS_KEY));
+          const suppressed = StorageService.getString("suppressLauncherUpdateVersion");
           if (suppressed && suppressed === latestVersion) return;
         } catch {
         }
@@ -2063,14 +1976,7 @@ export default function App() {
         setSupportTicketPhase("uploading");
         setSupportTicketStatusText("Uploading logs…");
 
-        const customUUID = (() => {
-          try {
-            const raw = (localStorage.getItem("customUUID") || "").trim();
-            return raw.length ? raw : null;
-          } catch {
-            return null;
-          }
-        })();
+        const customUUID = StorageService.getString("customUUID") || null;
 
         const bundle = (await (window.config as any).supportTicketCollect?.(
           username || "",
@@ -3482,7 +3388,7 @@ export default function App() {
           onClose={(dontRemindAgain) => {
             if (dontRemindAgain) {
               try {
-                localStorage.setItem(SUPPRESS_KEY, launcherUpdateInfo.latestVersion);
+                StorageService.set("suppressLauncherUpdateVersion", launcherUpdateInfo.latestVersion);
               } catch {
               }
             }
@@ -3491,7 +3397,7 @@ export default function App() {
           onUpdate={async (dontRemindAgain) => {
             if (dontRemindAgain) {
               try {
-                localStorage.setItem(SUPPRESS_KEY, launcherUpdateInfo.latestVersion);
+                StorageService.set("suppressLauncherUpdateVersion", launcherUpdateInfo.latestVersion);
               } catch {
               }
             }
@@ -3544,22 +3450,9 @@ export default function App() {
               <Launcher
                 onLogout={() => {
                   setUsername(null);
-                  try {
-                    void window.config.premiumLogout?.();
-                  } catch {
-                    // ignore
-                  }
-                  try {
-                    localStorage.removeItem("accountType");
-                  } catch {
-                    // ignore
-                  }
-
-                  try {
-                    window.dispatchEvent(new Event("accountType:changed"));
-                  } catch {
-                    // ignore
-                  }
+                  try { void window.config.premiumLogout?.(); } catch { /* ignore */ }
+                  StorageService.remove("accountType");
+                  StorageService.setAccountType("");
                 }}
               />
             ) : (

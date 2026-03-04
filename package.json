@@ -20,6 +20,7 @@
     "check-devscontrol": "node scripts/check-devscontrol.js"
   },
   "dependencies": {
+    "@chakra-ui/react": "^3.34.0",
     "@kostya-main/discord-rpc": "^1.2.1",
     "dotenv": "^16.4.5",
     "electron-updater": "^6.7.3",
@@ -33,7 +34,8 @@
     "react-i18next": "^16.5.4",
     "tar": "^7.5.3",
     "uuid": "^13.0.0",
-    "ws": "^8.19.0"
+    "ws": "^8.19.0",
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
     "@tabler/icons-react": "^3.36.1",
