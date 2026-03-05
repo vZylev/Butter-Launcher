@@ -1,5 +1,5 @@
 import butterLogo from "../assets/images/butter-logo.png";
-import butterBg from "../assets/images/butter-bg.png";
+import butterBg from "../assets/images/butter-bg.jpeg";
 import butterLauncherOgg from "../assets/sounds/butterlauncher.ogg";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";

@@ -20,7 +20,7 @@ const Login: React.FC<{ onLogin: (username: string) => void }> = ({
 }) => {
   const { t } = useTranslation();
 
-  // Prefer Minecraft username over Microsoft displayName (which can be an email)
+  // Prefer Hytale username over displayName (which can be an email)
   const pickBestName = (profile: { displayName?: string; username?: string } | null | undefined): string | null => {
     if (!profile) return null;
     const mc = typeof profile.username === "string" ? profile.username.trim() : "";
@@ -159,7 +159,7 @@ const Login: React.FC<{ onLogin: (username: string) => void }> = ({
         setPremiumError(res.error || "Login failed");
         return;
       }
-      // Fetch fresh status to get the Minecraft username resolved by Hytale API
+      // Fetch fresh status to get the Hytale username resolved by Hytale API
       try {
         const fresh = await window.config.premiumStatus();
         if (!premiumCancelledRef.current && fresh.ok && fresh.loggedIn && fresh.profile) {

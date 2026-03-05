@@ -35,14 +35,7 @@ const DragBar: React.FC<{
 
       <HStack
         gap={0}
-        px={2}
-        py={1}
-        bg="rgba(11,18,32,0.80)"
-        backdropFilter="blur(14px)"
-        borderWidth="1px"
-        borderColor="whiteAlpha.100"
-        borderRadius="0 0 0 10px"
-        boxShadow="lg"
+        mr={1}
         style={{ appRegion: "no-drag" } as React.CSSProperties}
       >
         <IconButton

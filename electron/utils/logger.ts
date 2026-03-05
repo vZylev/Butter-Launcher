@@ -147,33 +147,47 @@ function formatMessage(level: string, ...args: any[]) {
 
   const message = args.map(render).join(" ");
   const redacted = redactSensitiveTextForLogs(redactUrlQueryForLogs(message));
-  return `[${timestamp}] [${level.toUpperCase()}] ${redacted}`;
+  // File log keeps full ISO timestamp
+  const fileMsg = `[${timestamp}] [${level.toUpperCase()}] ${redacted}`;
+  // Console log: Vite-style  HH:MM:SS [butter] message
+  const hms = timestamp.slice(11, 19); // extract HH:MM:SS from ISO string
+  const consoleMsg = `${hms} [butter] ${redacted}`;
+  return { fileMsg, consoleMsg };
 }
 
 const writeToLog = (msg: string) => {
   try {
     fs.appendFileSync(logFile, msg + "\n");
   } catch (err) {
-    // If logging fails, we only have console left
     console.error("Failed to write to log file:", err);
   }
 };
 
+// ANSI colour codes matching Vite's palette
+const DIM   = "\x1b[2m";
+const CYAN  = "\x1b[36m";
+const YELLOW= "\x1b[33m";
+const RED   = "\x1b[31m";
+const RESET = "\x1b[0m";
+
 export const logger = {
   info: (...args: any[]) => {
-    const msg = formatMessage("info", ...args);
-    console.log(`\x1b[34m${msg}\x1b[0m`);
-    writeToLog(msg);
+    const { fileMsg, consoleMsg } = formatMessage("info", ...args);
+    const [ts, ...rest] = consoleMsg.split(" ");
+    console.log(`${DIM}${ts}${RESET} ${CYAN}${rest.slice(0, 1).join(" ")}${RESET} ${rest.slice(1).join(" ")}`);
+    writeToLog(fileMsg);
   },
   warn: (...args: any[]) => {
-    const msg = formatMessage("warn", ...args);
-    console.warn(`\x1b[33m${msg}\x1b[0m`);
-    writeToLog(msg);
+    const { fileMsg, consoleMsg } = formatMessage("warn", ...args);
+    const [ts, ...rest] = consoleMsg.split(" ");
+    console.warn(`${DIM}${ts}${RESET} ${YELLOW}${rest.slice(0, 1).join(" ")}${RESET} ${rest.slice(1).join(" ")}`);
+    writeToLog(fileMsg);
   },
   error: (...args: any[]) => {
-    const msg = formatMessage("error", ...args);
-    console.error(`\x1b[31m${msg}\x1b[0m`);
-    writeToLog(msg);
+    const { fileMsg, consoleMsg } = formatMessage("error", ...args);
+    const [ts, ...rest] = consoleMsg.split(" ");
+    console.error(`${DIM}${ts}${RESET} ${RED}${rest.slice(0, 1).join(" ")}${RESET} ${rest.slice(1).join(" ")}`);
+    writeToLog(fileMsg);
   },
   getLogPath: () => logFile,
 };

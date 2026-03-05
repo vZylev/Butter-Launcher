@@ -16,7 +16,7 @@ import { Box, HStack, VStack, Text } from "@chakra-ui/react";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const cn = (...args: (string | boolean | undefined | null)[]): string =>
   args.filter(Boolean).join(" ");
-import matchaIcon from "../assets/icons/matcha.svg";
+import matchaIcon from "../assets/icons/matcha_bold.svg";
 import matchaStartSfx from "../assets/sounds/matchastart.ogg";
 import notiSfx from "../assets/sounds/noti.ogg";
 
@@ -133,6 +133,7 @@ export default function FriendsMenu({
   const [introSeq, setIntroSeq] = useState(0);
   const [introDocked, setIntroDocked] = useState(false);
   const introSfxRef = useRef<HTMLAudioElement | null>(null);
+  const hasPlayedIntroRef = useRef(false);
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -1062,7 +1063,7 @@ export default function FriendsMenu({
       keepProofRef.current = false;
       setMode("intro");
       setIntroSeq((v) => v + 1);
-      setIntroDocked(false);
+      if (!hasPlayedIntroRef.current) setIntroDocked(false);
 
       setUserProfileOpen(false);
       setUserProfileLoading(false);
@@ -1092,7 +1093,7 @@ export default function FriendsMenu({
         keepProofRef.current = false;
         setMode("intro");
         setIntroSeq((v) => v + 1);
-        setIntroDocked(false);
+        if (!hasPlayedIntroRef.current) setIntroDocked(false);
       }
     })();
 
@@ -2224,15 +2225,14 @@ export default function FriendsMenu({
             aria-hidden="true"
             className="matcha-intro-dock"
             style={{pointerEvents:"none", position:"absolute", zIndex:30}}
-            onAnimationEnd={() => setIntroDocked(true)}
+            onAnimationEnd={() => { setIntroDocked(true); hasPlayedIntroRef.current = true; }}
           />
         ) : (
-          <Box
-            as="div"
-            key={`matcha-intro-spark-${introSeq}`}
+          <img
+            src={matchaIcon}
+            alt=""
             aria-hidden="true"
-            className="matcha-intro-spark"
-            zIndex={30}
+            style={{pointerEvents:"none", position:"absolute", zIndex:10, left:"50%", top:"52px", width:"48px", height:"48px", transform:"translateX(-50%)"}}
           />
         )
       ) : null}
@@ -2292,31 +2292,22 @@ export default function FriendsMenu({
         ) : null}
 
         <HStack justify="space-between" gap={2}>
-          <Box fontSize="sm" fontWeight="normal" letterSpacing="wide">
-            {mode === "intro" ? (
-              <HStack gap={2} opacity={!introDocked ? 0 : 1} className="matcha-intro-text">
-                <img
-                  src={matchaIcon}
-                  alt={t("friendsMenu.brand")}
-                  style={{ height: "32px", width: "32px", flexShrink: 0 }}
-                />
-                <Text fontSize="xl" fontWeight="extrabold" textTransform="none" letterSpacing="wide" lineHeight="none">
-                  {t("friendsMenu.brand")}
-                </Text>
-              </HStack>
-            ) : (
-              <HStack gap={2}>
-                <img
-                  src={matchaIcon}
-                  alt={t("friendsMenu.brand")}
-                  style={{ height: "28px", width: "28px", flexShrink: 0 }}
-                />
-                <Text fontSize="md" textTransform="none" letterSpacing="wide">
-                  {t("friendsMenu.brand")}
-                </Text>
-              </HStack>
-            )}
-          </Box>
+          {!inline && (
+            <Box fontSize="sm" fontWeight="normal" letterSpacing="wide">
+              {mode === "intro" ? null : (
+                <HStack gap={2}>
+                  <img
+                    src={matchaIcon}
+                    alt={t("friendsMenu.brand")}
+                    style={{ height: "28px", width: "28px", flexShrink: 0 }}
+                  />
+                  <Text fontSize="md" textTransform="none" letterSpacing="wide">
+                    {t("friendsMenu.brand")}
+                  </Text>
+                </HStack>
+              )}
+            </Box>
+          )}
 
           <HStack gap={2}>
             {mode === "app" && me ? (
@@ -3500,17 +3491,30 @@ export default function FriendsMenu({
         ) : null}
 
         {mode === "intro" ? (
-          <Box mt={4} flex="1" display="flex" flexDirection="column" overflow="auto" style={{ scrollbarWidth: "none" }}>
+          <Box mt={1} flex="1" display="flex" flexDirection="column" overflow="auto" style={{ scrollbarWidth: "none" }}>
             <Box
               className={cn(introDocked ? "matcha-intro-text" : "")}
-              style={{ opacity: introDocked ? 1 : 0, transition: "opacity 0.3s" }}
+              style={{ opacity: introDocked ? 1 : 0 }}
               flex="1"
               display="flex"
               flexDirection="column"
               gap={4}
             >
+              {/* Title centered — icon is absolute above */}
+              <Text
+                fontSize="2xl"
+                fontWeight="extrabold"
+                textTransform="none"
+                letterSpacing="wide"
+                lineHeight="none"
+                textAlign="center"
+                style={{ paddingTop: "90px" }}
+              >
+                {t("friendsMenu.brand")}
+              </Text>
+
               {/* Subtitle */}
-              <Box fontSize="sm" color="rgba(255,255,255,0.5)" lineHeight="1.7">
+              <Box fontSize="sm" color="rgba(255,255,255,0.5)" lineHeight="1.7" textAlign="center">
                 {t("friendsMenu.intro.subtitle")}
               </Box>
 

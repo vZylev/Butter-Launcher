@@ -97,11 +97,11 @@ img { -webkit-user-drag:none; user-select:none; }
   100%{opacity:0;transform:translate3d(0,0,0) scale(1) rotate(1600deg);filter:blur(0)}
 }
 @keyframes matchaIntroDock {
-  0%  {opacity:0;left:50%;top:58%;width:72px;height:72px;transform:translate(-50%,-50%) scale(2.6) rotate(-10deg);filter:blur(1px)}
+  0%  {opacity:0;left:50%;top:50%;width:72px;height:72px;transform:translate(-50%,-50%) scale(2.6) rotate(-10deg);filter:blur(1px)}
   10% {opacity:1;transform:translate(-50%,-50%) scale(2.6) rotate(10deg)}
   38% {opacity:1;transform:translate(-50%,-50%) scale(2.55) rotate(-6deg);filter:blur(0)}
-  55% {opacity:1;left:50%;top:58%;width:72px;height:72px;transform:translate(-50%,-50%) scale(2.45) rotate(0deg);filter:blur(0)}
-  100%{opacity:1;left:22px;top:22px;width:28px;height:28px;transform:translate(0,0) scale(1) rotate(0deg);filter:blur(0)}
+  55% {opacity:1;left:50%;top:50%;width:72px;height:72px;transform:translate(-50%,-50%) scale(2.45) rotate(0deg);filter:blur(0)}
+  100%{opacity:1;left:50%;top:52px;width:48px;height:48px;transform:translate(-50%,0) scale(1) rotate(0deg);filter:blur(0)}
 }
 @keyframes matchaIntroSpark {
   0%  {opacity:0;transform:translate(-50%,-50%) scale(0.65);filter:blur(1px)}
@@ -132,7 +132,6 @@ img { -webkit-user-drag:none; user-select:none; }
 .magd-easter            { animation:magdEaster 6s ease-out forwards; will-change:transform,opacity,filter; }
 .matcha-intro-dock      { position:absolute; animation:matchaIntroDock 1.55s cubic-bezier(0.2,0.9,0.2,1) both; will-change:transform,opacity,left,top,width,height,filter; }
 .matcha-intro-text      { opacity:0; animation:matchaIntroText 520ms cubic-bezier(0.2,0.9,0.2,1) both; will-change:transform,opacity,filter; }
-.matcha-intro-spark     { position:absolute;left:22px;top:22px;width:64px;height:64px;border-radius:999px;pointer-events:none;background:radial-gradient(circle,rgba(255,255,255,0.45) 0%,rgba(34,211,238,0.20) 35%,rgba(255,255,255,0) 70%);animation:matchaIntroSpark 420ms ease-out both;mix-blend-mode:screen;will-change:transform,opacity,filter; }
 
 /* ==========================================
    Splash screen

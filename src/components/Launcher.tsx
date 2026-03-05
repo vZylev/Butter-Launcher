@@ -2,8 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Box, Button, IconButton, Grid, GridItem, Flex, Image, Text, HStack, VStack, Spacer } from "@chakra-ui/react";
 import { useGameContext } from "../hooks/gameContext";
 import { useUserContext } from "../hooks/userContext";
-import butterBg from "../assets/images/butter-bg.png";
+import butterBg from "../assets/images/butter-bg.jpeg";
 import butterLogo from "../assets/images/butter-logo.png";
+import testAvatar from "../assets/images/test.png";
 import SettingsModal from "./SettingsModal";
 import ModsModal from "./ModsModal";
 import ServersModal from "./ServersModal";
@@ -11,7 +12,7 @@ import WikiModal from "./WikiModal";
 import MatchaTermsModal from "./MatchaTermsModal";
 import FriendsMenu from "./FriendsMenu";
 import DiscordLogo from "../assets/icons/discord.svg";
-import MatchaIcon from "../assets/icons/matcha.svg";
+import MatchaIcon from "../assets/icons/matcha_bold.svg";
 import PatreonLogo from "../assets/images/patreon.png";
 import DragBar from "./DragBar";
 import ProgressBar from "./ProgressBar";
@@ -855,7 +856,7 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
             onClick={() => setActiveView("settings")}
           >
             <Box w="32px" h="32px" borderRadius="full" overflow="hidden" bg="gray.700">
-               <img src={`https://mc-heads.net/avatar/${username}/64`} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => e.currentTarget.src = butterLogo} />
+               <img src={testAvatar} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             </Box>
             <Box flex="1" overflow="hidden">
               <Box display="flex" alignItems="center" gap="4px">
@@ -1041,7 +1042,7 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
           {/* Left: Version Selector */}
           <HStack flex="1" gap={4} position="relative">
             <Box w="50px" h="50px" borderRadius="md" bg="gray.800" overflow="hidden" flexShrink={0} display="flex" alignItems="center" justifyContent="center">
-               <Image src="https://hytale.com/favicon.ico" w="full" h="full" objectFit="contain" />
+               <Image src="/src/assets/images/hytale_logo.jpg" w="full" h="full" objectFit="contain" />
             </Box>
             <Box>
               <Text fontSize="sm" fontWeight="bold">Hytale</Text>
