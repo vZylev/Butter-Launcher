@@ -28,6 +28,7 @@ tools/pwr_patches/
 *.njsproj
 *.sln
 *.sw?
+.cl*
 .env.local
 butter-server-better.js
 matcha_authservers.json

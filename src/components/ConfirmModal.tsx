@@ -2,8 +2,10 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
+import { Button, HStack, IconButton, Text, Box } from "@chakra-ui/react";
+import { ModalBackdrop, ModalCard, GradientButton } from "./ui";
 
-interface ConfirmDialogProps {
+interface ConfirmModalProps {
   open: boolean;
   title: string;
   message: string | React.ReactNode;
@@ -13,7 +15,7 @@ interface ConfirmDialogProps {
   onCancel: () => void;
 }
 
-const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
+const ConfirmModal: React.FC<ConfirmModalProps> = ({
   open,
   title,
   message,
@@ -25,78 +27,54 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   const { t } = useTranslation();
   const resolvedConfirmText = confirmText ?? t("common.confirm");
   const resolvedCancelText = cancelText ?? t("common.cancel");
-  const mouseDownOnBackdrop = React.useRef(false);
 
   if (!open) return null;
-
-  // Portal to <body> so this modal reliably overlays even when opened
-  // from within another modal that uses transforms/filters.
   if (typeof document === "undefined" || !document.body) return null;
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center glass-backdrop animate-fadeIn"
-      onMouseDown={(e) => {
-        mouseDownOnBackdrop.current = e.target === e.currentTarget;
-      }}
-      onMouseUp={() => {
-        mouseDownOnBackdrop.current = false;
-      }}
-      onMouseLeave={() => {
-        mouseDownOnBackdrop.current = false;
-      }}
-      onClick={(e) => {
-        // Only close when the click started on the backdrop itself.
-        // This prevents "click-drag-release outside" from closing the modal.
-        if (mouseDownOnBackdrop.current && e.target === e.currentTarget) {
-          onCancel();
-        }
-        mouseDownOnBackdrop.current = false;
-      }}
-    >
-      <div
-        className="relative w-full max-w-md rounded-xl shadow-2xl bg-linear-to-b from-[#1b2030]/95 to-[#141824]/95 border border-[#2a3146] p-6 animate-settings-in"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <ModalBackdrop onClose={onCancel}>
+      <ModalCard maxW="md">
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div className="text-white font-extrabold text-lg">{title}</div>
-          <button
-            type="button"
-            className="w-8 h-8 rounded-full bg-[#23293a] text-gray-400 hover:text-white hover:bg-[#2f3650] transition flex items-center justify-center"
+        <HStack justify="space-between" align="flex-start">
+          <Text color="white" fontWeight="extrabold" fontSize="lg">{title}</Text>
+          <IconButton
+            aria-label={t("common.close")}
+            size="sm"
+            variant="ghost"
+            color="whiteAlpha.600"
+            _hover={{ color: "white", bg: "whiteAlpha.100" }}
+            rounded="full"
             onClick={onCancel}
-            title={t("common.close")}
           >
-            <IconX size={20} />
-          </button>
-        </div>
+            <IconX size={18} />
+          </IconButton>
+        </HStack>
 
         {/* Message */}
-        <div className="mt-4 text-sm text-gray-200 whitespace-pre-wrap">
+        <Box mt={4} fontSize="sm" color="whiteAlpha.800" whiteSpace="pre-wrap">
           {message}
-        </div>
+        </Box>
 
         {/* Buttons */}
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            className="px-4 py-2 rounded-lg border border-[#2a3146] text-gray-300 hover:text-white hover:bg-[#2f3650] transition"
+        <HStack mt={6} justify="flex-end" gap={3}>
+          <Button
+            variant="outline"
+            size="sm"
+            borderColor="whiteAlpha.200"
+            color="whiteAlpha.700"
+            _hover={{ color: "white", bg: "whiteAlpha.100" }}
             onClick={onCancel}
           >
             {resolvedCancelText}
-          </button>
-          <button
-            type="button"
-            className="px-4 py-2 rounded-lg bg-linear-to-r from-[#0268D4] to-[#02D4D4] text-white font-bold hover:scale-[1.02] transition"
-            onClick={onConfirm}
-          >
+          </Button>
+          <GradientButton size="sm" onClick={onConfirm}>
             {resolvedConfirmText}
-          </button>
-        </div>
-      </div>
-    </div>,
+          </GradientButton>
+        </HStack>
+      </ModalCard>
+    </ModalBackdrop>,
     document.body,
   );
 };
 
-export default ConfirmDialog;
+export default ConfirmModal;

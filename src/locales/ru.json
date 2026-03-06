@@ -29,7 +29,11 @@
     "enabled": "Включено",
     "disabled": "Выключено",
     "clear": "Очистить",
-    "send": "Отправить"
+    "send": "Отправить",
+    "ascending": "По возрастанию",
+    "descending": "По убыванию",
+    "copied": "Скопировано",
+    "closeDownloadWarning": "Закрытие лаунчера отменит текущую загрузку. Вы уверены?"
   },
   "login": {
     "prompt": "Введите ваш никнейм, чтобы продолжить",
@@ -40,7 +44,11 @@
       "empty": "Введите ваш никнейм",
       "minLength": "Никнейм должен содержать минимум {{min}} символа",
       "maxLength": "Никнейм должен содержать максимум {{max}} символов"
-    }
+    },
+    "accountTypePrompt": "Выберите тип аккаунта",
+    "premium": "Премиум",
+    "premiumPrompt": "Войдите в аккаунт Hytale, чтобы продолжить",
+    "premiumLogin": "Войти через Hytale"
   },
   "splash": {
     "title": "Butter Launcher",
@@ -56,7 +64,9 @@
       "servers": "Сервера",
       "hostServer": "Создать сервер",
       "mods": "Моды",
-      "settings": "Настройки"
+      "friends": "Друзья",
+      "settings": "Настройки",
+      "supportProject": "Поддержать проект"
     },
     "news": {
       "loading": "Загрузка...",
@@ -114,7 +124,13 @@
       "delete": "Удалить {{name}}",
       "deleteTitle": "Удалить версию",
       "deleteConfirm": "Вы уверены что хотите удалить {{name}}?",
-      "cannotDeleteRunning": "Удалить запущенную сборку невозможно. Сначала закройте игру."
+      "cannotDeleteRunning": "Удалить запущенную сборку невозможно. Сначала закройте игру.",
+      "requiresBuild1": "Необходимо установить Build-1 перед загрузкой других версий.",
+      "manualInstallRequired": "Требует ручной установки.",
+      "invalidBuild1Folder": "Выбранная папка не похожа на Build-1. Отсутствует: {{missing}}. Выберите папку, содержащую Client, Server и assets.zip."
+    },
+    "errors": {
+      "emergencyMode": "Лаунчер находится в аварийном режиме. Проверьте Discord для получения дополнительной информации."
     }
   },
   "serversModal": {
@@ -152,7 +168,10 @@
     "notes": {
       "clickToLearn": "Нажмите на сервер, чтобы узнать о нем больше!",
       "addYourServer": "Хотите добавить свой сервер? Зайдите в Discord и оставьте заявку!"
-    }
+    },
+    "comingSoon": "Скоро",
+    "description": "Здесь будут отображаться серверы сообщества с возможностью сохранять избранное и быстро подключаться.",
+    "placeholder": "Только тестовый UI — логика серверов пока не реализована."
   },
   "hostServerModal": {
     "title": "СОЗДАТЬ СЕРВЕР",
@@ -163,7 +182,9 @@
       "title": "Создание сервера",
       "versionLine": "Сервер будет запущен на версии, выбранной в лаунчере: {{version}}.",
       "dedicated": "Я предпочитаю выделенный сервер",
-      "confirm": "Понятно, продолжить"
+      "confirm": "Понятно, продолжить",
+      "folderSyncTitle": "Заменить папку сервера?",
+      "folderSyncMessage": "Внимание: загрузка новой папки {{target}} заменит текущую."
     },
     "errors": {
       "buildNotInstalled": "Вы должны установить выбранную сборку перед созданием локального сервера.\nВыбрано: {{version}}",
@@ -175,7 +196,12 @@
       "serverStartFailed": "Не удалось запустить сервер.",
       "serverStopFailed": "Не удалось остановить сервер.",
       "serverNotRunning": "Сервер не запущен.",
-      "commandFailed": "Не удалось отправить команду на сервер."
+      "commandFailed": "Не удалось отправить команду на сервер.",
+      "customAssetsMissing": "Выберите .zip файл для Custom Assets или отключите Custom Assets.",
+      "assetsZipMissing": "Выбранный .zip файл для ресурсов не существует: {{path}}",
+      "folderSyncRunning": "Остановите сервер перед заменой папок Universe/Mods/Early Plugins.",
+      "folderSyncFailed": "Не удалось скопировать выбранную папку на сервер.",
+      "folderSourceMissing": "Выбранная папка не существует: {{path}}"
     },
     "panel": {
       "authMode": {
@@ -195,7 +221,10 @@
         "mods": "Моды",
         "earlyPlugins": "Ранние плагины",
         "chooseFile": "Выбрать .zip",
-        "chooseFolder": "Выбрать"
+        "chooseFolder": "Выбрать",
+        "openServerFolder": "Открыть папку сервера",
+        "customJvmArgs": "Кастомные JVM аргументы",
+        "customJvmArgsExample": "пример: -XX:+IgnoreUnrecognizedVMOptions"
       },
       "actions": {
         "showConsole": "Показать консоль",
@@ -237,7 +266,8 @@
       "latestUpdate": "Последнее обновление",
       "creationDate": "Дата создания",
       "totalDownloads": "Всего загрузок",
-      "az": "А-Я"
+      "az": "А-Я",
+      "installedFirst": "Установленные первые"
     },
     "details": {
       "loadingDetails": "Загрузка подробностей...",
@@ -274,7 +304,34 @@
     "installed": {
       "enableAll": "Включить все",
       "disableAll": "Выключить все",
-      "openFolder": "Открыть Папку"
+      "openFolder": "Открыть Папку",
+      "counts": "{{downloaded}} загружено • {{active}} активно",
+      "sort": {
+        "connectedToLauncher": "Подключено к лаунчеру",
+        "installedManually": "Установлено вручную",
+        "alphabetical": "По алфавиту",
+        "needsUpdate": "Требуют обновления"
+      },
+      "installedManually": "Установлено вручную",
+      "attachToLauncher": "Подключить к лаунчеру",
+      "attachLinkLabel": "Ссылка CurseForge",
+      "attachLinkPlaceholder": "https://www.curseforge.com/hytale/mods/example",
+      "attachLinkInvalid": "Неверная ссылка. Ожидаемый формат: {{example}}",
+      "attachLinkExample": "Пример",
+      "attachFailed": "Не удалось подключить.",
+      "attachErrorInvalidLink": "Неверная ссылка. Ожидаемый формат: {{example}}",
+      "attachErrorFileNotFound": "Этот файл не найден в папке Mods.",
+      "attachErrorModNotFound": "Не удалось найти мод по указанной ссылке. Ожидаемый формат: {{example}}",
+      "attachErrorService": "Не удалось подключиться к сервису модов. Проверьте интернет-соединение.",
+      "updateFailed": "Обновление не удалось.",
+      "checkFailed": "Проверка не удалась.",
+      "deleteConfirmTitle": "Удалить мод?",
+      "deleteConfirmMsg": "Это навсегда удалит {{name}} из папки Mods. Продолжить?",
+      "checkUpdates": "Проверить обновления",
+      "checkUpdate": "Проверить обновление",
+      "updateAll": "Обновить все",
+      "update": "Обновить",
+      "latestVersion": "Последняя"
     },
     "profiles": {
       "title": "Профили",
@@ -283,14 +340,77 @@
       "selectedCount": "Выбрано: {{count}}",
       "currentlyEnabled": "Сейчас включен",
       "currentlyDisabled": "Сейчас выключен",
-      "tip": "Совет: сохраните профиль, а затем примените его."
+      "tip": "Совет: сохраните профиль, а затем примените его.",
+      "rename": {
+        "menu": "Переименовать",
+        "title": "Переименовать профиль",
+        "hint": "Переименовать «{{name}}» в:",
+        "placeholder": "Новое имя профиля...",
+        "invalid": "Введите имя профиля.",
+        "taken": "Профиль с таким именем уже существует."
+      },
+      "notInstalled": "Не установлен",
+      "install": "Установить",
+      "share": {
+        "title": "Поделиться набором модов",
+        "export": "Экспорт",
+        "copy": "Скопировать код",
+        "import": "Импорт набора модов",
+        "importPromptTitle": "Импорт набора модов",
+        "importPromptHint": "Вставьте код BLMP: ниже или импортируйте прямо из буфера обмена.",
+        "importPromptPlaceholder": "Вставьте код BLMP: здесь...",
+        "importNow": "Импортировать",
+        "importFromClipboard": "Импортировать из буфера обмена",
+        "codePlaceholder": "Ваш код BLMP: появится здесь...",
+        "exportReady": "Код сгенерирован. Можете его скопировать.",
+        "exportWarnUnattached": "Внимание: {{count}} мод(ов) в этом наборе не подключены к лаунчеру, и их нельзя будет автоматически скачать при импорте.",
+        "copied": "Скопировано в буфер обмена.",
+        "invalidFormat": "Неверный формат. Ожидается код BLMP: в буфере обмена.",
+        "invalidFormatText": "Неверный формат. Ожидается код BLMP:.",
+        "importFailed": "Импорт не удался.",
+        "importSomeFailed": "Некоторые моды не удалось загрузить ({{count}}).",
+        "previewTitle": "Импортировать набор модов",
+        "previewSummary": "Вы собираетесь импортировать профиль «{{name}}» ({{count}} модов). Версия игры: {{gameVersion}}",
+        "previewMods": "Моды ({{count}}):",
+        "previewNoMods": "В этом наборе нет модов.",
+        "continue": "Продолжить",
+        "importing": "Импорт {{current}}/{{total}}: {{name}}",
+        "importingPct": "Импорт {{current}}/{{total}}: {{name}} ({{pct}}%)",
+        "importDone": "Импорт завершён. Профиль «{{profile}}» создан с {{count}} модами.",
+        "importDoneManual": "Импорт завершён. Профиль «{{profile}}» создан с {{count}} модами. Моды вручную: {{manual}}.",
+        "integrityTitle": "Предупреждение о целостности",
+        "integrityMismatch": "Загруженный файл «{{name}}» не совпадает с ожидаемым хешем.",
+        "integrityExpected": "Ожидалось: {{hash}}",
+        "integrityGot": "Получено: {{hash}}"
+      }
     },
     "actions": {
       "install": "Установить",
       "installed": "Установлен",
       "update": "Обновить"
     },
-    "countMods": "{{count}} модов"
+    "countMods": "{{count}} модов",
+    "errors": {
+      "unavailable": "Моды временно недоступны. Проверьте интернет-соединение и попробуйте снова.",
+      "serviceUnreachable": "Не удалось подключиться к сервису модов. Проверьте интернет-соединение и попробуйте снова.",
+      "downloadFailed": "Загрузка не удалась. Проверьте интернет-соединение и попробуйте снова.",
+      "unknown": "Что-то пошло не так. Попробуйте снова.",
+      "invalidGameDir": "Неверная директория игры.",
+      "invalidModId": "Неверный идентификатор мода.",
+      "invalidFileId": "Неверный идентификатор файла.",
+      "modNotManaged": "Мод не управляется лаунчером.",
+      "invalidAttachLink": "Неверная ссылка. Ожидаемый формат: {{example}}",
+      "attachFileNotFound": "Этот файл не найден в папке Mods.",
+      "modNotFoundFromLink": "Не удалось найти мод по указанной ссылке. Ожидаемый формат: {{example}}",
+      "profileNotFound": "Профиль не найден.",
+      "reservedProfileName": "Зарезервированное имя профиля.",
+      "cannotDeleteVanilla": "Невозможно удалить Vanilla.",
+      "loadModsFailed": "Не удалось загрузить моды.",
+      "loadModDetailsFailed": "Не удалось загрузить детали мода.",
+      "loadInstalledModsFailed": "Не удалось загрузить установленные моды.",
+      "loadModsRegistryFailed": "Не удалось загрузить реестр модов.",
+      "loadProfilesFailed": "Не удалось загрузить профили."
+    }
   },
   "progress": {
     "phases": {
@@ -316,14 +436,14 @@
     "update": "Обновить"
   },
   "settings": {
-    "title": "СИСТЕМНЫЕ НАСТРОЙКИ",
+    "title": "Системные настройки",
     "language": {
       "label": "Язык",
       "english": "Английский",
       "spanish": "Испанский"
     },
     "teamName": "Butter Launcher Team",
-    "madeBy": "Автор:",
+    "madeBy": "Автор",
     "gameDirectory": {
       "label": "Игровая директория",
       "openFolder": "Открыть папку"
@@ -342,6 +462,9 @@
       "saved": "Сохранён: {{uuid}}"
     },
     "discordRPC": "Отображение игры в Discord",
+    "discordRPCHint": "Показывать текущую игровую активность в Discord",
+    "startupSound": "Звук при запуске",
+    "startupSoundHint": "Воспроизводить звук при запуске лаунчера",
     "steamDeck": {
       "label": "Режим SteamDeck",
       "applying": "Применяю фикс...",
@@ -369,6 +492,14 @@
       "hintEnableToRemove": "Включите онлайн патч, чтобы удалить его.",
       "hintCloseGame": "Закройте игру, чтобы удалить онлайн патч."
     },
+    "cache": {
+      "label": "Кэш",
+      "clearButton": "Очистить кэш установки",
+      "clearing": "Очистка...",
+      "description": "Удаляет неполные папки установки, оставшиеся после прерванной загрузки (например, build-10.staging-...).",
+      "cleared": "Удалено {{count}} неполных папок установки.",
+      "noneFound": "Неполных папок установки не найдено."
+    },
     "credits": {
       "label": "Титры",
       "onlineFix": "Онлайн фикс",
@@ -377,9 +508,356 @@
       "language": "Язык"
     },
     "updates": {
-      "check": "ПРОВЕРИТЬ НАЛИЧИЕ ОБНОВЛЕНИЙ",
-      "checking": "ПРОВЕРКА..."
+      "check": "Проверить наличие обновлений",
+      "checking": "Проверка..."
     },
-    "logout": "ВЫХОД"
+    "logout": "Выйти из аккаунта"
+  },
+  "friendsMenu": {
+    "brand": "Matcha!",
+    "title": {
+      "loggedOut": "Matcha!",
+      "loggedIn": "Matcha! — {{handle}}"
+    },
+    "intro": {
+      "headline": "Matcha!",
+      "subtitle": "Больше чем мессенджер — Matcha! это социальный движок всего вашего Butter Launcher.",
+      "feature1": "Мгновенный чат и личные сообщения",
+      "feature2": "Друзья и отряды",
+      "feature3": "Приглашения в лобби",
+      "cta": "Общайтесь быстрее. Играйте вместе.",
+      "powered": "Создано на Matcha!",
+      "acceptTermsPrefix": "Регистрируясь, вы принимаете",
+      "acceptTermsLink": "Условия использования"
+    },
+    "profile": {
+      "open": "Открыть профиль",
+      "title": "ПРОФИЛЬ",
+      "loadFailed": "Не удалось загрузить профиль.",
+      "avatar": "Аватар",
+      "avatarBackground": "Фон",
+      "uploadAvatar": "Загрузить аватар",
+      "changeAvatar": "Изменить аватар",
+      "removeAvatar": "Удалить аватар",
+      "useHytaleAvatar": "Использовать аватар Hytale",
+      "avatarRequirementsError": "Только изображения до 1MB, ровно 92x92 пикселя.",
+      "username": "Имя пользователя",
+      "usernameCopied": "Скопировано!",
+      "createdAt": "Дата регистрации",
+      "totalMessages": "Всего отправлено сообщений",
+      "dndTitle": "Не беспокоить",
+      "dndHint": "Отключает звук уведомлений в личных сообщениях"
+    },
+    "userProfile": {
+      "title": "ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ",
+      "open": "Смотреть профиль",
+      "sendRequest": "Отправить запрос в друзья",
+      "alreadyFriends": "Уже в друзьях",
+      "requestPending": "Запрос отправлен",
+      "thisIsYou": "Это вы"
+    },
+    "unread": {
+      "badgeTitle": "Непрочитанные сообщения",
+      "separator": "— непрочитанные —"
+    },
+    "terms": {
+      "title": "Matcha! System — Terms of Service",
+      "lastUpdated": "Last Updated: 02-24-2026",
+      "body": "Preamble\nWelcome to Matcha!, the social infrastructure powering your Butter Launcher experience. By registering an account, accessing the platform, or utilizing our communication services, you acknowledge that you have read, understood, and unconditionally agree to be bound by the following Terms of Service (\"Terms\").\n\n1. Account Security & Registration\n1.1. Account Identity\nYour user profile is distinctively identified by a username combined with a numeric discriminator (e.g., User#0000). You acknowledge that you are the sole authorized user of your account and are fully responsible for all activities, actions, and communications that occur under your credentials.\n\n1.2. Credential Protection\nWhile Matcha! employs industry-standard encryption protocols to protect your data, you are responsible for maintaining the confidentiality of your login credentials. Matcha! assumes no liability for any loss or damage arising from unauthorized access attributable to your failure to secure your password.\n\n1.3. Registration Constraints\nTo ensure service integrity and prevent abuse, account creation is strictly limited to five (5) new accounts per IP address within a 24-hour period. Any attempt to circumvent this restriction constitutes a violation of these Terms and may result in a permanent ban.\n\n2. User Conduct & Acceptable Use\n2.1. Automated Content Filtering\nThe platform utilizes automated filtering systems to maintain community standards. Any deliberate attempt to bypass these filters is strictly prohibited.\n\n2.2. Anti-Spam & Automation\nThe use of bots, macros, scripts, or any third-party software to automate interactions is prohibited.\n\n2.3. Prohibited Content\nWe maintain a zero-tolerance policy regarding hate speech, threats of violence, doxxing, and harassment.\n\n3. Data Privacy & Processing\n3.1. Message Retention\nBy using the service, you consent to the processing and storage of your communications on our servers.\n\n3.2. Connection Logging\nFor security and moderation purposes, we log your IP address at registration and at each connection.\n\n4. Limitation of Liability\nThe platform is provided on an \"AS IS\" basis. We are not liable for damages resulting from your use of the service.\n\n5. Moderation & Termination\nAdministrators reserve the right to remove content, rename accounts, or terminate accounts found in violation of these Terms."
+    },
+    "friendsHeader": "ДРУЗЬЯ ({{online}}/{{total}} онлайн)",
+    "friends": "Друзья",
+    "globalChat": "Общий чат",
+    "logout": "Выйти",
+    "copy": "Копировать",
+    "continue": "Продолжить",
+    "signIn": "Войти",
+    "create": "Создать",
+    "createAccount": "Создать аккаунт",
+    "you": "Вы",
+    "devs": "DEV",
+    "deleted": "Сообщение удалено.",
+    "deletedByAdmin": "Сообщение удалено администратором.",
+    "scrollUp": "Прокрутите вверх, чтобы загрузить более старые сообщения.",
+    "refreshing": "Обновление…",
+    "searchFriends": "Поиск",
+    "friendsList": "Друзья",
+    "friendsListCounts": "Друзья — {{online}} онлайн (всего {{total}})",
+    "noFriendsFound": "Друзья не найдены.",
+    "requests": "Запросы",
+    "received": "Получено",
+    "sent": "Отправлено",
+    "requestsIncoming": "Получено ({{count}})",
+    "requestsOutgoing": "Отправлено ({{count}})",
+    "none": "Ничего.",
+    "accept": "Принять",
+    "reject": "Отклонить",
+    "cancel": "Отмена",
+    "addFriend": "Добавить друга",
+    "sendRequest": "Отправить запрос",
+    "backToFriends": "Назад",
+    "status": {
+      "online": "Онлайн",
+      "offline": "Оффлайн",
+      "inGame": "В игре",
+      "multiplayer": "Мультиплеер",
+      "singleplayer": "Одиночная игра"
+    },
+    "ctx": {
+      "sendMessage": "Написать сообщение",
+      "removeFriend": "Удалить из друзей"
+    },
+    "proof": {
+      "uniqueId": "B-Matcha Ключ безопасности",
+      "dontLoseIt": "НЕ ТЕРЯЙТЕ ЕГО.",
+      "yourHandle": "Ваш хэндл",
+      "saveHandleHint": "Сохраните его для входа в будущем.",
+      "uniqueIdHint": "Скопируйте и сохраните этот B-Matcha Ключ безопасности (начинается с BM:). Он отображается только один раз и необходим для подтверждения владения аккаунтом при обращении в поддержку. Не передавайте его никому, кроме официальной поддержки Butter/Matcha.",
+      "finalCheckTitle": "Последняя проверка",
+      "finalCheckBody": "Чтобы подтвердить, что вы прочитали и понимаете важность сохранения ключа, введите его здесь:",
+      "finalCheckPlaceholder": "BM:...",
+      "finalCheckError": "Неверный B-Matcha Ключ безопасности.",
+      "verifyContinue": "Проверить и продолжить"
+    },
+    "register": {
+      "handleHint": "Ваш полный хэндл (с #) будет показан после создания аккаунта."
+    },
+    "placeholders": {
+      "username": "Имя пользователя",
+      "handle": "Username#0000",
+      "password": "Пароль",
+      "passwordRepeat": "Повторите пароль",
+      "globalMessage": "Написать всем…",
+      "dmMessage": "Введите сообщение…"
+    },
+    "msgMenu": {
+      "sentAt": "Отправлено",
+      "reply": "Ответить",
+      "copy": "Копировать",
+      "delete": "Удалить сообщение",
+      "report": "Пожаловаться"
+    },
+    "reply": {
+      "replyingTo": "Ответ на",
+      "cancel": "Отмена",
+      "to": "Ответить"
+    },
+    "report": {
+      "title": "Жалоба",
+      "reporting": "Жалоба на",
+      "category": "Категория",
+      "reason": "Причина",
+      "pick": "Выберите…",
+      "submit": "Отправить",
+      "otherPlaceholder": "Опишите, что произошло…",
+      "cats": {
+        "security_violence": "Безопасность и насилие",
+        "offensive": "Поведение и оскорбительный контент",
+        "spam_quality": "Качество чата и спам",
+        "other": "Другое"
+      },
+      "reasons": {
+        "threats_violence": "Угрозы или насилие",
+        "bullying": "Буллинг или преследование",
+        "doxxing": "Доксинг / личная информация",
+        "hate_speech": "Язык ненависти",
+        "sexual_nsfw": "Сексуальный контент / NSFW",
+        "spam_ads": "Спам / нежелательная реклама",
+        "phishing": "Фишинг / мошенничество"
+      },
+      "descriptions": {
+        "threats_violence": "Угрозы, подстрекательство к насилию или контент, пропагандирующий причинение вреда.",
+        "bullying": "Преследование, запугивание или систематические нападки на пользователя.",
+        "doxxing": "Публикация личной информации без разрешения (адрес, телефон, фото и т.д.).",
+        "hate_speech": "Оскорбительный или дискриминационный контент, направленный против расы, религии, национальности и пр.",
+        "sexual_nsfw": "Явный сексуальный контент или нежелательные сексуальные домогательства.",
+        "spam_ads": "Повторяющиеся сообщения, флуд, нежелательная реклама.",
+        "phishing": "Попытки кражи аккаунтов/паролей, вредоносные ссылки."
+      }
+    },
+    "kaomojis": {
+      "title": "Каомодзи",
+      "trigger": "(＾▽＾)",
+      "close": "X",
+      "categories": {
+        "joy": "😄 Радость и победа",
+        "love": "😍 Любовь и флирт",
+        "sad": "😭 Грусть и разочарование",
+        "angry": "😡 Злость и ярость",
+        "shock": "😱 Удивление и страх",
+        "think": "🤔 Сомнение и раздумья",
+        "shy": "😳 Смущение и стыд",
+        "lenny": "😏 Сарказм и насмешка",
+        "music": "💃 Музыка и танцы",
+        "animals": "🐾 Мир животных",
+        "daily": "🍕 Еда, сон и быт",
+        "action": "🥷 Бой и экшн",
+        "tables": "┻━┻ Сага о столах"
+      },
+      "items": {
+        "joy": {
+          "0": "Хохот",
+          "1": "Искреннее счастье",
+          "2": "Улыбка",
+          "3": "Невинная радость",
+          "4": "Браво!",
+          "5": "Восторг",
+          "6": "Победа!",
+          "7": "Удовлетворение",
+          "8": "Довольная улыбка",
+          "9": "Прыжок от радости",
+          "10": "Командный праздник",
+          "11": "Переполнен эмоциями"
+        },
+        "love": {
+          "0": "Застенчивая любовь",
+          "1": "Влюблён",
+          "2": "Нежность",
+          "3": "Счастлив и влюблён",
+          "4": "Посылаю любовь",
+          "5": "Мечтаю о тебе",
+          "6": "Воздушный поцелуй",
+          "7": "Поцелуй в щёку",
+          "8": "Влюблённая пара",
+          "9": "Глубокая любовь",
+          "10": "Любовь с первого взгляда",
+          "11": "Романтические объятия"
+        },
+        "sad": {
+          "0": "Рыдает",
+          "1": "Сдерживает слёзы",
+          "2": "Классические слёзы",
+          "3": "Драматический плач",
+          "4": "Грустная гримаса",
+          "5": "Разбитое сердце",
+          "6": "Тихое разочарование",
+          "7": "Сдаётся в слезах",
+          "8": "Трёт глаза",
+          "9": "Глубокая боль",
+          "10": "Depressed",
+          "11": "Смирился"
+        },
+        "angry": {
+          "0": "Чистая ярость",
+          "1": "Крик от злости",
+          "2": "В бешенстве",
+          "3": "Убийственный взгляд",
+          "4": "Взгляд осуждения",
+          "5": "Сыт по горло",
+          "6": "Готов к драке",
+          "7": "Вена вот-вот лопнет",
+          "8": "Злобная истерика",
+          "9": "Главное оскорбление",
+          "10": "Ругается"
+        },
+        "shock": {
+          "0": "Глаза на лоб",
+          "1": "Полная паника",
+          "2": "Удивлён и сбит с толку",
+          "3": "Не верю!",
+          "4": "Застыл от шока",
+          "5": "Поправляет очки в удивлении",
+          "6": "Потеет от страха",
+          "7": "Зажмурился от ужаса",
+          "8": "Оглушён"
+        },
+        "think": {
+          "0": "Нервный пот",
+          "1": "Растерян",
+          "2": "Нервный и без идей",
+          "3": "Мозг закипел",
+          "4": "Чешет голову",
+          "5": "Понятия не имею",
+          "6": "Анализирует ситуацию",
+          "7": "Напряжённо думает",
+          "8": "Скептический взгляд"
+        },
+        "shy": {
+          "0": "Краснеет",
+          "1": "Стесняется",
+          "2": "Жутко смущён",
+          "3": "Краснеет и улыбается",
+          "4": "Прячет лицо",
+          "5": "Скромный",
+          "6": "Переполнен смущением"
+        },
+        "lenny": {
+          "0": "Lenny Face (саркастичный)",
+          "1": "Тёмный Ленни",
+          "2": "Подмигивающий Ленни",
+          "3": "Пожатие плечами",
+          "4": "Хе-хе (знающий взгляд)",
+          "5": "Самодовольная улыбка",
+          "6": "Бессовестная насмешка",
+          "7": "Невинно насвистывает"
+        },
+        "music": {
+          "0": "Орёт во всё горло",
+          "1": "Танцует от радости",
+          "2": "Танцует в ритм",
+          "3": "Магический ритуал",
+          "4": "Заклинание волшебника",
+          "5": "Взрыв искр"
+        },
+        "animals": {
+          "0": "Обычный кот",
+          "1": "Внимательный кот",
+          "2": "Счастливый кот",
+          "3": "Дружелюбный медведь",
+          "4": "Решительный медведь",
+          "5": "Собака",
+          "6": "Бдительная собака",
+          "7": "Птица",
+          "8": "Краб",
+          "9": "Рыба"
+        },
+        "daily": {
+          "0": "Предлагает горячий напиток",
+          "1": "Подаёт чай",
+          "2": "Облизывается",
+          "3": "Спит",
+          "4": "Дремлет",
+          "5": "Упал от усталости"
+        },
+        "action": {
+          "0": "Снайпер / Стреляет",
+          "1": "Удар кулаком",
+          "2": "Готов боксировать",
+          "3": "Весело идёт навстречу опасности",
+          "4": "Бежит сломя голову"
+        },
+        "tables": {
+          "0": "Классический переворот стола",
+          "1": "Переворот в бешенстве",
+          "2": "Переворот с отвращением",
+          "3": "Переворот двух столов сразу",
+          "4": "Ставит стол обратно (мир)",
+          "5": "Прячется под столом"
+        }
+      }
+    },
+    "errors": {
+      "selectFriendToChat": "Выберите друга для чата.",
+      "removeFriendFailed": "Не удалось удалить из друзей",
+      "deleteFailed": "Не удалось удалить",
+      "reportFailed": "Не удалось отправить жалобу",
+      "reportMissingCategory": "Выберите категорию.",
+      "reportMissingReason": "Выберите причину.",
+      "reportMissingDetails": "Опишите причину.",
+      "banned": "Аккаунт заблокирован. Причина: {{reason}}. До: {{until}}. Осталось: {{remaining}}.",
+      "bannedReasonFallback": "Причина не указана"
+    }
+  },
+  "supportTicket": {
+    "devAssistSoon": "Разработчик скоро поможет вам.",
+    "invalidOrExpired": "Неверный или просроченный тикет.",
+    "collectLogsFailed": "Не удалось собрать локальные логи.",
+    "connectFailed": "Не удалось подключиться к поддержке.",
+    "copyFailed": "Не удалось скопировать автоматически. Выделите код и скопируйте вручную."
+  },
+  "wikiModal": {
+    "currentUrl": "Текущий URL",
+    "copy": "Копировать",
+    "copyHint": "Нажмите, чтобы скопировать"
   }
 }

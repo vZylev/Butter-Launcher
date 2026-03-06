@@ -31,6 +31,16 @@
     "clear": "Limpiar",
     "send": "Enviar"
   },
+  "chat": {
+    "channels": "Canales",
+    "globalChat": "Chat Global",
+    "directMessages": "Mensajes Directos",
+    "online": "En línea",
+    "typing": "{{user}} está escribiendo...",
+    "placeholder": "Escribe a {{target}}...",
+    "send": "Enviar",
+    "emoji": "Emoji"
+  },
   "login": {
     "prompt": "Ingresa tu apodo para continuar",
     "nicknamePlaceholder": "Apodo",

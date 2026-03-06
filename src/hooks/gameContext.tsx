@@ -13,6 +13,13 @@ import {
   getGameVersions,
   getManifestInfoForBuild,
 } from "../utils/game";
+import { StorageService } from "../services/StorageService";
+import {
+  IPC_INSTALL_GAME,
+  IPC_INSTALL_GAME_SMART,
+  IPC_CANCEL_BUILD_DOWNLOAD,
+  IPC_LAUNCH_GAME,
+} from "../ipc/channels";
 
 type SmartUpdateInfo = {
   fromBuildIndex: number;
@@ -188,8 +195,8 @@ export const GameContextProvider = ({
       // because the universe hates stateless ui
       setInstallingVersion(version);
       setCancelingBuildDownload(false);
-      const accountType = (localStorage.getItem("accountType") || "").trim();
-      window.ipcRenderer.send("install-game", gameDir, version, accountType);
+      const accountType = StorageService.getAccountType();
+      window.ipcRenderer.send(IPC_INSTALL_GAME, gameDir, version, accountType);
     },
     [gameDir],
   );
@@ -200,9 +207,9 @@ export const GameContextProvider = ({
       if (!Number.isFinite(fromBuildIndex) || fromBuildIndex <= 0) return;
       setInstallingVersion(version);
       setCancelingBuildDownload(false);
-      const accountType = (localStorage.getItem("accountType") || "").trim();
+      const accountType = StorageService.getAccountType();
       window.ipcRenderer.send(
-        "install-game-smart",
+        IPC_INSTALL_GAME_SMART,
         gameDir,
         version,
         fromBuildIndex,
@@ -219,7 +226,7 @@ export const GameContextProvider = ({
     // we only show this button during pwr download but lets be paranoid
     setCancelingBuildDownload(true);
     window.ipcRenderer.send(
-      "cancel-build-download",
+      IPC_CANCEL_BUILD_DOWNLOAD,
       gameDir,
       installingVersion,
     );
@@ -301,7 +308,7 @@ export const GameContextProvider = ({
 
       // Persist last executed version so it becomes the default selection next launch.
       try {
-        localStorage.setItem(
+        StorageService.set(
           `selectedVersion:${version.type}`,
           version.build_index.toString(),
         );
@@ -334,13 +341,13 @@ export const GameContextProvider = ({
         alert(`Error #${code}`);
       });
 
-      const customUUID = (localStorage.getItem("customUUID") || "").trim();
+      const customUUID = StorageService.get("customUUID") || "";
       const uuidArg = customUUID.length ? customUUID : null;
 
-      const accountType = (localStorage.getItem("accountType") || "").trim();
+      const accountType = StorageService.getAccountType();
 
       window.ipcRenderer.send(
-        "launch-game",
+        IPC_LAUNCH_GAME,
         gameDir,
         version,
         username,
@@ -477,7 +484,7 @@ export const GameContextProvider = ({
           setUpdateAvailable(false);
 
           const pickIndex = (list: GameVersion[], t: VersionType) => {
-            const raw = localStorage.getItem(`selectedVersion:${t}`);
+            const raw = StorageService.getDynamic(`selectedVersion:${t}`);
             const savedBuild = raw ? Number(raw) : NaN;
             if (Number.isFinite(savedBuild)) {
               const idx = list.findIndex((v) => v.build_index === savedBuild);
@@ -619,7 +626,7 @@ export const GameContextProvider = ({
           t: VersionType,
           newestInstalled?: GameVersion,
         ) => {
-          const raw = localStorage.getItem(`selectedVersion:${t}`);
+          const raw = StorageService.getDynamic(`selectedVersion:${t}`);
           const savedBuild = raw ? Number(raw) : NaN;
           if (Number.isFinite(savedBuild)) {
             const idx = list.findIndex((v) => v.build_index === savedBuild);
@@ -812,7 +819,7 @@ export const GameContextProvider = ({
 
       // Immediately reflect install completion in UI (Play should appear right away).
       try {
-        localStorage.setItem(
+        StorageService.setDynamic(
           `selectedVersion:${version.type}`,
           String(version.build_index),
         );
@@ -988,7 +995,7 @@ export const GameContextProvider = ({
     if (!availableVersions.length) return;
     const selected = availableVersions[selectedVersion];
     if (!selected) return;
-    localStorage.setItem(
+    StorageService.set(
       `selectedVersion:${versionType}`,
       selected.build_index.toString(),
     );

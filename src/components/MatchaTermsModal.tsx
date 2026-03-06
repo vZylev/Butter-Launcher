@@ -2,7 +2,8 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
-import cn from "../utils/cn";
+import { Box, IconButton, Text } from "@chakra-ui/react";
+import { ModalBackdrop, ModalCard } from "./ui";
 
 const MatchaTermsModal: React.FC<{
   open: boolean;
@@ -14,44 +15,52 @@ const MatchaTermsModal: React.FC<{
   if (typeof document === "undefined" || !document.body) return null;
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center glass-backdrop animate-fade-in"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label={t("friendsMenu.terms.title")}
-    >
-      <div
-        className={cn(
-          `
-          relative w-[92vw] max-w-[1000px] h-[88vh] mx-auto
-          rounded-xl
-          bg-linear-to-b from-[#1b2030]/70 to-[#141824]/70
-          border border-white/10
-          shadow-2xl
-          px-4 py-4
-          flex flex-col animate-settings-in`,
-        )}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-[#23293a] text-gray-400 hover:text-white hover:bg-[#2f3650] transition flex items-center justify-center"
-          onClick={onClose}
-          title={t("common.close")}
-        >
-          <IconX size={18} />
-        </button>
+    <ModalBackdrop onClose={onClose}>
+      <ModalCard maxW="1000px" w="92vw">
+        <Box h="88vh" display="flex" flexDir="column">
+          <IconButton
+            aria-label={t("common.close")}
+            position="absolute"
+            top={3}
+            right={3}
+            size="sm"
+            variant="ghost"
+            color="whiteAlpha.600"
+            _hover={{ color: "white", bg: "whiteAlpha.100" }}
+            rounded="full"
+            onClick={onClose}
+          >
+            <IconX size={18} />
+          </IconButton>
 
-        <div className="flex items-center justify-between gap-3 mb-1 pr-12">
-          <h2 className="text-lg font-semibold text-white tracking-wide">{t("friendsMenu.terms.title")}</h2>
-        </div>
-        <div className="text-xs text-white/60">{t("friendsMenu.terms.lastUpdated")}</div>
+          <Box display="flex" alignItems="center" justifyContent="space-between" gap={3} mb={1} pr={12}>
+            <Text fontSize="lg" fontWeight="semibold" color="white" letterSpacing="wide">
+              {t("friendsMenu.terms.title")}
+            </Text>
+          </Box>
+          <Text fontSize="xs" color="whiteAlpha.500">{t("friendsMenu.terms.lastUpdated")}</Text>
 
-        <div className="mt-3 flex-1 min-h-0 rounded-lg overflow-auto border border-white/10 bg-black/20 dark-scrollbar p-3 text-sm text-white/75 whitespace-pre-wrap leading-relaxed">
-          {t("friendsMenu.terms.body")}
-        </div>
-      </div>
-    </div>,
+          <Box
+            mt={3}
+            flex={1}
+            minH={0}
+            rounded="lg"
+            overflow="auto"
+            border="1px solid"
+            borderColor="whiteAlpha.100"
+            bg="blackAlpha.400"
+            className="dark-scrollbar"
+            p={3}
+            fontSize="sm"
+            color="whiteAlpha.700"
+            whiteSpace="pre-wrap"
+            lineHeight="relaxed"
+          >
+            {t("friendsMenu.terms.body")}
+          </Box>
+        </Box>
+      </ModalCard>
+    </ModalBackdrop>,
     document.body,
   );
 };

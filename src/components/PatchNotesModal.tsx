@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Box, Button, Grid, HStack, IconButton, Text, VStack } from "@chakra-ui/react";
 import { IconX } from "@tabler/icons-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import cn from "../utils/cn";
 import { useTranslation } from "react-i18next";
+import { ModalBackdrop } from "./ui";
 
 type TocItem = {
   id: string;
@@ -62,7 +63,7 @@ const PatchNotesModal: React.FC<{
   onClose: () => void;
 }> = ({ open, markdownUrl, channel, onClose }) => {
   const { t } = useTranslation();
-  const mouseDownOnBackdrop = React.useRef(false);
+
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
@@ -183,14 +184,14 @@ const PatchNotesModal: React.FC<{
     }
   };
 
-  const renderHeading = (Tag: keyof JSX.IntrinsicElements) =>
+  const renderHeading = (level: 1 | 2 | 3 | 4 | 5 | 6) =>
     function Heading(
       props: React.HTMLAttributes<HTMLHeadingElement> & {
         node?: unknown;
         children?: React.ReactNode;
       },
     ) {
-      const { children, className, id: providedId, ...rest } = props;
+      const { children, className: _className, id: providedId, ...rest } = props;
       // Stable deterministic IDs derived from rendered heading text.
       const headingText = stripInlineMarkdown(flattenText(children));
       const base = slugify(headingText);
@@ -200,156 +201,201 @@ const PatchNotesModal: React.FC<{
       const generatedId = n === 1 ? base : `${base}-${n}`;
 
       const id = (providedId as string | undefined) ?? generatedId;
+      const isLarge = level <= 2;
 
       return (
-        <Tag
+        <Box
+          as={`h${level}` as any}
           {...(rest as any)}
           id={id}
-          className={cn(
-            "scroll-mt-4",
-            Tag === "h1" || Tag === "h2"
-              ? "text-white font-extrabold mt-6 mb-3"
-              : "text-white font-bold mt-5 mb-2",
-            className,
-          )}
+          scrollMarginTop={4}
+          color="white"
+          fontWeight={isLarge ? "extrabold" : "bold"}
+          mt={isLarge ? 6 : 5}
+          mb={isLarge ? 3 : 2}
         >
           {children}
-        </Tag>
+        </Box>
       );
     };
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center glass-backdrop animate-fadeIn"
-      onMouseDown={(e) => {
-        mouseDownOnBackdrop.current = e.target === e.currentTarget;
-      }}
-      onMouseUp={() => {
-        mouseDownOnBackdrop.current = false;
-      }}
-      onMouseLeave={() => {
-        mouseDownOnBackdrop.current = false;
-      }}
-      onClick={(e) => {
-        if (mouseDownOnBackdrop.current && e.target === e.currentTarget) {
-          onClose();
-        }
-        mouseDownOnBackdrop.current = false;
-      }}
-    >
-      <div
-        className="relative w-[96vw] h-[90vh] rounded-xl shadow-2xl bg-linear-to-b from-[#1b2030]/95 to-[#141824]/95 border border-[#2a3146] p-5 animate-settings-in flex flex-col"
+    <ModalBackdrop onClose={onClose}>
+      <Box
+        position="relative"
+        w="96vw"
+        h="90vh"
+        rounded="xl"
+        shadow="2xl"
+        bgGradient="to-b"
+        gradientFrom="rgba(27,32,48,0.95)"
+        gradientTo="rgba(20,24,36,0.95)"
+        border="1px solid #2a3146"
+        p={5}
+        className="animate-settings-in"
+        display="flex"
+        flexDir="column"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4">
-          <div className="text-white font-extrabold text-lg">{title}</div>
-          <button
-            type="button"
-            className="w-8 h-8 rounded-full bg-[#23293a] text-gray-400 hover:text-white hover:bg-[#2f3650] transition flex items-center justify-center"
+        <HStack justify="space-between" align="flex-start" gap={4}>
+          <Text color="white" fontWeight="extrabold" fontSize="lg">{title}</Text>
+          <IconButton
+            aria-label={t("common.close")}
+            size="sm"
+            w={8}
+            h={8}
+            rounded="full"
+            bg="#23293a"
+            color="gray.400"
+            _hover={{ color: "white", bg: "#2f3650" }}
             onClick={onClose}
-            title={t("common.close")}
           >
             <IconX size={20} />
-          </button>
-        </div>
+          </IconButton>
+        </HStack>
 
-        <div className="mt-4 flex-1 min-h-0 grid grid-cols-[260px_1fr] gap-4">
-          <div className="min-h-0 rounded-lg border border-[#2a3146] bg-white/5 overflow-auto p-3">
-            <div className="text-xs font-bold text-gray-200 mb-2">{t("launcher.patchNotes.contents")}</div>
+        <Grid
+          mt={4}
+          flex={1}
+          minH={0}
+          templateColumns="260px 1fr"
+          gap={4}
+        >
+          {/* TOC Sidebar */}
+          <Box
+            minH={0}
+            rounded="lg"
+            border="1px solid #2a3146"
+            bg="whiteAlpha.50"
+            overflowY="auto"
+            p={3}
+            className="dark-scrollbar"
+          >
+            <Text fontSize="xs" fontWeight="bold" color="gray.200" mb={2}>
+              {t("launcher.patchNotes.contents")}
+            </Text>
             {toc.length ? (
-              <div className="flex flex-col gap-1">
+              <VStack gap={1} align="stretch">
                 {toc.map((item) => (
-                  <button
+                  <Button
                     key={item.id}
-                    type="button"
-                    className={cn(
-                      "text-left text-xs rounded-md px-2 py-1 transition",
-                      "hover:bg-white/10 text-gray-200 hover:text-white",
-                      item.level <= 2 ? "font-semibold" : "font-normal",
-                    )}
-                    style={{
-                      marginLeft: `${Math.min(
-                        18,
-                        Math.max(0, (item.level - 2) * 10),
-                      )}px`,
-                    }}
+                    variant="ghost"
+                    justifyContent="flex-start"
+                    size="xs"
+                    px={2}
+                    py={1}
+                    borderRadius="md"
+                    color="gray.200"
+                    fontWeight={item.level <= 2 ? "semibold" : "normal"}
+                    _hover={{ bg: "whiteAlpha.100", color: "white" }}
+                    ml={`${Math.min(18, Math.max(0, (item.level - 2) * 10))}px`}
                     onClick={() => scrollTo(item.id)}
                     title={item.text}
                   >
                     {item.text}
-                  </button>
+                  </Button>
                 ))}
-              </div>
+              </VStack>
             ) : (
-              <div className="text-xs text-gray-400">
+              <Text fontSize="xs" color="gray.400">
                 {loading ? t("launcher.patchNotes.loading") : t("launcher.patchNotes.noContents")}
-              </div>
+              </Text>
             )}
-          </div>
+          </Box>
 
-          <div
+          {/* Content */}
+          <Box
             ref={contentScrollRef}
-            className="min-h-0 rounded-lg border border-[#2a3146] bg-white/5 overflow-auto p-4"
+            minH={0}
+            rounded="lg"
+            border="1px solid #2a3146"
+            bg="whiteAlpha.50"
+            overflowY="auto"
+            p={4}
+            className="dark-scrollbar"
           >
             {loading ? (
-              <div className="text-sm text-gray-200">{t("launcher.patchNotes.loading")}</div>
+              <Text fontSize="sm" color="gray.200">{t("launcher.patchNotes.loading")}</Text>
             ) : error ? (
-              <div className="text-sm text-red-200 whitespace-pre-wrap">
+              <Text fontSize="sm" color="red.200" whiteSpace="pre-wrap">
                 {t("launcher.patchNotes.failed")}
                 {error ? `\n${error}` : ""}
-              </div>
+              </Text>
             ) : markdown.trim() ? (
-              <div className="text-sm text-gray-200 leading-relaxed">
+              <Box fontSize="sm" color="gray.200" lineHeight="relaxed">
                 {(() => {
-                  // Ensure heading IDs stay stable even if ReactMarkdown re-renders.
                   headingSeenRef.current = new Map();
                   return null;
                 })()}
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
-                    h1: renderHeading("h1"),
-                    h2: renderHeading("h2"),
-                    h3: renderHeading("h3"),
-                    h4: renderHeading("h4"),
-                    h5: renderHeading("h5"),
-                    h6: renderHeading("h6"),
+                    h1: renderHeading(1),
+                    h2: renderHeading(2),
+                    h3: renderHeading(3),
+                    h4: renderHeading(4),
+                    h5: renderHeading(5),
+                    h6: renderHeading(6),
                     a: ({ href, children }) => (
-                      <a
+                      <Box
+                        as="a"
                         href={href}
-                        className="text-blue-200 hover:text-white underline"
+                        color="blue.200"
+                        _hover={{ color: "white" }}
+                        textDecoration="underline"
                         target="_blank"
                         rel="noreferrer"
                       >
                         {children}
-                      </a>
+                      </Box>
                     ),
                     code: ({ children }) => (
-                      <code className="px-1 py-0.5 rounded bg-black/30 text-gray-100 text-[12px]">
+                      <Box
+                        as="code"
+                        px={1}
+                        py="2px"
+                        rounded="sm"
+                        bg="blackAlpha.500"
+                        color="gray.100"
+                        fontSize="12px"
+                      >
                         {children}
-                      </code>
+                      </Box>
                     ),
                     pre: ({ children }) => (
-                      <pre className="p-3 rounded-lg bg-black/30 overflow-auto text-[12px]">
+                      <Box
+                        as="pre"
+                        p={3}
+                        rounded="lg"
+                        bg="blackAlpha.500"
+                        overflow="auto"
+                        fontSize="12px"
+                      >
                         {children}
-                      </pre>
+                      </Box>
                     ),
                     li: ({ children }) => (
-                      <li className="ml-5 list-disc">{children}</li>
+                      <Box as="li" ml={5} listStyleType="disc">
+                        {children}
+                      </Box>
                     ),
-                    p: ({ children }) => <p className="my-2">{children}</p>,
+                    p: ({ children }) => (
+                      <Box as="p" my={2}>
+                        {children}
+                      </Box>
+                    ),
                   }}
                 >
                   {markdown}
                 </ReactMarkdown>
-              </div>
+              </Box>
             ) : (
-              <div className="text-sm text-gray-400">{t("launcher.patchNotes.empty")}</div>
+              <Text fontSize="sm" color="gray.400">{t("launcher.patchNotes.empty")}</Text>
             )}
-          </div>
-        </div>
-      </div>
-    </div>,
+          </Box>
+        </Grid>
+      </Box>
+    </ModalBackdrop>,
     document.body,
   );
 };

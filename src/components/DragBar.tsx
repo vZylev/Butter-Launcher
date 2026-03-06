@@ -1,7 +1,8 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-
+import { Box, HStack, IconButton } from "@chakra-ui/react";
 import { IconBrandInstagram, IconBrandX, IconMessageCircle } from "@tabler/icons-react";
+import { StorageService } from "../services/StorageService";
 
 const DragBar: React.FC<{
   left?: React.ReactNode;
@@ -10,162 +11,86 @@ const DragBar: React.FC<{
 }> = ({ left, onOpenMatchaGlobalChat }) => {
   const { t } = useTranslation();
 
-  const handleMinimize = () => {
-    window.ipcRenderer.send("minimize-window");
-  };
-
-  const handleToggleMaximize = () => {
-    window.ipcRenderer.send("toggle-maximize-window");
-  };
-
-  const handleClose = () => {
-    window.ipcRenderer.send("app:request-close");
-  };
-
-  const squareBtn =
-    "no-drag w-8 h-8 flex items-center justify-center rounded-md transition";
+  const handleMinimize = () => window.ipcRenderer.send("minimize-window");
+  const handleToggleMaximize = () => window.ipcRenderer.send("toggle-maximize-window");
+  const handleClose = () => window.ipcRenderer.send("app:request-close");
 
   return (
-    <>
-      <div
-        id="frame"
-        className="
-          w-full h-10 flex items-center justify-between
-          px-3 select-none
-          bg-transparent
-          ml-3
-          relative z-[5000]
-        "
+    <Box
+      id="frame"
+      as="header"
+      position="relative"
+      zIndex={5000}
+      w="full"
+      h="40px"
+      display="flex"
+      alignItems="center"
+      justifyContent="space-between"
+      px={3}
+      style={{ appRegion: "drag" } as React.CSSProperties}
+    >
+      <HStack gap={2} fontSize="sm" color="whiteAlpha.800" style={{ appRegion: "no-drag" } as React.CSSProperties}>
+        {left}
+      </HStack>
+
+      <HStack
+        gap={0}
+        mr={1}
+        style={{ appRegion: "no-drag" } as React.CSSProperties}
       >
-        <div className="flex items-center gap-2 text-sm text-gray-300">
-          {left}
-        </div>
-
-        <div
-          className="
-            flex items-center gap-1
-            px-2 py-1
-            bg-gradient-to-r from-[#0b1220]/80 to-[#0f172a]/80
-            backdrop-blur-md
-            border border-white/10
-            rounded-bl-lg
-            shadow-lg
-          "
+        <IconButton
+          aria-label={t("common.minimize")}
+          title={t("common.minimize")}
+          variant="ghost"
+          size="sm"
+          w={8} h={8}
+          minW={8}
+          borderRadius="md"
+          color="gray.300"
+          _hover={{ bg: "whiteAlpha.100" }}
+          onClick={handleMinimize}
         >
-          <div className="flex items-center gap-1">
-            {/* Socials */}
-            <button
-              className={`${squareBtn} hover:bg-white/10`}
-              title="Global Chat"
-              onClick={() => {
-                try {
-                  const hasToken = !!(localStorage.getItem("matcha:token") || "").trim();
-                  if (!hasToken) return;
-                } catch {
-                  return;
-                }
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <rect y="7.5" width="16" height="1" rx="0.5" fill="currentColor" />
+          </svg>
+        </IconButton>
 
-                // Delegate to Launcher so it can open the FriendsMenu popover.
-                onOpenMatchaGlobalChat?.();
-              }}
-            >
-              <IconMessageCircle size={18} className="text-white" />
-            </button>
+        <IconButton
+          aria-label={t("common.maximize")}
+          title={t("common.maximize")}
+          variant="ghost"
+          size="sm"
+          w={8} h={8}
+          minW={8}
+          borderRadius="md"
+          color="gray.300"
+          _hover={{ bg: "whiteAlpha.100" }}
+          onClick={handleToggleMaximize}
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <rect x="3.25" y="3.25" width="9.5" height="9.5" rx="1" stroke="currentColor" strokeWidth="1.5" />
+          </svg>
+        </IconButton>
 
-            <button
-              className={`${squareBtn} hover:bg-[#E1306C]`}
-              title="Instagram"
-              onClick={() =>
-                window.config.openExternal(
-                  "https://www.instagram.com/butterlauncher_official"
-                )
-              }
-            >
-              <IconBrandInstagram size={18} className="text-white" />
-            </button>
-
-            <button
-              className={`${squareBtn} hover:bg-black`}
-              title="X (Twitter)"
-              onClick={() =>
-                window.config.openExternal("https://x.com/Butter_Launcher/")
-              }
-            >
-              <IconBrandX size={18} className="text-white" />
-            </button>
-
-            {/* Divider */}
-            <div className="w-px h-5 bg-white/10 mx-2" />
-
-
-            {/* Minimize */}
-            <button
-              className={`${squareBtn} text-gray-300 hover:bg-white/10`}
-              onClick={handleMinimize}
-              title={t("common.minimize")}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <rect
-                  y="7.5"
-                  width="16"
-                  height="1"
-                  rx="0.5"
-                  fill="currentColor"
-                />
-              </svg>
-            </button>
-
-            {/* Maximize / Restore */}
-            <button
-              className={`${squareBtn} text-gray-300 hover:bg-white/10`}
-              onClick={handleToggleMaximize}
-              title={t("common.maximize")}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <rect
-                  x="3.25"
-                  y="3.25"
-                  width="9.5"
-                  height="9.5"
-                  rx="1"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                />
-              </svg>
-            </button>
-
-            {/* Close */}
-            <button
-              className={`${squareBtn} text-gray-300 hover:bg-red-600 hover:text-white`}
-              onClick={handleClose}
-              title={t("common.close")}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <line
-                  x1="4.35355"
-                  y1="4.35355"
-                  x2="11.6464"
-                  y2="11.6464"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-                <line
-                  x1="11.6464"
-                  y1="4.35355"
-                  x2="4.35355"
-                  y2="11.6464"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-      </div>
-    </>
+        <IconButton
+          aria-label={t("common.close")}
+          title={t("common.close")}
+          variant="ghost"
+          size="sm"
+          w={8} h={8}
+          minW={8}
+          borderRadius="md"
+          color="gray.300"
+          _hover={{ bg: "red.600", color: "white" }}
+          onClick={handleClose}
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <line x1="4.35" y1="4.35" x2="11.65" y2="11.65" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="11.65" y1="4.35" x2="4.35" y2="11.65" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </IconButton>
+      </HStack>
+    </Box>
   );
 };
 

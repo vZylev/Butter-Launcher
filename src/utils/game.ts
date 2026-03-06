@@ -1,4 +1,5 @@
 import { customVersionsManifestProvider } from "./dynamicModules/customVersionsManifestProvider";
+import { StorageService } from "../services/StorageService";
 
 const BASE_URL = "https://game-patches.hytale.com/patches";
 
@@ -117,27 +118,15 @@ const startOfToday = () => {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 };
 
-const loadCachedVersionDetails = (): VersionsManifestRoot | null => {
-  try {
-    const raw = localStorage.getItem(VERSION_DETAILS_CACHE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-};
+const loadCachedVersionDetails = (): VersionsManifestRoot | null =>
+  StorageService.getJson<VersionsManifestRoot>(VERSION_DETAILS_CACHE_KEY);
 
 const saveCachedVersionDetails = (
   details: VersionsManifestRoot,
   meta?: any,
 ) => {
-  try {
-    localStorage.setItem(VERSION_DETAILS_CACHE_KEY, JSON.stringify(details));
-    if (meta)
-      localStorage.setItem(VERSION_DETAILS_META_KEY, JSON.stringify(meta));
-  } catch {
-    // ignore
-  }
+  StorageService.setJson(VERSION_DETAILS_CACHE_KEY, details);
+  if (meta) StorageService.setJson(VERSION_DETAILS_META_KEY, meta);
 };
 
 const mergeManifestRoots = (
@@ -301,13 +290,7 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
     // Account-mode gating:
     // - Official: respect manifest `available:false` (hide build)
     // - Non-official: still show the build even if `available:false`
-    const accountType = (() => {
-      try {
-        return String(localStorage.getItem("accountType") || "").trim();
-      } catch {
-        return "";
-      }
-    })();
+    const accountType = StorageService.getAccountType();
     const at = accountType.toLowerCase();
     const isCustom = at !== "" && at !== "premium";
 
@@ -378,11 +361,8 @@ export const getGameVersions = async (versionType: VersionType = "release") => {
   return versions;
 };
 
-export const getInstalledGameVersions: () => GameVersion[] = () => {
-  const versions = localStorage.getItem("installedVersions");
-  if (!versions) return [];
-  return JSON.parse(versions);
-};
+export const getInstalledGameVersions: () => GameVersion[] = () =>
+  StorageService.getJson<GameVersion[]>("installedVersions", []) ?? [];
 
 export const saveInstalledGameVersion = (version: GameVersion) => {
   const versions = getInstalledGameVersions();
@@ -390,5 +370,5 @@ export const saveInstalledGameVersion = (version: GameVersion) => {
     (v) => !(v.build_index === version.build_index && v.type === version.type),
   );
   next.push(version);
-  localStorage.setItem("installedVersions", JSON.stringify(next));
+  StorageService.setJson("installedVersions", next);
 };

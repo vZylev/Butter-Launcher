@@ -1,4 +1,5 @@
 import {
+  type ChangeEvent,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -15,358 +16,48 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconCopy,
-  IconDeviceGamepad2,
   IconMessage,
-  IconPlayerPlay,
-  IconPlus,
   IconRefresh,
   IconTrash,
   IconUserCircle,
   IconUserPlus,
   IconX,
 } from "@tabler/icons-react";
-import cn from "../utils/cn";
-import matchaIcon from "../assets/matcha-icon.png";
-import matchaStartSfx from "../assets/matchastart.ogg";
-import notiSfx from "../assets/noti.ogg";
+import { Box, HStack, VStack, Text, Input, chakra, Image } from "@chakra-ui/react";
+import { ModalBackdrop } from "./ui";
+import matchaIcon from "../assets/icons/matcha_bold.svg";
+import matchaStartSfx from "../assets/sounds/matchastart.ogg";
+import notiSfx from "../assets/sounds/noti.ogg";
 import ConfirmModal from "./ConfirmModal";
 
-const MAX_MSG_LINE_BREAKS = 3;
+// ── Chakra polymorphic helpers ─────────────────────────────────
+// chakra.button / chakra.input accept both Chakra style props AND native HTML
+// element props (type, src, checked, etc.) — unlike Box + as="…".
+const Btn = chakra.button;
 
-const countLineBreaks = (raw: string) => {
-  const s = String(raw || "");
-  // Count \n only (textarea on web/electron uses \n).
-  return (s.match(/\n/g) || []).length;
-};
+// ── Extracted imports ──────────────────────────────────────────
+import { MATCHA_API_BASE, MATCHA_WS_URL } from "../ipc/channels";
+import { StorageService } from "../services/StorageService";
+import { ChatService } from "../services/ChatService";
+import type {
+  MatchaMe,
+  MatchaPublicProfile,
+  FriendRow,
+  FriendRequestRow,
+  MsgRow,
+  ReportCategory,
+} from "../services/ChatService";
+import {
+  MAX_MSG_LINE_BREAKS,
+  countLineBreaks,
+  splitHttpLinks,
+  openExternalSafe,
+  isMongoObjectId,
+} from "../features/chat/chatHelpers";
+import { KAOMOJI_CATEGORIES } from "../features/chat/kaomojiData";
 
-type KaomojiItem = { text: string };
-type KaomojiCategory = {
-  id: string;
-  items: KaomojiItem[];
-};
 
-const KAOMOJI_CATEGORIES: KaomojiCategory[] = [
-  {
-    id: "joy",
-    items: [
-      { text: "(≧▽≦)" },
-      { text: "(⌒▽⌒)☆" },
-      { text: "(*^▽^*)" },
-      { text: "(o^▽^o)" },
-      { text: "＼(＾▽＾)／" },
-      { text: "(✧ω✧)" },
-      { text: "(๑˃ᴗ˂)ﻭ" },
-      { text: "╰(*´︶*)╯" },
-      { text: "(✯◡✯)" },
-      { text: "ヽ(・∀・)ﾉ" },
-      { text: "٩(◕‿◕)۶" },
-      { text: "(☆ω☆)" },
-    ],
-  },
-  {
-    id: "love",
-    items: [
-      { text: "(♡μ_μ)" },
-      { text: "(*♡∀♡)" },
-      { text: "(´ ω ♡)" },
-      { text: "(≧◡≦) ♡" },
-      { text: "(´• ω •) ♡" },
-      { text: "( ´ ▽  ).｡ｏ♡" },
-      { text: "(*¯ ³¯*)♡" },
-      { text: "(っ˘з(˘⌣˘ ) ♡" },
-      { text: "( ˘⌣˘)♡(˘⌣˘ )" },
-      { text: "(♡-_-♡)" },
-      { text: "(✿ ♥‿♥)" },
-      { text: "(/^-^(^ ^*)/ ♡" },
-    ],
-  },
-  {
-    id: "sad",
-    items: [
-      { text: "(╥﹏╥)" },
-      { text: "(ಥ﹏ಥ)" },
-      { text: "(T_T)" },
-      { text: "(ㄒoㄒ)" },
-      { text: "(｡•́︿•̀｡)" },
-      { text: "(っ- ‸ - ς)" },
-      { text: "(；⌣̀_⌣́)" },
-      { text: "(oT-T)尸" },
-      { text: "(ノ_<。)" },
-      { text: "(个_个)" },
-      { text: "(╥_╥)" },
-      { text: "(-_-)" },
-    ],
-  },
-  {
-    id: "angry",
-    items: [
-      { text: "(╬ Ò﹏Ó)" },
-      { text: "(｀Д´)" },
-      { text: "(＃\\Д´)" },
-      { text: "(ꐦ ಠ皿ಠ )" },
-      { text: "(ಠ_ಠ)" },
-      { text: "(눈_눈)" },
-      { text: "(ง •̀_•́)ง" },
-      { text: "(╬益´)" },
-      { text: "ヽ(д´*)ノ" },
-      { text: "(凸ಠ益ಠ)凸" },
-      { text: "(　ﾟДﾟ)＜!!" },
-    ],
-  },
-  {
-    id: "shock",
-    items: [
-      { text: "(O_O)" },
-      { text: "(ﾟДﾟ;)" },
-      { text: "(o_O)" },
-      { text: "ヽ(°〇°)ﾉ" },
-      { text: "(⊙_⊙)" },
-      { text: "(□_□)" },
-      { text: "(;;;*_*)" },
-      { text: "(＞﹏＜)" },
-      { text: "(〇_ｏ)" },
-    ],
-  },
-  {
-    id: "think",
-    items: [
-      { text: "(￣ω￣;)" },
-      { text: "(´･_･`)" },
-      { text: "(・_・;)" },
-      { text: "(＠_＠)" },
-      { text: "(・・;)ゞ" },
-      { text: "┐('～`; )┌" },
-      { text: "(￣～￣;)" },
-      { text: "(ーー;)" },
-      { text: "(⇀_⇀)" },
-    ],
-  },
-  {
-    id: "shy",
-    items: [
-      { text: "(⁄ ⁄•⁄ω⁄•⁄ ⁄)" },
-      { text: "(*^.^*)" },
-      { text: "(//▽//)" },
-      { text: "(⁄ ⁄>⁄ ▽ ⁄<⁄ ⁄)" },
-      { text: "(*μ_μ)" },
-      { text: "(o-_-o)" },
-      { text: "(,,>﹏<,,)" },
-    ],
-  },
-  {
-    id: "lenny",
-    items: [
-      { text: "( ͡° ͜ʖ ͡°)" },
-      { text: "( ಠ ͜ʖಠ)" },
-      { text: "( ͡~ ͜ʖ ͡°)" },
-      { text: "¯\\_(ツ)_/¯" },
-      { text: "(¬‿¬ )" },
-      { text: "(￣▽￣)" },
-      { text: "( 　ﾟ,_ゝﾟ)" },
-      { text: "( ˘ ɜ˘) ♬♪♫" },
-    ],
-  },
-  {
-    id: "music",
-    items: [
-      { text: "ヾ(´〇`)ﾉ♪♪♪" },
-      { text: "ヽ(o´∀`)ﾉ♪♬" },
-      { text: "(〜￣▽￣)〜" },
-      {
-        text: "(ﾉ>ω<)ﾉ :｡･:*:･ﾟ’★",
-      },
-      { text: "(∩^o^)⊃━☆゜.*" },
-      { text: "✧*。ヾ(｡>﹏<｡)ﾉﾞ✧*。" },
-    ],
-  },
-  {
-    id: "animals",
-    items: [
-      { text: "(=^･ｪ･^=)" },
-      { text: "(=①ω①=)" },
-      { text: "(＾• ω •＾)" },
-      { text: "ʕ •ᴥ• ʔ" },
-      { text: "ʕ •̀ ω •́ ʔ" },
-      { text: "V●ᴥ●V" },
-      { text: "∪･ω･∪" },
-      { text: "(・θ・)" },
-      { text: "＞°）m（°＜" },
-      { text: ">゜))))彡" },
-    ],
-  },
-  {
-    id: "daily",
-    items: [
-      { text: "( ˘▽˘)っ♨" },
-      { text: "(*´▽`)_旦~" },
-      { text: "(っ˘ڡ˘ς)" },
-      { text: "(￣o￣) zzZZ" },
-      { text: "(－_－) zzZ" },
-      { text: "(x . x) ~~zzZ" },
-    ],
-  },
-  {
-    id: "action",
-    items: [
-      { text: "( ﾒ ﾛ ´)︻デ═一" },
-      { text: "O=(_´)q" },
-      { text: "(ง'̀-'́)ง" },
-      { text: "ᕕ( ᐛ )ᕗ" },
-      { text: "ε=ε=┌( >_<)┘" },
-    ],
-  },
-  {
-    id: "tables",
-    items: [
-      { text: "(╯°□°）╯︵ ┻━┻" },
-      { text: "(ノಠ益ಠ)ノ彡┻━┻" },
-      { text: "(╯ರ ~ ರ)╯︵ ┻━┻" },
-      {
-        text: "┻━┻ ︵ヽ(\\Д´)ﾉ︵ ┻━┻",
-      },
-      { text: "┬─┬ノ( º _ ºノ)" },
-      { text: "(ヘ･_･)ヘ┳━┳" },
-    ],
-  },
-];
-
-type HttpLinkPart = { type: "text" | "link"; value: string; href?: string };
-
-const splitHttpLinks = (content: string): HttpLinkPart[] => {
-  const text = String(content || "");
-  const parts: HttpLinkPart[] = [];
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
-
-  let lastIndex = 0;
-  for (const match of text.matchAll(urlRegex)) {
-    const raw = String(match[0] || "");
-    const start = match.index ?? -1;
-    if (start < 0) continue;
-
-    if (start > lastIndex) {
-      parts.push({ type: "text", value: text.slice(lastIndex, start) });
-    }
-
-    // Trim common trailing punctuation that should not be part of the URL.
-    const trimmed = raw.replace(/[),.;\]]+$/g, "");
-    const href = trimmed;
-    parts.push({ type: "link", value: trimmed, href });
-    lastIndex = start + raw.length;
-  }
-
-  if (lastIndex < text.length) {
-    parts.push({ type: "text", value: text.slice(lastIndex) });
-  }
-
-  return parts.length ? parts : [{ type: "text", value: text }];
-};
-
-const openExternalSafe = async (url: string) => {
-  const u = String(url || "").trim();
-  if (!/^https?:\/\//i.test(u)) return;
-  try {
-    const opener = (window as any)?.config?.openExternal;
-    if (typeof opener === "function") {
-      await opener(u);
-      return;
-    }
-  } catch {
-    // ignore
-  }
-  try {
-    window.open(u, "_blank", "noopener,noreferrer");
-  } catch {
-    // ignore
-  }
-};
-
-const API_BASE = "https://butter.lat";
-const WS_BASE = API_BASE.replace(/^http/, "ws");
-const WS_URL = `${WS_BASE}/api/matcha/ws`;
-const LS_TOKEN = "matcha:token";
-const LS_UNREAD_PREFIX = "matcha:unread:";
-const LS_DND_PREFIX = "matcha:dnd:";
-const LS_LAST_INTERACTION_PREFIX = "matcha:lastInteraction:";
-
-type MatchaMe = {
-  id: string;
-  handle: string;
-  role?: string;
-  createdAt?: string;
-  messagesSentTotal?: number;
-  totalMessagesSent?: number;
-  messagesSent?: number;
-  sentCount?: number;
-  avatarHash?: string;
-  avatarMode?: "hytale" | "custom" | string;
-  avatarDisabled?: boolean;
-  settings?: {
-    hideServerIp?: boolean;
-  };
-};
-
-type MatchaPublicProfile = {
-  id: string;
-  handle: string;
-  role?: string;
-  createdAt?: string | null;
-  messagesSentTotal?: number;
-  avatarHash?: string;
-  avatarMode?: "hytale" | "custom" | string;
-  avatarDisabled?: boolean;
-  presence?: {
-    state?:
-      | "online"
-      | "in_game"
-      | "singleplayer"
-      | "multiplayer"
-      | "offline"
-      | string;
-    server?: string;
-  };
-};
-
-type FriendRow = {
-  id: string;
-  handle: string;
-  state:
-    | "online"
-    | "in_game"
-    | "singleplayer"
-    | "multiplayer"
-    | "offline"
-    | string;
-  avatarHash?: string;
-  server?: string;
-};
-
-type FriendRequestRow = {
-  id: string;
-  fromId?: string;
-  fromHandle?: string;
-  toId?: string;
-  toHandle?: string;
-  createdAt?: string;
-};
-
-type MsgRow = {
-  id: string;
-  fromId: string;
-  fromHandle: string;
-  fromIsDev?: boolean;
-  fromBadge?: string;
-  fromAvatarHash?: string;
-  toId: string | null;
-  body: string;
-  deleted: boolean;
-  deletedByAdmin: boolean;
-  replyToId?: string | null;
-  replyToFromHandle?: string;
-  replyToSnippet?: string;
-  kind?: string;
-  meta?: Record<string, any>;
-  createdAt: string;
-};
+// ── Local-only types (not shared) ──────────────────────────────
 
 type MsgMenuState = {
   id: string;
@@ -374,12 +65,6 @@ type MsgMenuState = {
   v: "up" | "down";
   baseDir: "left" | "right";
 };
-
-type ReportCategory =
-  | "security_violence"
-  | "offensive"
-  | "spam_quality"
-  | "other";
 
 type ReportDraft = {
   open: boolean;
@@ -390,14 +75,9 @@ type ReportDraft = {
   sending: boolean;
 };
 
-const apiJson = async (path: string, init?: RequestInit) => {
-  // Use main-process fetch to avoid CORS in Electron renderer.
-  return await window.ipcRenderer.invoke(
-    "fetch:json",
-    `${API_BASE}${path}`,
-    init ?? {},
-  );
-};
+// ── Local helpers (thin wrappers over services) ────────────────
+
+const apiJson = ChatService.apiJson;
 
 const authHeaders = (token: string | null) => {
   const h: Record<string, string> = { "Content-Type": "application/json" };
@@ -416,46 +96,20 @@ const syncTokenToMain = (token: string | null) => {
   }
 };
 
-const readSavedToken = () => {
-  try {
-    const t = (localStorage.getItem(LS_TOKEN) || "").trim();
-    return t || null;
-  } catch {
-    return null;
-  }
-};
+const readSavedToken = (): string | null => StorageService.getMatchaToken();
 
-const unreadKeyFor = (meId: string) =>
-  `${LS_UNREAD_PREFIX}${String(meId || "").trim()}`;
-
-const dndKeyFor = (meId: string) =>
-  `${LS_DND_PREFIX}${String(meId || "").trim()}`;
-
-const lastInteractionKeyFor = (meId: string) =>
-  `${LS_LAST_INTERACTION_PREFIX}${String(meId || "").trim()}`;
-
-const readUnreadMap = (meId: string): Record<string, number> => {
-  try {
-    const key = unreadKeyFor(meId);
-    if (!key) return {};
-    const raw = localStorage.getItem(key);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
-      return {};
-    const out: Record<string, number> = {};
-    for (const [k, v] of Object.entries(parsed as Record<string, any>)) {
-      const id = String(k || "").trim();
-      const n = typeof v === "number" ? v : Number(v);
-      if (!id) continue;
-      if (!Number.isFinite(n) || n <= 0) continue;
-      out[id] = Math.min(99, Math.floor(n));
-    }
-    return out;
-  } catch {
-    return {};
-  }
-};
+const readUnreadMap = (meId: string) => StorageService.getUnreadMap(meId);
+const writeUnreadMap = (meId: string, map: Record<string, number>) =>
+  StorageService.setUnreadMap(meId, map);
+const emitUnreadChanged = (meId: string, map: Record<string, number>) =>
+  StorageService.emitUnreadChanged(meId, map);
+const readDnd = (meId: string) => StorageService.getDnd(meId);
+const writeDnd = (meId: string, enabled: boolean) =>
+  StorageService.setDnd(meId, enabled);
+const readLastInteractionMap = (meId: string) =>
+  StorageService.getLastInteractionMap(meId);
+const writeLastInteractionMap = (meId: string, map: Record<string, number>) =>
+  StorageService.setLastInteractionMap(meId, map);
 
 const sanitizeUnreadMap = (raw: any): Record<string, number> => {
   try {
@@ -474,105 +128,10 @@ const sanitizeUnreadMap = (raw: any): Record<string, number> => {
   }
 };
 
-const writeUnreadMap = (meId: string, map: Record<string, number>) => {
-  try {
-    const key = unreadKeyFor(meId);
-    if (!key) return;
-    localStorage.setItem(key, JSON.stringify(map || {}));
-  } catch {
-    // ignore
-  }
-};
-
-const emitUnreadChanged = (meId: string, map: Record<string, number>) => {
-  try {
-    const total = Object.values(map || {}).reduce(
-      (acc, v) => acc + (typeof v === "number" && Number.isFinite(v) ? v : 0),
-      0,
-    );
-    window.dispatchEvent(
-      new CustomEvent("matcha:unread-changed", { detail: { meId, total } }),
-    );
-  } catch {
-    // ignore
-  }
-};
-
-const readDnd = (meId: string): boolean => {
-  try {
-    const key = dndKeyFor(meId);
-    if (!key) return false;
-    const raw = (localStorage.getItem(key) || "").trim();
-    return raw === "1" || raw.toLowerCase() === "true";
-  } catch {
-    return false;
-  }
-};
-
-const writeDnd = (meId: string, enabled: boolean) => {
-  try {
-    const key = dndKeyFor(meId);
-    if (!key) return;
-    localStorage.setItem(key, enabled ? "1" : "0");
-  } catch {
-    // ignore
-  }
-};
-
-const sanitizeLastInteractionMap = (raw: any): Record<string, number> => {
-  try {
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-    const out: Record<string, number> = {};
-    for (const [k, v] of Object.entries(raw as Record<string, any>)) {
-      const id = String(k || "").trim();
-      const n = typeof v === "number" ? v : Number(v);
-      if (!id) continue;
-      if (!Number.isFinite(n) || n <= 0) continue;
-      out[id] = Math.floor(n);
-    }
-
-    // Avoid unbounded growth if many friend IDs accumulate over time.
-    const entries = Object.entries(out);
-    if (entries.length <= 500) return out;
-    entries.sort((a, b) => (b[1] || 0) - (a[1] || 0));
-    const trimmed: Record<string, number> = {};
-    for (const [id, ms] of entries.slice(0, 500)) trimmed[id] = ms;
-    return trimmed;
-  } catch {
-    return {};
-  }
-};
-
-const readLastInteractionMap = (meId: string): Record<string, number> => {
-  try {
-    const key = lastInteractionKeyFor(meId);
-    if (!key) return {};
-    const raw = localStorage.getItem(key);
-    if (!raw) return {};
-    return sanitizeLastInteractionMap(JSON.parse(raw));
-  } catch {
-    return {};
-  }
-};
-
-const writeLastInteractionMap = (meId: string, map: Record<string, number>) => {
-  try {
-    const key = lastInteractionKeyFor(meId);
-    if (!key) return;
-    localStorage.setItem(key, JSON.stringify(sanitizeLastInteractionMap(map)));
-  } catch {
-    // ignore
-  }
-};
-
-const isMongoObjectId = (raw: string): boolean => {
-  const s = String(raw || "").trim();
-  return /^[0-9a-f]{24}$/i.test(s);
-};
-
 export default function FriendsMenu({
   onClose,
   open,
+  inline,
   onOpenTerms,
   openTo,
   openToNonce,
@@ -581,6 +140,7 @@ export default function FriendsMenu({
 }: {
   onClose: () => void;
   open: boolean;
+  inline?: boolean;
   onOpenTerms: () => void;
   openTo?: "friends" | "globalChat";
   openToNonce?: number;
@@ -601,6 +161,7 @@ export default function FriendsMenu({
   const [introSeq, setIntroSeq] = useState(0);
   const [introDocked, setIntroDocked] = useState(false);
   const introSfxRef = useRef<HTMLAudioElement | null>(null);
+  const hasPlayedIntroRef = useRef(false);
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -608,12 +169,12 @@ export default function FriendsMenu({
   const [profileErr, setProfileErr] = useState<string>("");
   const [profileUser, setProfileUser] = useState<MatchaMe | null>(null);
   const [profileSettingsWorking, setProfileSettingsWorking] = useState(false);
-  const [profilePublicPresence, setProfilePublicPresence] = useState<null | {
+  const [_profilePublicPresence, setProfilePublicPresence] = useState<null | {
     state: string;
     server: string;
   }>(null);
-  const [profilePublicPresenceLoading, setProfilePublicPresenceLoading] = useState(false);
-  const [profilePublicPresenceErr, setProfilePublicPresenceErr] = useState<string>("");
+  const [_profilePublicPresenceLoading, setProfilePublicPresenceLoading] = useState(false);
+  const [_profilePublicPresenceErr, setProfilePublicPresenceErr] = useState<string>("");
   const profilePublicPresenceInFlightRef = useRef(false);
   const profileFetchInFlightRef = useRef(false);
   const profileLoadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -680,10 +241,10 @@ export default function FriendsMenu({
       server: "",
     },
   );
-  const [myPresenceLoading, setMyPresenceLoading] = useState(false);
+  const [_myPresenceLoading, setMyPresenceLoading] = useState(false);
   const myPresenceInFlightRef = useRef(false);
 
-  const [friendsCopyNotice, setFriendsCopyNotice] = useState<string>("");
+  const [_friendsCopyNotice, setFriendsCopyNotice] = useState<string>("");
   const friendsCopyNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -723,7 +284,7 @@ export default function FriendsMenu({
   const avatarUrlFor = (userId: string, hash?: string | null): string | null => {
     const h = String(hash || "").trim();
     if (!userId || !h) return null;
-    return `${API_BASE}/api/matcha/avatar/${encodeURIComponent(userId)}?v=${encodeURIComponent(h)}`;
+    return `${MATCHA_API_BASE}/api/matcha/avatar/${encodeURIComponent(userId)}?v=${encodeURIComponent(h)}`;
   };
 
   const refreshMyPresence = useCallback(async () => {
@@ -1215,7 +776,7 @@ export default function FriendsMenu({
     return false;
   };
 
-  const showFriendsCopyNotice = (text: string) => {
+  const _showFriendsCopyNotice = (text: string) => {
     setFriendsCopyNotice(text);
     if (friendsCopyNoticeTimerRef.current)
       clearTimeout(friendsCopyNoticeTimerRef.current);
@@ -1253,8 +814,8 @@ export default function FriendsMenu({
   const saveToken = (t: string | null) => {
     setToken(t);
     try {
-      if (!t) localStorage.removeItem(LS_TOKEN);
-      else localStorage.setItem(LS_TOKEN, t);
+      if (!t) StorageService.removeMatchaToken();
+      else StorageService.setMatchaToken(t);
     } catch {
       // ignore
     }
@@ -1650,7 +1211,7 @@ export default function FriendsMenu({
     }
   };
 
-  const updateHideServerIp = async (nextValue: boolean) => {
+  const _updateHideServerIp = async (nextValue: boolean) => {
     if (!token) return;
     if (profileSettingsWorking) return;
 
@@ -1698,7 +1259,7 @@ export default function FriendsMenu({
       keepProofRef.current = false;
       setMode("intro");
       setIntroSeq((v) => v + 1);
-      setIntroDocked(false);
+      if (!hasPlayedIntroRef.current) setIntroDocked(false);
 
       setUserProfileOpen(false);
       setUserProfileLoading(false);
@@ -1728,7 +1289,7 @@ export default function FriendsMenu({
         keepProofRef.current = false;
         setMode("intro");
         setIntroSeq((v) => v + 1);
-        setIntroDocked(false);
+        if (!hasPlayedIntroRef.current) setIntroDocked(false);
       }
     })();
 
@@ -1850,7 +1411,7 @@ export default function FriendsMenu({
         // ignore
       }
 
-      const ws = new WebSocket(WS_URL);
+      const ws = new WebSocket(MATCHA_WS_URL);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -2175,20 +1736,13 @@ export default function FriendsMenu({
 
     const safeAccountType = (() => {
       try {
-        return (localStorage.getItem("accountType") || "").trim();
+        return StorageService.getAccountType();
       } catch {
         return "";
       }
     })();
 
-    const modeKey = `matcha:avatar:mode:${safeAccountType || "unknown"}:${user}`;
-    const storedMode = (() => {
-      try {
-        return (localStorage.getItem(modeKey) || "").trim().toLowerCase();
-      } catch {
-        return "";
-      }
-    })();
+    const storedMode = StorageService.getAvatarMode(safeAccountType, user).toLowerCase();
 
     // If the user explicitly chose a custom avatar, don't run the Hytale sync.
     // The backend may ignore the upload, but our local hash update would still
@@ -2198,57 +1752,25 @@ export default function FriendsMenu({
       .toLowerCase();
     if (effectiveMode === "custom") return;
 
-    const readBgColor = () => {
-      try {
-        return (
-          localStorage.getItem(
-            `matcha:avatar:bgColor:${safeAccountType || "unknown"}:${user}`,
-          ) || ""
-        ).trim();
-      } catch {
-        return "";
-      }
-    };
+    const readBgColor = () => StorageService.getAvatarBgColor(safeAccountType, user);
 
     let stopped = false;
 
-    const lastUuidKey = `matcha:avatar:lastUuid:${safeAccountType || "unknown"}:${user}`;
-    const disabledKey = `matcha:avatar:disabled:${safeAccountType || "unknown"}:${user}`;
     const doSync = async (force: boolean) => {
       if (avatarSyncWorking && !force) return;
       try {
         if (!force) {
-          const isDisabled = (() => {
-            try {
-              return (localStorage.getItem(disabledKey) || "").trim() === "1";
-            } catch {
-              return false;
-            }
-          })();
+          const isDisabled = StorageService.isAvatarDisabled(safeAccountType, user);
           if (isDisabled || !!me?.avatarDisabled) return;
         }
 
         setAvatarSyncWorking(true);
-        const lastUuid = (() => {
-          try {
-            return (localStorage.getItem(lastUuidKey) || "").trim();
-          } catch {
-            return "";
-          }
-        })();
-        const lastHash = (() => {
-          try {
-            return lastUuid
-              ? (localStorage.getItem(`matcha:avatar:lastHash:${lastUuid}`) || "").trim()
-              : "";
-          } catch {
-            return "";
-          }
-        })();
+        const lastUuid = StorageService.getAvatarLastUuid(safeAccountType, user);
+        const lastHash = lastUuid ? StorageService.getAvatarLastHash(lastUuid) : "";
 
         const customUUID = (() => {
           try {
-            const raw = (localStorage.getItem("customUUID") || "").trim();
+            const raw = StorageService.get("customUUID") || "";
             return raw.length ? raw : null;
           } catch {
             return null;
@@ -2270,13 +1792,9 @@ export default function FriendsMenu({
 
         if (stopped) return;
         if (res && res.ok) {
-          try {
-            localStorage.setItem(lastUuidKey, res.uuid);
-            localStorage.setItem(`matcha:avatar:lastHash:${res.uuid}`, res.hash);
-            localStorage.removeItem(disabledKey);
-          } catch {
-            // ignore
-          }
+          StorageService.setAvatarLastUuid(safeAccountType, user, res.uuid);
+          StorageService.setAvatarLastHash(res.uuid, res.hash);
+          StorageService.setAvatarDisabled(safeAccountType, user, false);
 
           setAvatarHashByUserId((prev) =>
             prev[meId] === res.hash ? prev : { ...prev, [meId]: res.hash },
@@ -2298,11 +1816,7 @@ export default function FriendsMenu({
         } else {
           const err = typeof (res as any)?.error === "string" ? (res as any).error : "";
           if (err.trim().toLowerCase() === "avatar disabled") {
-            try {
-              localStorage.setItem(disabledKey, "1");
-            } catch {
-              // ignore
-            }
+            StorageService.setAvatarDisabled(safeAccountType, user, true);
             setAvatarHashByUserId((prev) => {
               if (!prev[meId]) return prev;
               const next = { ...prev };
@@ -2672,7 +2186,7 @@ export default function FriendsMenu({
     }, 0);
   };
 
-  const sendQuickDmCommand = async (
+  const _sendQuickDmCommand = async (
     friend: FriendRow,
     command: "/invite" | "/request-to-join",
   ) => {
@@ -3063,136 +2577,151 @@ export default function FriendsMenu({
   };
 
   return (
-    <div
+    <Box
       ref={containerRef}
-      className="no-drag relative rounded-xl border border-white/10 bg-black/45 backdrop-blur-md shadow-xl text-white overflow-hidden"
+      className="no-drag"
+      position="relative"
+      color="white"
+      overflow="hidden"
+      rounded={inline ? undefined : "xl"}
+      border={inline ? undefined : "1px solid"}
+      borderColor={inline ? undefined : "rgba(255,255,255,0.1)"}
+      bg={inline ? undefined : "rgba(0,0,0,0.45)"}
+      style={inline ? undefined : { backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
+      boxShadow={inline ? undefined : "xl"}
+      h={inline ? "full" : undefined}
+      display={inline ? "flex" : undefined}
+      flexDirection={inline ? "column" : undefined}
     >
-      <div className="pointer-events-none absolute inset-0 bg-white/5" />
+      <Box pointerEvents="none" position="absolute" inset={0} bg="rgba(255,255,255,0.05)" />
 
       {mode === "intro" && open ? (
         !introDocked ? (
-          <img
+          <Image
             key={`matcha-intro-${introSeq}`}
             src={matchaIcon}
             alt=""
             aria-hidden="true"
-            className="pointer-events-none absolute z-30 matcha-intro-dock"
-            onAnimationEnd={() => setIntroDocked(true)}
+            className="matcha-intro-dock"
+            pointerEvents="none"
+            position="absolute"
+            zIndex={30}
+            onAnimationEnd={() => { setIntroDocked(true); hasPlayedIntroRef.current = true; }}
           />
         ) : (
-          <div
-            key={`matcha-intro-spark-${introSeq}`}
+          <Image
+            src={matchaIcon}
+            alt=""
             aria-hidden="true"
-            className="matcha-intro-spark z-30"
+            pointerEvents="none"
+            position="absolute"
+            zIndex={10}
+            left="50%"
+            top="52px"
+            w="48px"
+            h="48px"
+            transform="translateX(-50%)"
           />
         )
       ) : null}
 
-      <div className="relative p-4">
+      <Box
+        position="relative"
+        p={4}
+        flex={inline ? "1" : undefined}
+        minH={inline ? 0 : undefined}
+        display={inline ? "flex" : undefined}
+        flexDirection={inline ? "column" : undefined}
+        overflow={inline ? "hidden" : undefined}
+      >
         {error ? (
-          <div className="absolute left-4 right-4 top-16 z-50">
-            <div
-              className={cn(
-                "flex items-start justify-between gap-3",
-                "text-xs text-red-100",
-                "rounded-xl border border-red-300/40 bg-red-500/20 backdrop-blur",
-                "px-3 py-2",
-                "ring-4 ring-red-500/25 shadow-2xl shadow-red-500/25",
-              )}
+          <Box position="absolute" left={4} right={4} top={16} zIndex={50}>
+            <HStack
+              align="start"
+              gap={3}
+              fontSize="xs"
+              color="red.100"
+              rounded="xl"
+              border="1px solid"
+              borderColor="rgba(252,165,165,0.4)"
+              bg="rgba(239,68,68,0.2)"
+              backdropFilter="blur(4px)"
+              css={{ WebkitBackdropFilter: "blur(4px)" }}
+              px={3}
+              py={2}
+              boxShadow="0 0 0 4px rgba(239,68,68,0.25)"
               role="alert"
             >
-              <div className="min-w-0 break-words">
-                {error}
-              </div>
-              <button
+              <Box minW={0} wordBreak="break-word">{error}</Box>
+              <Btn
                 type="button"
-                className={cn(
-                  "shrink-0 -mt-0.5 w-7 h-7 rounded-lg",
-                  "border border-red-300/30 bg-black/20 hover:bg-black/30",
-                  "text-red-100 font-extrabold",
-                  "flex items-center justify-center",
-                )}
+                flexShrink={0}
+                mt="-2px"
+                w="28px"
+                h="28px"
+                rounded="lg"
+                border="1px solid rgba(252,165,165,0.3)"
+                bg="rgba(0,0,0,0.2)"
+                color="#fecaca"
+                fontWeight={800}
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                cursor="pointer"
                 title={t("common.close")}
                 aria-label={t("common.close")}
                 onClick={() => setError("")}
               >
                 ×
-              </button>
-            </div>
-          </div>
+              </Btn>
+            </HStack>
+          </Box>
         ) : null}
 
-        {friendsCopyNotice ? (
-          <div
-            className={cn(
-              "pointer-events-none absolute left-4 right-4 z-50",
-              error ? "top-28" : "top-16",
-            )}
-          >
-            <div
-              className={cn(
-                "flex items-center gap-2",
-                "text-xs text-emerald-50",
-                "rounded-xl border border-emerald-300/40 bg-emerald-500/20 backdrop-blur",
-                "px-3 py-2",
-                "ring-4 ring-emerald-500/25 shadow-2xl shadow-emerald-500/25",
+        <HStack justify="space-between" gap={2}>
+          {!inline && (
+            <Box fontSize="sm" fontWeight="normal" letterSpacing="wide">
+              {mode === "intro" ? null : (
+                <HStack gap={2}>
+                  <Image
+                    src={matchaIcon}
+                    alt={t("friendsMenu.brand")}
+                    h="28px"
+                    w="28px"
+                    flexShrink={0}
+                  />
+                  <Text fontSize="md" textTransform="none" letterSpacing="wide">
+                    {t("friendsMenu.brand")}
+                  </Text>
+                </HStack>
               )}
-              role="status"
-              aria-live="polite"
-            >
-              <div className="min-w-0 break-words">{friendsCopyNotice}</div>
-            </div>
-          </div>
-        ) : null}
+            </Box>
+          )}
 
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-sm font-normal tracking-wide">
-            {mode === "intro" ? (
-              <div
-                className={cn(
-                  "flex items-center gap-2",
-                  !introDocked && "opacity-0",
-                )}
-              >
-                <img
-                  src={matchaIcon}
-                  alt={t("friendsMenu.brand")}
-                  className="h-8 w-8 shrink-0"
-                />
-                <span className="text-xl font-bold normal-case tracking-wide leading-none">
-                  {t("friendsMenu.brand")}
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <img
-                  src={matchaIcon}
-                  alt={t("friendsMenu.brand")}
-                  className="h-7 w-7 shrink-0"
-                />
-                <span className="text-base normal-case tracking-wide">
-                  {t("friendsMenu.brand")}
-                </span>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
+          <HStack gap={2}>
             {mode === "app" && me ? (
               <>
-                <button
+                <Btn
                   type="button"
-                  className={cn(
-                    "relative h-9 w-9 rounded-full border border-white/10 bg-black/35 hover:bg-white/5 hover:border-white/20 transition",
-                    "flex items-center justify-center overflow-hidden",
-                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20",
-                  )}
+                  position="relative"
+                  h="36px"
+                  w="36px"
+                  rounded="full"
+                  border="1px solid rgba(255,255,255,0.1)"
+                  bg="rgba(0,0,0,0.35)"
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  overflow="hidden"
+                  cursor="pointer"
+                  outline="none"
+                  color="white"
                   title={t("friendsMenu.profile.open")}
                   aria-label={t("friendsMenu.profile.open")}
                   onClick={() => void openProfile()}
                 >
                   <IconUserCircle
-                    className="absolute inset-0 h-full w-full text-white/35 pointer-events-none"
+                    style={{ position: "absolute", inset: 0, height: "100%", width: "100%", color: "rgba(255,255,255,0.35)", pointerEvents: "none" }}
                     stroke={1.6}
                   />
 
@@ -3204,11 +2733,13 @@ export default function FriendsMenu({
                     const src = !broken ? avatarUrlFor(userId, h) : null;
                     if (src) {
                       return (
-                        <div className="relative h-7 w-7 rounded-full overflow-hidden border border-white/10 bg-black/35">
-                          <img
+                        <Box position="relative" h="28px" w="28px" rounded="full" overflow="hidden" border="1px solid rgba(255,255,255,0.1)" bg="rgba(0,0,0,0.35)">
+                          <Image
                             src={src}
                             alt={String(me.handle || "")}
-                            className="h-full w-full object-cover"
+                            h="100%"
+                            w="100%"
+                            objectFit="cover"
                             onError={() =>
                               setAvatarBrokenByUserId((prev) => ({
                                 ...prev,
@@ -3216,22 +2747,32 @@ export default function FriendsMenu({
                               }))
                             }
                           />
-                        </div>
+                        </Box>
                       );
                     }
                     return (
-                      <div className="relative h-7 w-7 rounded-full overflow-hidden border border-white/10 bg-black/35 flex items-center justify-center">
-                        <span className="text-[10px] font-extrabold text-white/80">
+                      <Box position="relative" h="28px" w="28px" rounded="full" overflow="hidden" border="1px solid rgba(255,255,255,0.1)" bg="rgba(0,0,0,0.35)" display="flex" alignItems="center" justifyContent="center">
+                        <Text fontSize="10px" fontWeight="extrabold" color="rgba(255,255,255,0.8)">
                           {initials(String(me.handle || ""))}
-                        </span>
-                      </div>
+                        </Text>
+                      </Box>
                     );
                   })()}
-                </button>
+                </Box>
 
-                <button
+                <Btn
                   type="button"
-                  className="h-9 px-3 text-xs rounded-lg border border-white/10 bg-black/35 hover:bg-white/5 transition whitespace-nowrap shrink-0 text-white"
+                  h="36px"
+                  px={3}
+                  fontSize="xs"
+                  rounded="lg"
+                  border="1px solid rgba(255,255,255,0.1)"
+                  bg="rgba(0,0,0,0.35)"
+                  color="white"
+                  cursor="pointer"
+                  whiteSpace="nowrap"
+                  flexShrink={0}
+                  fontFamily="inherit"
                   onClick={() => {
                     if (appView === "globalChat") {
                       setAppView("friends");
@@ -3247,22 +2788,31 @@ export default function FriendsMenu({
                   {appView === "globalChat"
                     ? t("friendsMenu.friends")
                     : t("friendsMenu.globalChat")}
-                </button>
+                </Btn>
               </>
             ) : null}
 
             {me ? (
-              <button
+              <Btn
                 type="button"
-                className="h-9 px-3 text-xs rounded-lg border border-white/10 bg-black/35 hover:bg-white/5 transition whitespace-nowrap text-white"
+                h="36px"
+                px={3}
+                fontSize="xs"
+                rounded="lg"
+                border="1px solid rgba(255,255,255,0.1)"
+                bg="rgba(0,0,0,0.35)"
+                color="white"
+                cursor="pointer"
+                whiteSpace="nowrap"
+                fontFamily="inherit"
                 onClick={() => setLogoutConfirmOpen(true)}
                 title={t("friendsMenu.logout")}
               >
                 {t("friendsMenu.logout")}
-              </button>
+              </Btn>
             ) : null}
-          </div>
-        </div>
+          </HStack>
+        </HStack>
 
         <ConfirmModal
           open={logoutConfirmOpen}
@@ -3279,40 +2829,40 @@ export default function FriendsMenu({
 
         {profileOpen && typeof document !== "undefined" && document.body
           ? createPortal(
-              <div
-                className="fixed inset-0 z-50 flex items-center justify-center glass-backdrop animate-fade-in"
-                data-matcha-profile-modal="1"
-                onMouseDown={(e) => {
-                  if (e.target !== e.currentTarget) return;
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setProfileOpen(false);
-                }}
-                onClick={(e) => {
-                  // Swallow clicks so they don't hit the underlying Friends backdrop.
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-                role="dialog"
-                aria-modal="true"
-                aria-label={t("friendsMenu.profile.title")}
+              <ModalBackdrop
+                onClose={() => setProfileOpen(false)}
+                zIndex={50}
               >
-                <div
-                  className={cn(
-                    "w-full max-w-[420px] rounded-2xl border border-white/10",
-                    "bg-black/70 backdrop-blur shadow-2xl p-4",
-                    "animate-popIn",
-                  )}
-                  onClick={(e) => e.stopPropagation()}
-                  onMouseDown={(e) => e.stopPropagation()}
+                <Box
+                  w="full"
+                  maxW="420px"
+                  rounded="2xl"
+                  border="1px solid"
+                  borderColor="rgba(255,255,255,0.1)"
+                  bg="rgba(0,0,0,0.7)"
+                  backdropFilter="blur(8px)"
+                  css={{ WebkitBackdropFilter: "blur(8px)" }}
+                  boxShadow="2xl"
+                  p={4}
+                  className="animate-popIn"
+                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                  onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-xs font-extrabold tracking-widest text-white/70 uppercase">
+                  <HStack justify="space-between" gap={2}>
+                    <Text fontSize="10px" fontWeight="extrabold" letterSpacing="widest" color="rgba(255,255,255,0.7)" textTransform="uppercase">
                       {t("friendsMenu.profile.title")}
-                    </div>
-                    <button
+                    </Text>
+                    <Btn
                       type="button"
-                      className="px-2 py-1 text-xs rounded-lg border border-white/10 bg-black/25 hover:bg-white/5 transition text-white"
+                      px={2}
+                      py={1}
+                      fontSize="xs"
+                      rounded="lg"
+                      border="1px solid rgba(255,255,255,0.1)"
+                      bg="rgba(0,0,0,0.25)"
+                      color="white"
+                      cursor="pointer"
+                      fontFamily="inherit"
                       onMouseDown={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -3324,37 +2874,36 @@ export default function FriendsMenu({
                       }}
                     >
                       {t("common.close")}
-                    </button>
-                  </div>
+                    </Btn>
+                  </HStack>
 
-                  <div
-                    className={cn(
-                      "mt-1 text-[10px] font-bold tracking-widest uppercase text-white/50 transition-opacity duration-200",
-                      profileLoadingUi ? "opacity-100" : "opacity-0",
-                    )}
+                  <Box
+                    mt={1}
+                    fontSize="10px"
+                    fontWeight="bold"
+                    letterSpacing="widest"
+                    textTransform="uppercase"
+                    color="rgba(255,255,255,0.5)"
+                    transition="opacity 0.2s"
+                    opacity={profileLoadingUi ? 1 : 0}
                     aria-live="polite"
                   >
                     {t("common.loading")}
-                  </div>
+                  </Box>
 
                   {profileErr ? (
-                    <div className="mt-3 text-xs text-red-200 border border-red-400/20 bg-red-500/10 rounded-lg px-2 py-2">
+                    <Box mt={3} fontSize="xs" color="red.200" border="1px solid rgba(248,113,113,0.2)" bg="rgba(239,68,68,0.1)" rounded="lg" px={2} py={2}>
                       {profileErr}
-                    </div>
+                    </Box>
                   ) : null}
 
-                  <div
-                    className={cn(
-                      "mt-3 space-y-2 text-xs transition-opacity duration-200",
-                      profileLoadingUi ? "opacity-70" : "opacity-100",
-                    )}
-                  >
-                    <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2">
-                      <div className="text-[10px] font-extrabold tracking-widest text-white/60 uppercase">
+                  <VStack mt={3} gap={2} fontSize="xs" align="stretch" transition="opacity 0.2s" opacity={profileLoadingUi ? 0.7 : 1}>
+                    <Box rounded="xl" border="1px solid" borderColor="rgba(255,255,255,0.1)" bg="rgba(0,0,0,0.25)" px={3} py={2}>
+                      <Text fontSize="10px" fontWeight="extrabold" letterSpacing="widest" color="rgba(255,255,255,0.6)" textTransform="uppercase">
                         {t("friendsMenu.profile.avatar")}
-                      </div>
-                      <div className="mt-2 flex items-center justify-between gap-2">
-                        <div className="relative h-14 w-14 rounded-full bg-white/10 border border-white/10 flex items-center justify-center shrink-0 overflow-hidden">
+                      </Text>
+                      <HStack mt={2} justify="space-between" gap={2}>
+                        <Box position="relative" h="56px" w="56px" rounded="full" bg="rgba(255,255,255,0.1)" border="1px solid" borderColor="rgba(255,255,255,0.1)" display="flex" alignItems="center" justifyContent="center" flexShrink={0} overflow="hidden">
                           {(() => {
                             const u = profileUser || me;
                             const userId = String(u?.id || "");
@@ -3365,17 +2914,19 @@ export default function FriendsMenu({
                             const src = !broken ? avatarUrlFor(userId, h) : null;
                             if (!src) {
                               return (
-                                <span className="text-xs font-extrabold text-white/80">
+                                <Text fontSize="xs" fontWeight="extrabold" color="rgba(255,255,255,0.8)">
                                   {initials(String(u?.handle || ""))}
-                                </span>
+                                </Text>
                               );
                             }
 
                             return (
-                              <img
+                              <Image
                                 src={src}
                                 alt={String(u?.handle || "")}
-                                className="h-full w-full object-cover"
+                                h="100%"
+                                w="100%"
+                                objectFit="cover"
                                 onError={() =>
                                   setAvatarBrokenByUserId((prev) => ({
                                     ...prev,
@@ -3385,9 +2936,9 @@ export default function FriendsMenu({
                               />
                             );
                           })()}
-                        </div>
+                        </Box>
 
-                        <div className="flex flex-wrap items-center justify-end gap-2 min-w-0">
+                        <Box display="flex" flexWrap="wrap" alignItems="center" justifyContent="flex-end" gap={2} minW={0}>
                           {(() => {
                             const u = profileUser || me;
                             const isSelf = !!me && String(u?.id || "") === String(me.id || "");
@@ -3396,7 +2947,7 @@ export default function FriendsMenu({
 
                             const safeAccountType = (() => {
                               try {
-                                return (localStorage.getItem("accountType") || "").trim();
+                                return StorageService.getAccountType();
                               } catch {
                                 return "";
                               }
@@ -3404,8 +2955,6 @@ export default function FriendsMenu({
 
                             const user = String(launcherUsername || "").trim();
                             const dir = String(gameDir || "").trim();
-                            const bgKey = `matcha:avatar:bgColor:${safeAccountType || "unknown"}:${user}`;
-                            const modeKey = `matcha:avatar:mode:${safeAccountType || "unknown"}:${user}`;
 
                             const disabled =
                               !isSelf ||
@@ -3489,14 +3038,8 @@ export default function FriendsMenu({
                                       : prev,
                                   );
 
-                                  try {
-                                    localStorage.removeItem(
-                                      `matcha:avatar:disabled:${safeAccountType || "unknown"}:${user}`,
-                                    );
-                                    if (user) localStorage.setItem(modeKey, "custom");
-                                  } catch {
-                                    // ignore
-                                  }
+                                  StorageService.setAvatarDisabled(safeAccountType, user, false);
+                                  if (user) StorageService.setAvatarMode(safeAccountType, user, "custom");
                                 } catch {
                                   // ignore
                                 } finally {
@@ -3553,15 +3096,8 @@ export default function FriendsMenu({
                                       : prev,
                                   );
 
-                                  try {
-                                    localStorage.setItem(
-                                      `matcha:avatar:disabled:${safeAccountType || "unknown"}:${user}`,
-                                      "1",
-                                    );
-                                    if (user) localStorage.setItem(modeKey, "disabled");
-                                  } catch {
-                                    // ignore
-                                  }
+                                  StorageService.setAvatarDisabled(safeAccountType, user, true);
+                                  if (user) StorageService.setAvatarMode(safeAccountType, user, "disabled");
                                 } catch {
                                   // ignore
                                 } finally {
@@ -3574,41 +3110,10 @@ export default function FriendsMenu({
                               if (disabled) return;
                               if (!user || !dir) return;
 
-                              const lastUuidKey = `matcha:avatar:lastUuid:${safeAccountType || "unknown"}:${user}`;
-                              const lastUuid = (() => {
-                                try {
-                                  return (localStorage.getItem(lastUuidKey) || "").trim();
-                                } catch {
-                                  return "";
-                                }
-                              })();
-
-                              const lastHash = (() => {
-                                try {
-                                  return lastUuid
-                                    ? (localStorage.getItem(`matcha:avatar:lastHash:${lastUuid}`) || "").trim()
-                                    : "";
-                                } catch {
-                                  return "";
-                                }
-                              })();
-
-                              const customUUID = (() => {
-                                try {
-                                  const raw = (localStorage.getItem("customUUID") || "").trim();
-                                  return raw.length ? raw : null;
-                                } catch {
-                                  return null;
-                                }
-                              })();
-
-                              const bgColor = (() => {
-                                try {
-                                  return (localStorage.getItem(bgKey) || "").trim();
-                                } catch {
-                                  return "";
-                                }
-                              })();
+                              const lastUuid = StorageService.getAvatarLastUuid(safeAccountType, user);
+                              const lastHash = lastUuid ? StorageService.getAvatarLastHash(lastUuid) : "";
+                              const customUUID = StorageService.getString("customUUID") || null;
+                              const bgColor = StorageService.getAvatarBgColor(safeAccountType, user);
 
                               void (async () => {
                                 try {
@@ -3624,15 +3129,8 @@ export default function FriendsMenu({
                                     force: true,
                                   });
                                   if (res && res.ok) {
-                                    try {
-                                      localStorage.setItem(lastUuidKey, res.uuid);
-                                      localStorage.setItem(
-                                        `matcha:avatar:lastHash:${res.uuid}`,
-                                        res.hash,
-                                      );
-                                    } catch {
-                                      // ignore
-                                    }
+                                    StorageService.setAvatarLastUuid(safeAccountType, user, res.uuid);
+                                    StorageService.setAvatarLastHash(res.uuid, res.hash);
 
                                     const meId = String(me?.id || "").trim();
                                     if (meId) {
@@ -3670,14 +3168,8 @@ export default function FriendsMenu({
                                         : prev,
                                     );
 
-                                    try {
-                                      localStorage.removeItem(
-                                        `matcha:avatar:disabled:${safeAccountType || "unknown"}:${user}`,
-                                      );
-                                      if (user) localStorage.setItem(modeKey, "hytale");
-                                    } catch {
-                                      // ignore
-                                    }
+                                    StorageService.setAvatarDisabled(safeAccountType, user, false);
+                                    if (user) StorageService.setAvatarMode(safeAccountType, user, "hytale");
                                   }
                                 } catch {
                                   // ignore
@@ -3690,126 +3182,166 @@ export default function FriendsMenu({
                             if (isCustom) {
                               return (
                                 <>
-                                  <button
+                                  <Btn
                                     type="button"
-                                    className={cn(
-                                      "shrink-0 px-3 h-8 rounded-lg font-extrabold text-xs border border-white/10",
-                                      "bg-black/35 hover:bg-white/5 transition text-white",
-                                      disabled &&
-                                        "opacity-60 cursor-not-allowed hover:bg-black/35",
-                                    )}
+                                    flexShrink={0}
+                                    px={3}
+                                    h="32px"
+                                    rounded="lg"
+                                    fontWeight={800}
+                                    fontSize="xs"
+                                    border="1px solid rgba(255,255,255,0.1)"
+                                    bg="rgba(0,0,0,0.35)"
+                                    color="white"
+                                    cursor={disabled ? "not-allowed" : "pointer"}
+                                    opacity={disabled ? 0.6 : 1}
+                                    fontFamily="inherit"
                                     disabled={disabled}
                                     onClick={uploadCustom}
                                     title={t("friendsMenu.profile.changeAvatar")}
                                   >
                                     {t("friendsMenu.profile.changeAvatar")}
-                                  </button>
+                                  </Btn>
 
-                                  <button
+                                  <Btn
                                     type="button"
-                                    className={cn(
-                                      "shrink-0 px-3 h-8 rounded-lg font-extrabold text-xs border border-white/10",
-                                      "bg-black/35 hover:bg-white/5 transition text-white",
-                                      disabled &&
-                                        "opacity-60 cursor-not-allowed hover:bg-black/35",
-                                    )}
+                                    flexShrink={0}
+                                    px={3}
+                                    h="32px"
+                                    rounded="lg"
+                                    fontWeight={800}
+                                    fontSize="xs"
+                                    border="1px solid rgba(255,255,255,0.1)"
+                                    bg="rgba(0,0,0,0.35)"
+                                    color="white"
+                                    cursor={disabled ? "not-allowed" : "pointer"}
+                                    opacity={disabled ? 0.6 : 1}
+                                    fontFamily="inherit"
                                     disabled={disabled}
                                     onClick={useHytale}
                                     title={t("friendsMenu.profile.useHytaleAvatar")}
                                   >
                                     {t("friendsMenu.profile.useHytaleAvatar")}
-                                  </button>
+                                  </Btn>
 
-                                  <button
+                                  <Btn
                                     type="button"
-                                    className={cn(
-                                      "shrink-0 w-8 h-8 rounded-lg border border-white/10",
-                                      "bg-black/35 hover:bg-white/5 transition text-white",
-                                      disabled &&
-                                        "opacity-60 cursor-not-allowed hover:bg-black/35",
-                                      "flex items-center justify-center",
-                                    )}
+                                    flexShrink={0}
+                                    w="32px"
+                                    h="32px"
+                                    rounded="lg"
+                                    border="1px solid rgba(255,255,255,0.1)"
+                                    bg="rgba(0,0,0,0.35)"
+                                    color="white"
+                                    cursor={disabled ? "not-allowed" : "pointer"}
+                                    opacity={disabled ? 0.6 : 1}
+                                    display="flex"
+                                    alignItems="center"
+                                    justifyContent="center"
+                                    fontFamily="inherit"
                                     disabled={disabled}
                                     onClick={removeAvatar}
                                     title={t("friendsMenu.profile.removeAvatar")}
                                     aria-label={t("friendsMenu.profile.removeAvatar")}
                                   >
                                     <IconTrash size={16} />
-                                  </button>
+                                  </Btn>
                                 </>
                               );
                             }
 
-                            const current = (() => {
-                              try {
-                                return (localStorage.getItem(bgKey) || "").trim();
-                              } catch {
-                                return "";
-                              }
-                            })();
+                            const current = StorageService.getAvatarBgColor(safeAccountType, user);
 
                             return (
                               <>
-                                <button
+                                <Btn
                                   type="button"
-                                  className={cn(
-                                    "shrink-0 px-3 h-8 rounded-lg font-extrabold text-xs border border-white/10",
-                                    "bg-black/35 hover:bg-white/5 transition text-white",
-                                    disabled &&
-                                      "opacity-60 cursor-not-allowed hover:bg-black/35",
-                                  )}
+                                  flexShrink={0}
+                                  px={3}
+                                  h="32px"
+                                  rounded="lg"
+                                  fontWeight={800}
+                                  fontSize="xs"
+                                  border="1px solid rgba(255,255,255,0.1)"
+                                  bg="rgba(0,0,0,0.35)"
+                                  color="white"
+                                  cursor={disabled ? "not-allowed" : "pointer"}
+                                  opacity={disabled ? 0.6 : 1}
+                                  fontFamily="inherit"
                                   disabled={disabled}
                                   onClick={uploadCustom}
                                   title={t("friendsMenu.profile.uploadAvatar")}
                                 >
                                   {t("friendsMenu.profile.uploadAvatar")}
-                                </button>
+                                </Btn>
 
-                                <button
+                                <Btn
                                   type="button"
-                                  className={cn(
-                                    "shrink-0 w-8 h-8 rounded-lg border border-white/10",
-                                    "bg-black/35 hover:bg-white/5 transition text-white",
-                                    disabled &&
-                                      "opacity-60 cursor-not-allowed hover:bg-black/35",
-                                    "flex items-center justify-center",
-                                  )}
+                                  flexShrink={0}
+                                  w="32px"
+                                  h="32px"
+                                  rounded="lg"
+                                  border="1px solid rgba(255,255,255,0.1)"
+                                  bg="rgba(0,0,0,0.35)"
+                                  color="white"
+                                  cursor={disabled ? "not-allowed" : "pointer"}
+                                  opacity={disabled ? 0.6 : 1}
+                                  display="flex"
+                                  alignItems="center"
+                                  justifyContent="center"
+                                  fontFamily="inherit"
                                   disabled={disabled}
                                   onClick={removeAvatar}
                                   title={t("friendsMenu.profile.removeAvatar")}
                                   aria-label={t("friendsMenu.profile.removeAvatar")}
                                 >
                                   <IconTrash size={16} />
-                                </button>
+                                </Btn>
 
-                                <div
-                                  className={cn(
-                                    "relative shrink-0 h-8 rounded-lg border border-white/10",
-                                    "bg-black/35 hover:bg-white/5 transition text-white",
-                                    "px-3 flex items-center gap-2",
-                                    disabled &&
-                                      "opacity-60 cursor-not-allowed hover:bg-black/35",
-                                  )}
+                                <Box
+                                  position="relative"
+                                  flexShrink={0}
+                                  h="32px"
+                                  rounded="lg"
+                                  border="1px solid rgba(255,255,255,0.1)"
+                                  bg="rgba(0,0,0,0.35)"
+                                  color="white"
+                                  px={3}
+                                  display="flex"
+                                  alignItems="center"
+                                  gap={2}
+                                  opacity={disabled ? 0.6 : 1}
+                                  cursor={disabled ? "not-allowed" : "pointer"}
                                   title={t("friendsMenu.profile.avatarBackground")}
                                 >
-                                  <span
-                                    className="inline-block align-middle w-3 h-3 rounded-sm border border-white/20"
-                                    style={{
-                                      backgroundColor:
-                                        current && /^#?[0-9a-fA-F]{6}$/.test(current)
-                                          ? current.startsWith("#")
-                                            ? current
-                                            : `#${current}`
-                                          : "#2f3a4f",
-                                    }}
+                                  <Box
+                                    as="span"
+                                    display="inline-block"
+                                    verticalAlign="middle"
+                                    w="12px"
+                                    h="12px"
+                                    rounded="sm"
+                                    border="1px solid rgba(255,255,255,0.2)"
+                                    bg={
+                                      current && /^#?[0-9a-fA-F]{6}$/.test(current)
+                                        ? current.startsWith("#")
+                                          ? current
+                                          : `#${current}`
+                                        : "#2f3a4f"
+                                    }
                                   />
-                                  <span className="font-extrabold text-xs">
+                                  <Box as="span" fontWeight={800} fontSize="xs">
                                     {t("friendsMenu.profile.avatarBackground")}
-                                  </span>
-                                  <input
+                                  </Box>
+                                  <chakra.input
                                     type="color"
                                     disabled={disabled}
-                                    className="absolute inset-0 opacity-0 cursor-pointer"
+                                    position="absolute"
+                                    inset={0}
+                                    opacity={0}
+                                    cursor="pointer"
+                                    w="100%"
+                                    h="100%"
                                     value={
                                       current && /^#?[0-9a-fA-F]{6}$/.test(current)
                                         ? current.startsWith("#")
@@ -3817,28 +3349,30 @@ export default function FriendsMenu({
                                           : `#${current}`
                                         : "#2f3a4f"
                                     }
-                                    onChange={(e) => {
+                                    onChange={(e: ChangeEvent<HTMLInputElement>) => {
                                       const v = String(e.target.value || "").trim();
                                       if (!/^#[0-9a-fA-F]{6}$/.test(v)) return;
-                                      try {
-                                        localStorage.setItem(bgKey, v);
-                                      } catch {
-                                        // ignore
-                                      }
+                                      StorageService.setAvatarBgColor(safeAccountType, user, v);
                                       useHytale();
                                     }}
                                   />
-                                </div>
+                                </Box>
 
-                                <button
+                                <Btn
                                   type="button"
-                                  className={cn(
-                                    "shrink-0 w-8 h-8 rounded-lg border border-white/10",
-                                    "bg-black/35 hover:bg-white/5 transition text-white",
-                                    disabled &&
-                                      "opacity-60 cursor-not-allowed hover:bg-black/35",
-                                    "flex items-center justify-center",
-                                  )}
+                                  flexShrink={0}
+                                  w="32px"
+                                  h="32px"
+                                  rounded="lg"
+                                  border="1px solid rgba(255,255,255,0.1)"
+                                  bg="rgba(0,0,0,0.35)"
+                                  color="white"
+                                  cursor={disabled ? "not-allowed" : "pointer"}
+                                  opacity={disabled ? 0.6 : 1}
+                                  display="flex"
+                                  alignItems="center"
+                                  justifyContent="center"
+                                  fontFamily="inherit"
                                   disabled={disabled}
                                   onClick={useHytale}
                                   title={
@@ -3853,29 +3387,36 @@ export default function FriendsMenu({
                                   }
                                 >
                                   <IconRefresh size={16} />
-                                </button>
+                                </Btn>
                               </>
                             );
                           })()}
-                        </div>
-                      </div>
-                    </div>
+                        </Box>
+                      </HStack>
+                    </Box>
 
-                    <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2">
-                      <div className="text-[10px] font-extrabold tracking-widest text-white/60 uppercase">
+                    <Box rounded="xl" border="1px solid" borderColor="rgba(255,255,255,0.1)" bg="rgba(0,0,0,0.25)" px={3} py={2}>
+                      <Text fontSize="10px" fontWeight="extrabold" letterSpacing="widest" color="rgba(255,255,255,0.6)" textTransform="uppercase">
                         {t("friendsMenu.profile.username")}
-                      </div>
-                      <div className="mt-1 flex items-center justify-between gap-2">
-                        <div className="min-w-0 text-sm font-bold text-white/90 truncate">
+                      </Text>
+                      <HStack mt={1} justify="space-between" gap={2}>
+                        <Box minW={0} fontSize="sm" fontWeight="bold" color="rgba(255,255,255,0.9)" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
                           {displayHandle(profileUser?.handle || me?.handle || "—")}
-                        </div>
+                        </Box>
 
-                        <button
+                        <Btn
                           type="button"
-                          className={cn(
-                            "shrink-0 px-3 h-8 rounded-lg font-extrabold text-xs border border-white/10",
-                            "bg-black/35 hover:bg-white/5 transition text-white",
-                          )}
+                          flexShrink={0}
+                          px={3}
+                          h="32px"
+                          rounded="lg"
+                          fontWeight={800}
+                          fontSize="xs"
+                          border="1px solid rgba(255,255,255,0.1)"
+                          bg="rgba(0,0,0,0.35)"
+                          color="white"
+                          cursor="pointer"
+                          fontFamily="inherit"
                           onClick={() => {
                             const handle = String(
                               profileUser?.handle || me?.handle || "",
@@ -3910,84 +3451,15 @@ export default function FriendsMenu({
                           {profileUsernameCopied
                             ? t("common.copied")
                             : t("friendsMenu.copy")}
-                        </button>
-                      </div>
+                        </Btn>
+                      </HStack>
+                    </Box>
 
-                      <div className="mt-1 flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="text-[10px] font-extrabold tracking-widest text-white/50 uppercase">
-                            {t("friendsMenu.profile.publicStatusTitle", {
-                              defaultValue: "Public status",
-                            })}
-                          </div>
-
-                          <div
-                            className={cn(
-                              "mt-0.5 flex items-center gap-2 text-sm font-bold min-w-0",
-                              profilePublicPresence?.state !== "offline"
-                                ? "text-white/90"
-                                : "text-white/60",
-                            )}
-                          >
-                            <span
-                              className={cn(
-                                "h-2 w-2 rounded-full shrink-0",
-                                profilePublicPresence?.state !== "offline"
-                                  ? "bg-green-400"
-                                  : "bg-white/20",
-                              )}
-                            />
-                            <span className="truncate">
-                              {(() => {
-                                const st = String(
-                                  profilePublicPresence?.state || "offline",
-                                );
-                                const server = String(
-                                  profilePublicPresence?.server || "",
-                                ).trim();
-                                if (st === "in_game")
-                                  return t("friendsMenu.status.inGame");
-                                if (st === "singleplayer")
-                                  return t("friendsMenu.status.singleplayer");
-                                if (st === "multiplayer") {
-                                  return server
-                                    ? t("friendsMenu.status.playingIn", { server })
-                                    : t("friendsMenu.status.multiplayer");
-                                }
-                                if (st === "online")
-                                  return t("friendsMenu.status.online");
-                                return t("friendsMenu.status.offline");
-                              })()}
-                            </span>
-                          </div>
-
-                          <div className="mt-1 text-[11px] text-white/55 leading-snug">
-                            {t("friendsMenu.profile.publicStatusHint", {
-                              defaultValue:
-                                "This is what others see on your public profile.",
-                            })}
-                          </div>
-
-                          {profilePublicPresenceErr ? (
-                            <div className="mt-2 text-xs text-red-200 border border-red-400/20 bg-red-500/10 rounded-lg px-2 py-2">
-                              {profilePublicPresenceErr}
-                            </div>
-                          ) : null}
-                        </div>
-
-                        {profilePublicPresenceLoading ? (
-                          <div className="shrink-0 pt-4 text-[10px] font-bold tracking-widest uppercase text-white/40">
-                            {t("common.loading")}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2">
-                      <div className="text-[10px] font-extrabold tracking-widest text-white/60 uppercase">
+                    <Box rounded="xl" border="1px solid" borderColor="rgba(255,255,255,0.1)" bg="rgba(0,0,0,0.25)" px={3} py={2}>
+                      <Text fontSize="10px" fontWeight="extrabold" letterSpacing="widest" color="rgba(255,255,255,0.6)" textTransform="uppercase">
                         {t("friendsMenu.profile.createdAt")}
-                      </div>
-                      <div className="mt-1 text-sm font-bold text-white/90">
+                      </Text>
+                      <Box mt={1} fontSize="sm" fontWeight="bold" color="rgba(255,255,255,0.9)">
                         {(() => {
                           const raw = profileUser?.createdAt || me?.createdAt;
                           if (!raw) return "—";
@@ -3995,14 +3467,14 @@ export default function FriendsMenu({
                           if (Number.isNaN(d.getTime())) return String(raw);
                           return d.toLocaleString();
                         })()}
-                      </div>
-                    </div>
+                      </Box>
+                    </Box>
 
-                    <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2">
-                      <div className="text-[10px] font-extrabold tracking-widest text-white/60 uppercase">
+                    <Box rounded="xl" border="1px solid" borderColor="rgba(255,255,255,0.1)" bg="rgba(0,0,0,0.25)" px={3} py={2}>
+                      <Text fontSize="10px" fontWeight="extrabold" letterSpacing="widest" color="rgba(255,255,255,0.6)" textTransform="uppercase">
                         {t("friendsMenu.profile.totalMessages")}
-                      </div>
-                      <div className="mt-1 text-sm font-bold text-white/90">
+                      </Text>
+                      <Box mt={1} fontSize="sm" fontWeight="bold" color="rgba(255,255,255,0.9)">
                         {(() => {
                           const u = profileUser || me;
                           const n =
@@ -4019,176 +3491,100 @@ export default function FriendsMenu({
                             ? n.toLocaleString()
                             : "—";
                         })()}
-                      </div>
-                    </div>
+                      </Box>
+                    </Box>
 
-                    <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-[10px] font-extrabold tracking-widest text-white/60 uppercase">
+                    <Box rounded="xl" border="1px solid" borderColor="rgba(255,255,255,0.1)" bg="rgba(0,0,0,0.25)" px={3} py={2}>
+                      <HStack justify="space-between" gap={3}>
+                        <Box minW={0}>
+                          <Text fontSize="10px" fontWeight="extrabold" letterSpacing="widest" color="rgba(255,255,255,0.6)" textTransform="uppercase">
                             {t("friendsMenu.profile.dndTitle")}
-                          </div>
-                          <div className="mt-1 text-[11px] text-white/70">
+                          </Text>
+                          <Box mt={1} fontSize="11px" color="rgba(255,255,255,0.7)">
                             {t("friendsMenu.profile.dndHint")}
-                          </div>
-                        </div>
-                        <input
+                          </Box>
+                        </Box>
+                        <chakra.input
                           type="checkbox"
                           checked={doNotDisturb}
-                          onChange={(e) => setDoNotDisturb(e.target.checked)}
-                          className="h-4 w-4 accent-yellow-300"
+                          onChange={(e: ChangeEvent<HTMLInputElement>) => setDoNotDisturb(e.target.checked)}
+                          h="16px"
+                          w="16px"
+                          accentColor="#fde047"
+                          cursor="pointer"
                         />
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-[10px] font-extrabold tracking-widest text-white/60 uppercase">
-                            {t("friendsMenu.profile.hideServerIpTitle")}
-                          </div>
-                          <div className="mt-1 text-[11px] text-white/70">
-                            {t("friendsMenu.profile.hideServerIpHint")}
-                          </div>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={!!(profileUser || me)?.settings?.hideServerIp}
-                          disabled={
-                            profileLoading ||
-                            profileSettingsWorking ||
-                            !token ||
-                            mode !== "app"
-                          }
-                          onChange={(e) => void updateHideServerIp(e.target.checked)}
-                          className={cn(
-                            "h-4 w-4 accent-yellow-300",
-                            (profileLoading || profileSettingsWorking) && "opacity-60",
-                          )}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>,
+                      </HStack>
+                    </Box>
+                  </VStack>
+                </Box>
+              </ModalBackdrop>,
               document.body,
             )
           : null}
 
         {userProfileOpen && typeof document !== "undefined" && document.body
           ? createPortal(
-              <div
-                className="fixed inset-0 z-50 flex items-center justify-center glass-backdrop animate-fade-in"
-                data-matcha-user-profile-modal="1"
-                onMouseDown={(e) => {
-                  if (e.target !== e.currentTarget) return;
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setUserProfileOpen(false);
-                }}
-                onClick={(e) => {
-                  // Swallow clicks so they don't hit the underlying Friends backdrop.
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-                role="dialog"
-                aria-modal="true"
-                aria-label={t("friendsMenu.userProfile.title")}
+              <ModalBackdrop
+                onClose={() => setUserProfileOpen(false)}
+                zIndex={50}
               >
-                <div
-                  className={cn(
-                    "w-full max-w-[460px] rounded-3xl border border-white/10",
-                    "bg-black/75 backdrop-blur shadow-2xl overflow-hidden",
-                    "animate-popIn",
-                  )}
-                  onClick={(e) => e.stopPropagation()}
-                  onMouseDown={(e) => e.stopPropagation()}
+                <Box
+                  w="full"
+                  maxW="460px"
+                  rounded="3xl"
+                  border="1px solid"
+                  borderColor="rgba(255,255,255,0.1)"
+                  bg="rgba(0,0,0,0.75)"
+                  backdropFilter="blur(8px)"
+                  css={{ WebkitBackdropFilter: "blur(8px)" }}
+                  boxShadow="2xl"
+                  overflow="hidden"
+                  className="animate-popIn"
+                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                  onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
                 >
-                  <div className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-[10px] font-extrabold tracking-widest text-white/70 uppercase">
+                  <Box p={4}>
+                    <HStack align="start" justify="space-between" gap={3}>
+                      <Box minW={0}>
+                        <Text fontSize="10px" fontWeight="extrabold" letterSpacing="widest" color="rgba(255,255,255,0.7)" textTransform="uppercase">
                           {t("friendsMenu.userProfile.title")}
-                        </div>
+                        </Text>
 
-                        <div className="mt-1 flex flex-wrap items-center gap-2">
-                          <div className="text-base font-extrabold tracking-wide text-white truncate max-w-[320px]">
+                        <Box mt={1} display="flex" flexWrap="wrap" alignItems="center" gap={2}>
+                          <Box fontSize="md" fontWeight="extrabold" letterSpacing="wide" color="white" maxW="320px" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
                             {displayHandle(userProfileUser?.handle || "—")}
-                          </div>
+                          </Box>
 
                           {(() => {
                             const role = String(userProfileUser?.role || "").toLowerCase();
                             if (role === "dev") {
                               return (
-                                <span className="px-2 py-1 rounded-lg bg-red-600/80 text-white text-[10px] font-black tracking-widest uppercase">
+                                <Box as="span" px={2} py={1} rounded="lg" bg="rgba(220,38,38,0.8)" color="white" fontSize="10px" fontWeight="black" letterSpacing="widest" textTransform="uppercase">
                                   {t("friendsMenu.devs")}
-                                </span>
+                                </Box>
                               );
                             }
                             if (role === "mod") {
                               return (
-                                <span className="px-2 py-1 rounded-lg border border-sky-300/25 bg-sky-500/15 text-sky-200 text-[10px] font-black tracking-widest uppercase">
+                                <Box as="span" px={2} py={1} rounded="lg" border="1px solid rgba(125,211,252,0.25)" bg="rgba(14,165,233,0.15)" color="#bae6fd" fontSize="10px" fontWeight="black" letterSpacing="widest" textTransform="uppercase">
                                   MOD
-                                </span>
+                                </Box>
                               );
                             }
                             return null;
                           })()}
-                        </div>
-
-                        {userProfileUser && !userProfileErr ? (
-                          <div className="mt-1 flex items-center gap-2 text-[11px] font-semibold text-white/70">
-                            {(() => {
-                              const st = String(
-                                (userProfileUser as any)?.presence?.state ||
-                                  "offline",
-                              );
-                              const server = String(
-                                (userProfileUser as any)?.presence?.server || "",
-                              ).trim();
-                              const isOnline = st !== "offline";
-                              const label =
-                                st === "in_game"
-                                  ? t("friendsMenu.status.inGame")
-                                  : st === "singleplayer"
-                                    ? t("friendsMenu.status.singleplayer")
-                                    : st === "multiplayer"
-                                      ? server
-                                        ? t("friendsMenu.status.playingIn", {
-                                            server,
-                                          })
-                                        : t("friendsMenu.status.multiplayer")
-                                      : st === "online"
-                                        ? t("friendsMenu.status.online")
-                                        : t("friendsMenu.status.offline");
-
-                              return (
-                                <>
-                                  <span
-                                    className={cn(
-                                      "h-2 w-2 rounded-full",
-                                      isOnline ? "bg-green-400" : "bg-white/20",
-                                    )}
-                                  />
-                                  <span className={cn(!isOnline && "text-white/50")}>
-                                    {label}
-                                  </span>
-                                </>
-                              );
-                            })()}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
+                        </Box>
+                      </Box>
+                    </HStack>
 
                     {userProfileErr ? (
-                      <div className="mt-3 text-xs text-red-200 border border-red-400/20 bg-red-500/10 rounded-lg px-2 py-2">
+                      <Box mt={3} fontSize="xs" color="red.200" border="1px solid rgba(248,113,113,0.2)" bg="rgba(239,68,68,0.1)" rounded="lg" px={2} py={2}>
                         {userProfileErr}
-                      </div>
+                      </Box>
                     ) : null}
 
-                    <div className="mt-4 grid grid-cols-[92px_1fr] gap-4">
-                      <div className="relative h-[92px] w-[92px] rounded-2xl border border-white/10 bg-black/30 overflow-hidden flex items-center justify-center">
+                    <Box mt={4} display="grid" gridTemplateColumns="92px 1fr" gap={4}>
+                      <Box position="relative" h="92px" w="92px" rounded="2xl" border="1px solid" borderColor="rgba(255,255,255,0.1)" bg="rgba(0,0,0,0.3)" overflow="hidden" display="flex" alignItems="center" justifyContent="center">
                         {(() => {
                           const u = userProfileUser;
                           const userId = String(u?.id || "");
@@ -4199,16 +3595,18 @@ export default function FriendsMenu({
                           const src = !broken ? avatarUrlFor(userId, h) : null;
                           if (!src) {
                             return (
-                              <span className="text-sm font-extrabold text-white/80">
+                              <Text fontSize="sm" fontWeight="extrabold" color="rgba(255,255,255,0.8)">
                                 {initials(displayHandle(String(u?.handle || "")))}
-                              </span>
+                              </Text>
                             );
                           }
                           return (
-                            <img
+                            <Image
                               src={src}
                               alt={displayHandle(String(u?.handle || ""))}
-                              className="h-full w-full object-cover"
+                              h="100%"
+                              w="100%"
+                              objectFit="cover"
                               onError={() =>
                                 setAvatarBrokenByUserId((prev) => ({
                                   ...prev,
@@ -4220,20 +3618,20 @@ export default function FriendsMenu({
                         })()}
 
                         {userProfileLoading ? (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                            <div className="text-[10px] font-extrabold tracking-widest text-white/70 uppercase">
+                          <Box position="absolute" inset={0} display="flex" alignItems="center" justifyContent="center" bg="rgba(0,0,0,0.4)">
+                            <Text fontSize="10px" fontWeight="extrabold" letterSpacing="widest" color="rgba(255,255,255,0.7)" textTransform="uppercase">
                               {t("common.loading")}
-                            </div>
-                          </div>
+                            </Text>
+                          </Box>
                         ) : null}
-                      </div>
+                      </Box>
 
-                      <div className="min-w-0 space-y-2">
-                        <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2">
-                          <div className="text-[10px] font-extrabold tracking-widest text-white/60 uppercase">
+                      <VStack minW={0} gap={2} align="stretch">
+                        <Box rounded="2xl" border="1px solid" borderColor="rgba(255,255,255,0.1)" bg="rgba(0,0,0,0.25)" px={3} py={2}>
+                          <Text fontSize="10px" fontWeight="extrabold" letterSpacing="widest" color="rgba(255,255,255,0.6)" textTransform="uppercase">
                             {t("friendsMenu.profile.createdAt")}
-                          </div>
-                          <div className="mt-1 text-sm font-bold text-white/90">
+                          </Text>
+                          <Box mt={1} fontSize="sm" fontWeight="bold" color="rgba(255,255,255,0.9)">
                             {(() => {
                               const raw = userProfileUser?.createdAt;
                               if (!raw) return "—";
@@ -4241,23 +3639,23 @@ export default function FriendsMenu({
                               if (Number.isNaN(d.getTime())) return String(raw);
                               return d.toLocaleString();
                             })()}
-                          </div>
-                        </div>
+                          </Box>
+                        </Box>
 
-                        <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2">
-                          <div className="text-[10px] font-extrabold tracking-widest text-white/60 uppercase">
+                        <Box rounded="2xl" border="1px solid" borderColor="rgba(255,255,255,0.1)" bg="rgba(0,0,0,0.25)" px={3} py={2}>
+                          <Text fontSize="10px" fontWeight="extrabold" letterSpacing="widest" color="rgba(255,255,255,0.6)" textTransform="uppercase">
                             {t("friendsMenu.profile.totalMessages")}
-                          </div>
-                          <div className="mt-1 text-sm font-bold text-white/90">
+                          </Text>
+                          <Box mt={1} fontSize="sm" fontWeight="bold" color="rgba(255,255,255,0.9)">
                             {typeof userProfileUser?.messagesSentTotal === "number"
                               ? userProfileUser.messagesSentTotal.toLocaleString()
                               : "—"}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                          </Box>
+                        </Box>
+                      </VStack>
+                    </Box>
 
-                    <div className="mt-4 flex items-center justify-between gap-2">
+                    <HStack mt={4} justify="space-between" gap={2}>
                       {(() => {
                         const u = userProfileUser;
                         const meId = String(me?.id || "");
@@ -4274,17 +3672,17 @@ export default function FriendsMenu({
 
                         if (!u || userProfileLoading) {
                           return (
-                            <div className="text-xs text-white/60">
+                            <Text fontSize="xs" color="rgba(255,255,255,0.6)">
                               {t("common.loading")}
-                            </div>
+                            </Text>
                           );
                         }
 
                         if (isSelf) {
                           return (
-                            <div className="text-xs text-white/60">
+                            <Text fontSize="xs" color="rgba(255,255,255,0.6)">
                               {t("friendsMenu.userProfile.thisIsYou")}
-                            </div>
+                            </Text>
                           );
                         }
 
@@ -4304,25 +3702,39 @@ export default function FriendsMenu({
                               : t("friendsMenu.userProfile.sendRequest");
 
                         return (
-                          <button
+                          <Btn
                             type="button"
-                            className={cn(
-                              "h-10 px-4 rounded-xl font-extrabold text-xs border border-white/10",
-                              "bg-white/10 hover:bg-white/15 transition text-white",
-                              disabled &&
-                                "opacity-60 cursor-not-allowed hover:bg-white/10",
-                            )}
+                            h="40px"
+                            px={4}
+                            rounded="xl"
+                            fontWeight={800}
+                            fontSize="xs"
+                            border="1px solid rgba(255,255,255,0.1)"
+                            bg="rgba(255,255,255,0.1)"
+                            color="white"
+                            cursor={disabled ? "not-allowed" : "pointer"}
+                            opacity={disabled ? 0.6 : 1}
+                            fontFamily="inherit"
                             disabled={disabled}
                             onClick={() => void sendFriendRequestToHandle(rawHandle)}
                           >
                             {label}
-                          </button>
+                          </Btn>
                         );
                       })()}
 
-                      <button
+                      <Btn
                         type="button"
-                        className="h-10 px-4 rounded-xl font-extrabold text-xs border border-white/10 bg-black/35 hover:bg-white/5 transition text-white"
+                        h="40px"
+                        px={4}
+                        rounded="xl"
+                        fontWeight={800}
+                        fontSize="xs"
+                        border="1px solid rgba(255,255,255,0.1)"
+                        bg="rgba(0,0,0,0.35)"
+                        color="white"
+                        cursor="pointer"
+                        fontFamily="inherit"
                         onMouseDown={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -4334,37 +3746,46 @@ export default function FriendsMenu({
                         }}
                       >
                         {t("common.close")}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>,
+                      </Btn>
+                    </HStack>
+                  </Box>
+                </Box>
+              </ModalBackdrop>,
               document.body,
             )
           : null}
 
         {mode === "proof" && proofId ? (
           proofStep === "show" ? (
-            <div className="mt-3 rounded-lg border border-blue-400/20 bg-blue-500/10 p-3">
-              <div className="text-xs font-bold text-blue-200">
+            <Box mt={3} rounded="lg" border="1px solid" borderColor="rgba(96,165,250,0.2)" bg="rgba(59,130,246,0.1)" p={3}>
+              <Box fontSize="xs" fontWeight="bold" color="#bfdbfe">
                 {t("friendsMenu.proof.uniqueId")}
-              </div>
-              <div className="mt-1 text-[11px] font-extrabold tracking-widest text-red-200 uppercase">
+              </Box>
+              <Box mt={1} fontSize="11px" fontWeight="extrabold" letterSpacing="widest" color="#fecaca" textTransform="uppercase">
                 {t("friendsMenu.proof.dontLoseIt")}
-              </div>
+              </Box>
 
               {registeredHandle || me?.handle ? (
-                <div className="mt-2">
-                  <div className="text-[11px] font-extrabold tracking-widest text-gray-200/80 uppercase">
+                <Box mt={2}>
+                  <Box fontSize="11px" fontWeight="extrabold" letterSpacing="widest" color="rgba(229,231,235,0.8)" textTransform="uppercase">
                     {t("friendsMenu.proof.yourHandle")}
-                  </div>
-                  <div className="mt-1 flex items-stretch gap-2">
-                    <div className="flex-1 text-xs break-all rounded-lg border border-white/10 bg-black/35 p-2">
+                  </Box>
+                  <HStack mt={1} align="stretch" gap={2}>
+                    <Box flex={1} fontSize="xs" wordBreak="break-all" rounded="lg" border="1px solid" borderColor="rgba(255,255,255,0.1)" bg="rgba(0,0,0,0.35)" p={2}>
                       {registeredHandle || me?.handle}
-                    </div>
-                    <button
+                    </Box>
+                    <Btn
                       type="button"
-                      className="shrink-0 px-3 rounded-lg font-extrabold text-xs border border-white/10 bg-black/35 hover:bg-white/5 transition"
+                      flexShrink={0}
+                      px={3}
+                      rounded="lg"
+                      fontWeight={800}
+                      fontSize="xs"
+                      border="1px solid rgba(255,255,255,0.1)"
+                      bg="rgba(0,0,0,0.35)"
+                      color="white"
+                      cursor="pointer"
+                      fontFamily="inherit"
                       onClick={() => {
                         const text = String(registeredHandle || me?.handle || "").trim();
                         if (!text) return;
@@ -4385,21 +3806,30 @@ export default function FriendsMenu({
                       title={t("friendsMenu.copy")}
                     >
                       {proofHandleCopied ? t("common.copied") : t("friendsMenu.copy")}
-                    </button>
-                  </div>
-                  <div className="mt-1 text-[11px] text-gray-200/70 leading-snug">
+                    </Btn>
+                  </HStack>
+                  <Box mt={1} fontSize="11px" color="rgba(229,231,235,0.7)" lineHeight="short">
                     {t("friendsMenu.proof.saveHandleHint")}
-                  </div>
-                </div>
+                  </Box>
+                </Box>
               ) : null}
 
-              <div className="mt-2 flex items-stretch gap-2">
-                <div className="flex-1 text-xs break-all rounded-lg border border-white/10 bg-black/35 p-2">
+              <HStack mt={2} align="stretch" gap={2}>
+                <Box flex={1} fontSize="xs" wordBreak="break-all" rounded="lg" border="1px solid" borderColor="rgba(255,255,255,0.1)" bg="rgba(0,0,0,0.35)" p={2}>
                   {proofId}
-                </div>
-                <button
+                </Box>
+                <Btn
                   type="button"
-                  className="shrink-0 px-3 rounded-lg font-extrabold text-xs border border-white/10 bg-black/35 hover:bg-white/5 transition"
+                  flexShrink={0}
+                  px={3}
+                  rounded="lg"
+                  fontWeight={800}
+                  fontSize="xs"
+                  border="1px solid rgba(255,255,255,0.1)"
+                  bg="rgba(0,0,0,0.35)"
+                  color="white"
+                  cursor="pointer"
+                  fontFamily="inherit"
                   onClick={() => {
                     const text = String(proofId || "").trim();
                     if (!text) return;
@@ -4420,15 +3850,24 @@ export default function FriendsMenu({
                   title={t("friendsMenu.copy")}
                 >
                   {proofKeyCopied ? t("common.copied") : t("friendsMenu.copy")}
-                </button>
-              </div>
-              <div className="mt-2 text-[11px] text-gray-200/80 leading-snug">
+                </Btn>
+              </HStack>
+              <Box mt={2} fontSize="11px" color="rgba(229,231,235,0.8)" lineHeight="short">
                 {t("friendsMenu.proof.uniqueIdHint")}
-              </div>
+              </Box>
 
-              <button
+              <Btn
                 type="button"
-                className="mt-3 w-full px-3 py-2 rounded-lg font-bold border border-white/10 bg-black/35 hover:bg-white/5 transition"
+                mt={3}
+                w="100%"
+                p="8px 12px"
+                rounded="lg"
+                fontWeight={700}
+                border="1px solid rgba(255,255,255,0.1)"
+                bg="rgba(0,0,0,0.35)"
+                color="white"
+                cursor="pointer"
+                fontFamily="inherit"
                 onClick={() => {
                   // Move to a separate screen so the key is no longer visible.
                   setProofStep("confirm");
@@ -4437,19 +3876,28 @@ export default function FriendsMenu({
                 }}
               >
                 {t("friendsMenu.continue")}
-              </button>
-            </div>
+              </Btn>
+            </Box>
           ) : (
-            <div className="mt-3 rounded-lg border border-white/10 bg-black/30 p-3">
-                <div className="text-xs font-extrabold tracking-widest text-white/70 uppercase">
+            <Box mt={3} rounded="lg" border="1px solid" borderColor="rgba(255,255,255,0.1)" bg="rgba(0,0,0,0.3)" p={3}>
+                <Box fontSize="xs" fontWeight="extrabold" letterSpacing="widest" color="rgba(255,255,255,0.7)" textTransform="uppercase">
                   {t("friendsMenu.proof.finalCheckTitle")}
-                </div>
-                <div className="mt-1 text-[11px] text-white/70 leading-snug">
+                </Box>
+                <Box mt={1} fontSize="11px" color="rgba(255,255,255,0.7)" lineHeight="short">
                   {t("friendsMenu.proof.finalCheckBody")}
-                </div>
+                </Box>
 
-                <input
-                  className="mt-2 w-full px-3 py-2 rounded-lg border border-white/10 bg-black/35 text-xs text-white outline-none"
+                <Input
+                  mt={2}
+                  w="100%"
+                  p="8px 12px"
+                  rounded="lg"
+                  border="1px solid rgba(255,255,255,0.1)"
+                  bg="rgba(0,0,0,0.35)"
+                  fontSize="xs"
+                  color="white"
+                  outline="none"
+                  fontFamily="inherit"
                   placeholder={t("friendsMenu.proof.finalCheckPlaceholder")}
                   value={proofCheckInput}
                   onChange={(e) => {
@@ -4518,14 +3966,23 @@ export default function FriendsMenu({
                 />
 
                 {proofCheckErr ? (
-                  <div className="mt-2 text-xs text-red-200 border border-red-400/20 bg-red-500/10 rounded-lg px-2 py-2">
+                  <Box mt={2} fontSize="xs" color="#fecaca" border="1px solid" borderColor="rgba(248,113,113,0.2)" bg="rgba(239,68,68,0.1)" rounded="lg" px={2} py={2}>
                     {proofCheckErr}
-                  </div>
+                  </Box>
                 ) : null}
 
-                <button
+                <Btn
                   type="button"
-                  className="mt-3 w-full px-3 py-2 rounded-lg font-bold border border-white/10 bg-black/35 hover:bg-white/5 transition"
+                  mt={3}
+                  w="100%"
+                  p="8px 12px"
+                  rounded="lg"
+                  fontWeight={700}
+                  border="1px solid rgba(255,255,255,0.1)"
+                  bg="rgba(0,0,0,0.35)"
+                  color="white"
+                  cursor="pointer"
+                  fontFamily="inherit"
                   onClick={() => {
                     const expected = String(proofId || "").trim();
                     const got = String(proofCheckInput || "").trim();
@@ -4583,435 +4040,628 @@ export default function FriendsMenu({
                   }}
                 >
                   {t("friendsMenu.proof.verifyContinue")}
-                </button>
+                </Btn>
 
-                <button
+                <Btn
                   type="button"
-                  className="mt-2 w-full px-3 py-2 rounded-lg font-bold border border-white/10 bg-black/20 hover:bg-white/5 transition text-white/80"
+                  mt={2}
+                  w="100%"
+                  p="8px 12px"
+                  rounded="lg"
+                  fontWeight={700}
+                  border="1px solid rgba(255,255,255,0.1)"
+                  bg="rgba(0,0,0,0.2)"
+                  color="rgba(255,255,255,0.8)"
+                  cursor="pointer"
+                  fontFamily="inherit"
                   onClick={() => {
                     setProofStep("show");
                     setProofCheckErr("");
                   }}
                 >
                   {t("back")}
-                </button>
-            </div>
+                </Btn>
+            </Box>
           )
         ) : null}
 
         {mode === "intro" ? (
-          <div className="mt-3">
-            <div
-              className={cn(
-                "space-y-4",
-                introDocked ? "matcha-intro-text" : "opacity-0",
-              )}
+          <Box mt={1} flex="1" display="flex" flexDirection="column" overflow="auto" scrollbarWidth="none">
+            <Box
+              className={introDocked ? "matcha-intro-text" : ""}
+              opacity={introDocked ? 1 : 0}
+              flex="1"
+              display="flex"
+              flexDirection="column"
+              gap={4}
             >
-              <div className="text-sm text-white/75 leading-snug">
+              {/* Title centered — icon is absolute above */}
+              <Text
+                fontSize="2xl"
+                fontWeight="extrabold"
+                textTransform="none"
+                letterSpacing="wide"
+                lineHeight="none"
+                textAlign="center"
+                pt="90px"
+              >
+                {t("friendsMenu.brand")}
+              </Text>
+
+              {/* Subtitle */}
+              <Box fontSize="sm" color="rgba(255,255,255,0.5)" lineHeight="1.7" textAlign="center">
                 {t("friendsMenu.intro.subtitle")}
-              </div>
+              </Box>
 
-              <div className="space-y-2 text-sm">
-                <div className="rounded-lg border border-white/10 bg-black/25 px-3 py-2">
-                  {t("friendsMenu.intro.feature1")}
-                </div>
-                <div className="rounded-lg border border-white/10 bg-black/25 px-3 py-2">
-                  {t("friendsMenu.intro.feature2")}
-                </div>
-                <div className="rounded-lg border border-white/10 bg-black/25 px-3 py-2">
-                  {t("friendsMenu.intro.feature3")}
-                </div>
-              </div>
+              {/* Feature rows — settings style */}
+              <Box borderRadius="xl" border="1px solid" borderColor="rgba(255,255,255,0.07)" overflow="hidden">
+                {[
+                  { emoji: "💬", text: t("friendsMenu.intro.feature1") },
+                  { emoji: "🤝", text: t("friendsMenu.intro.feature2") },
+                  { emoji: "🎮", text: t("friendsMenu.intro.feature3") },
+                ].map((f, i, arr) => (
+                  <Box
+                    key={i}
+                    px={4} py={3}
+                    display="flex" alignItems="center" gap={3}
+                    borderBottom={i < arr.length - 1 ? "1px solid rgba(255,255,255,0.06)" : undefined}
+                    bg="rgba(255,255,255,0.02)"
+                  >
+                    <Box fontSize="lg" flexShrink={0} lineHeight={1}>{f.emoji}</Box>
+                    <Box fontSize="sm" fontWeight="500" color="rgba(255,255,255,0.85)">{f.text}</Box>
+                  </Box>
+                ))}
+              </Box>
 
-              <div className="text-sm text-white/80 leading-snug">
-                <div>{t("friendsMenu.intro.cta")}</div>
-                <div className="mt-1 text-white/65">
-                  {t("friendsMenu.intro.powered")}
-                </div>
-              </div>
+              {/* Spacer */}
+              <Box flex="1" />
 
-              <div className="text-xs text-white/60 leading-snug">
-                <span>{t("friendsMenu.intro.acceptTermsPrefix")} </span>
-                <button
+              {/* CTA */}
+              <Box fontSize="xs" color="rgba(255,255,255,0.4)" textAlign="center" letterSpacing="wide">
+                {t("friendsMenu.intro.cta")}
+              </Box>
+
+              {/* Terms */}
+              <Box fontSize="11px" color="rgba(255,255,255,0.3)" lineHeight="1.5" textAlign="center">
+                <Box as="span">{t("friendsMenu.intro.acceptTermsPrefix")} </Box>
+                <Btn
                   type="button"
-                  className="text-blue-400 hover:text-blue-300 underline"
+                  color="rgba(255,255,255,0.5)"
+                  textDecoration="underline"
+                  bg="none"
+                  border="none"
+                  cursor="pointer"
+                  fontFamily="inherit"
+                  fontSize="inherit"
                   onClick={onOpenTerms}
                 >
                   {t("friendsMenu.intro.acceptTermsLink")}
-                </button>
-              </div>
+                </Btn>
+              </Box>
 
-              <button
+              {/* Continue — flat button matching app style */}
+              <Btn
                 type="button"
-                className={cn(
-                  "w-full px-5 py-2 rounded-lg font-bold text-white",
-                  "bg-linear-to-r from-blue-500 to-cyan-400 hover:from-blue-600 hover:to-cyan-500 transition shadow-lg",
-                )}
+                w="100%"
+                p="10px 20px"
+                rounded="xl"
+                fontWeight={700}
+                fontSize="sm"
+                color="white"
+                bg="rgba(255,255,255,0.1)"
+                border="1px solid rgba(255,255,255,0.14)"
+                cursor="pointer"
+                fontFamily="inherit"
+                letterSpacing="0.01em"
                 onClick={() => setMode("login")}
               >
                 {t("friendsMenu.continue")}
-              </button>
-            </div>
-          </div>
+              </Btn>
+            </Box>
+          </Box>
         ) : null}
 
         {mode === "login" ? (
-          <div className="mt-3">
-            <div className="flex gap-2">
-              <button
+          <Box mt={3}>
+            <HStack gap={2}>
+              <Btn
                 type="button"
-                className={cn(
-                  "flex-1 px-3 py-2 rounded-lg text-xs font-bold border border-white/10",
-                  "bg-black/35 hover:bg-white/5 transition",
-                )}
+                flex={1}
+                p="8px 12px"
+                rounded="lg"
+                fontSize="xs"
+                fontWeight={700}
+                border="1px solid rgba(255,255,255,0.1)"
+                bg="rgba(0,0,0,0.35)"
+                color="white"
+                cursor="pointer"
+                fontFamily="inherit"
                 onClick={() => setMode("login")}
               >
                 {t("friendsMenu.signIn")}
-              </button>
-              <button
+              </Btn>
+              <Btn
                 type="button"
-                className={cn(
-                  "flex-1 px-3 py-2 rounded-lg text-xs font-bold border border-white/10",
-                  "bg-black/35 hover:bg-white/5 transition",
-                )}
+                flex={1}
+                p="8px 12px"
+                rounded="lg"
+                fontSize="xs"
+                fontWeight={700}
+                border="1px solid rgba(255,255,255,0.1)"
+                bg="rgba(0,0,0,0.35)"
+                color="white"
+                cursor="pointer"
+                fontFamily="inherit"
                 onClick={() => setMode("register")}
               >
                 {t("friendsMenu.create")}
-              </button>
-            </div>
+              </Btn>
+            </HStack>
 
-            <div className="mt-3 space-y-2">
-              <input
+            <VStack mt={3} gap={2} align="stretch">
+              <Input
                 value={loginHandle}
                 onChange={(e) => setLoginHandle(e.target.value)}
                 placeholder={t("friendsMenu.placeholders.handle")}
-                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                w="100%"
+                bg="rgba(0,0,0,0.4)"
+                border="1px solid rgba(255,255,255,0.1)"
+                rounded="lg"
+                p="8px 12px"
+                fontSize="sm"
+                color="white"
+                outline="none"
+                fontFamily="inherit"
               />
-              <input
+              <Input
                 value={loginPass}
                 onChange={(e) => setLoginPass(e.target.value)}
                 placeholder={t("friendsMenu.placeholders.password")}
                 type="password"
-                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                w="100%"
+                bg="rgba(0,0,0,0.4)"
+                border="1px solid rgba(255,255,255,0.1)"
+                rounded="lg"
+                p="8px 12px"
+                fontSize="sm"
+                color="white"
+                outline="none"
+                fontFamily="inherit"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") void doLogin();
                 }}
               />
-              <button
+              <Btn
                 type="button"
-                className="w-full px-3 py-2 rounded-lg font-bold border border-white/10 bg-black/35 hover:bg-white/5 transition"
+                w="100%"
+                p="8px 12px"
+                rounded="lg"
+                fontWeight={700}
+                border="1px solid rgba(255,255,255,0.1)"
+                bg="rgba(0,0,0,0.35)"
+                color="white"
+                cursor="pointer"
+                fontFamily="inherit"
                 onClick={() => void doLogin()}
               >
                 {t("friendsMenu.signIn")}
-              </button>
-            </div>
-          </div>
+              </Btn>
+            </VStack>
+          </Box>
         ) : null}
 
         {mode === "register" ? (
-          <div className="mt-3">
-            <div className="flex gap-2">
-              <button
+          <Box mt={3}>
+            <HStack gap={2}>
+              <Btn
                 type="button"
-                className={cn(
-                  "flex-1 px-3 py-2 rounded-lg text-xs font-bold border border-white/10",
-                  "bg-black/35 hover:bg-white/5 transition",
-                )}
+                flex={1}
+                p="8px 12px"
+                rounded="lg"
+                fontSize="xs"
+                fontWeight={700}
+                border="1px solid rgba(255,255,255,0.1)"
+                bg="rgba(0,0,0,0.35)"
+                color="white"
+                cursor="pointer"
+                fontFamily="inherit"
                 onClick={() => setMode("login")}
               >
                 {t("friendsMenu.signIn")}
-              </button>
-              <button
+              </Btn>
+              <Btn
                 type="button"
-                className={cn(
-                  "flex-1 px-3 py-2 rounded-lg text-xs font-bold border border-white/10",
-                  "bg-black/35 hover:bg-white/5 transition",
-                )}
+                flex={1}
+                p="8px 12px"
+                rounded="lg"
+                fontSize="xs"
+                fontWeight={700}
+                border="1px solid rgba(255,255,255,0.1)"
+                bg="rgba(0,0,0,0.35)"
+                color="white"
+                cursor="pointer"
+                fontFamily="inherit"
                 onClick={() => setMode("register")}
               >
                 {t("friendsMenu.create")}
-              </button>
-            </div>
+              </Btn>
+            </HStack>
 
-            <div className="mt-3 space-y-2">
-              <input
+            <VStack mt={3} gap={2} align="stretch">
+              <Input
                 value={regUser}
                 onChange={(e) => setRegUser(e.target.value)}
                 placeholder={t("friendsMenu.placeholders.username")}
-                className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-white/25"
+                w="100%"
+                bg="rgba(255,255,255,0.05)"
+                border="1px solid rgba(255,255,255,0.15)"
+                rounded="lg"
+                p="8px 12px"
+                fontSize="sm"
+                color="white"
+                outline="none"
+                fontFamily="inherit"
               />
-              <div className="text-[11px] text-white/60">
+              <Box fontSize="11px" color="rgba(255,255,255,0.6)">
                 {t("friendsMenu.register.handleHint")}
-              </div>
-              <input
+              </Box>
+              <Input
                 value={regPass}
                 onChange={(e) => setRegPass(e.target.value)}
                 placeholder={t("friendsMenu.placeholders.password")}
                 type="password"
-                className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-white/25"
+                w="100%"
+                bg="rgba(255,255,255,0.05)"
+                border="1px solid rgba(255,255,255,0.15)"
+                rounded="lg"
+                p="8px 12px"
+                fontSize="sm"
+                color="white"
+                outline="none"
+                fontFamily="inherit"
               />
-              <input
+              <Input
                 value={regPass2}
                 onChange={(e) => setRegPass2(e.target.value)}
                 placeholder={t("friendsMenu.placeholders.passwordRepeat")}
                 type="password"
-                className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-white/25"
+                w="100%"
+                bg="rgba(255,255,255,0.05)"
+                border="1px solid rgba(255,255,255,0.15)"
+                rounded="lg"
+                p="8px 12px"
+                fontSize="sm"
+                color="white"
+                outline="none"
+                fontFamily="inherit"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") void doRegister();
                 }}
               />
-              <button
+              <Btn
                 type="button"
-                className="w-full px-3 py-2 rounded-lg font-bold border border-white/10 bg-black/35 hover:bg-white/5 transition"
+                w="100%"
+                p="8px 12px"
+                rounded="lg"
+                fontWeight={700}
+                border="1px solid rgba(255,255,255,0.1)"
+                bg="rgba(0,0,0,0.35)"
+                color="white"
+                cursor="pointer"
+                fontFamily="inherit"
                 onClick={() => void doRegister()}
               >
                 {t("friendsMenu.createAccount")}
-              </button>
-            </div>
-          </div>
+              </Btn>
+            </VStack>
+          </Box>
         ) : null}
 
         {mode === "app" && token && !me ? (
-          <div className="mt-3 text-xs text-white/70">
+          <Box mt={3} fontSize="xs" color="rgba(255,255,255,0.7)">
             {t("common.loading")}
-          </div>
+          </Box>
         ) : null}
 
         {mode === "app" && me ? (
-          <div className="mt-3 flex flex-col h-[640px] max-h-[75vh] min-h-0">
+          <Box
+          mt={3}
+          display="flex"
+          flexDirection="column"
+          h={inline ? undefined : "640px"}
+          maxH={inline ? undefined : "75vh"}
+          flex={inline ? "1" : undefined}
+          minH={0}
+        >
             {appView === "friends" ? (
               <>
-                <input
+                <Input
                   value={friendSearch}
                   onChange={(e) => setFriendSearch(e.target.value)}
                   placeholder={t("friendsMenu.searchFriends")}
-                  className={cn(
-                    "w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2",
-                    "text-xs placeholder:text-white/40 focus:outline-none focus:border-white/20",
-                  )}
+                  w="100%"
+                  bg="rgba(255,255,255,0.05)"
+                  border="1px solid rgba(255,255,255,0.1)"
+                  rounded="lg"
+                  p="8px 12px"
+                  fontSize="xs"
+                  color="white"
+                  outline="none"
+                  fontFamily="inherit"
+                  boxSizing="border-box"
                 />
 
-                <div className="mt-2">
-                  <div className="relative">
-                    <button
+                <Box mt={2}>
+                  <Box position="relative">
+                    <Btn
                       type="button"
-                      className={cn(
-                        "w-full flex items-center justify-between gap-2",
-                        "rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition",
-                        "px-3 py-2",
-                        incoming.length > 0 &&
-                          "border-yellow-400/30 bg-yellow-400/10 hover:bg-yellow-400/15 motion-safe:animate-pulse",
-                      )}
-                      onClick={(e) => {
+                      w="100%"
+                      display="flex"
+                      alignItems="center"
+                      justifyContent="space-between"
+                      gap={2}
+                      rounded="lg"
+                      border={incoming.length > 0 ? "1px solid rgba(250,204,21,0.3)" : "1px solid rgba(255,255,255,0.1)"}
+                      bg={incoming.length > 0 ? "rgba(250,204,21,0.1)" : "rgba(255,255,255,0.05)"}
+                      p="8px 12px"
+                      color="white"
+                      cursor="pointer"
+                      fontFamily="inherit"
+                      animation={incoming.length > 0 ? "pulse 2s cubic-bezier(0.4,0,0.6,1) infinite" : undefined}
+                      onClick={(e: React.MouseEvent) => {
                         e.stopPropagation();
                         setRequestsOpen((v) => !v);
                       }}
                     >
-                      <div className="min-w-0 text-left">
-                        <div className="text-[10px] font-extrabold tracking-widest text-white/70 uppercase">
+                      <Box minW={0} textAlign="left">
+                        <Box fontSize="10px" fontWeight="extrabold" letterSpacing="widest" color="rgba(255,255,255,0.7)" textTransform="uppercase">
                           {t("friendsMenu.requests")}
-                        </div>
-                        <div className="text-xs font-bold truncate">
+                        </Box>
+                        <Box fontSize="xs" fontWeight="bold" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
                           {requestsKind === "incoming"
-                            ? t("friendsMenu.requestsIncoming", {
-                                count: incoming.length,
-                              })
-                            : t("friendsMenu.requestsOutgoing", {
-                                count: outgoing.length,
-                              })}
-                        </div>
-                      </div>
+                            ? t("friendsMenu.requestsIncoming", { count: incoming.length })
+                            : t("friendsMenu.requestsOutgoing", { count: outgoing.length })}
+                        </Box>
+                      </Box>
 
                       {incoming.length > 0 ? (
-                        <div className="shrink-0">
-                          <div
-                            className={cn(
-                              "min-w-[22px] h-[18px] px-1.5",
-                              "rounded-full",
-                              "bg-yellow-400 text-black",
-                              "text-[11px] font-extrabold",
-                              "flex items-center justify-center",
-                              "motion-safe:animate-pulse",
-                            )}
+                        <Box flexShrink={0}>
+                          <Box
+                            minW="22px"
+                            h="18px"
+                            p="0 6px"
+                            rounded="full"
+                            bg="#facc15"
+                            color="black"
+                            fontSize="11px"
+                            fontWeight={800}
+                            display="flex"
+                            alignItems="center"
+                            justifyContent="center"
                             title={t("friendsMenu.unread.badgeTitle")}
                           >
                             {incoming.length}
-                          </div>
-                        </div>
+                          </Box>
+                        </Box>
                       ) : null}
 
                       <IconChevronDown
                         size={16}
-                        className={cn(
-                          "shrink-0 text-white/70 transition",
-                          requestsOpen && "rotate-180",
-                        )}
+                        style={{flexShrink:0, color:"rgba(255,255,255,0.7)", transition:"transform 0.2s", transform: requestsOpen ? "rotate(180deg)" : "rotate(0deg)"}}
                       />
-                    </button>
+                    </Btn>
 
                     {requestsOpen ? (
-                      <div
-                        className={cn(
-                          "absolute z-20 mt-2 w-full rounded-lg border border-white/10 bg-black/60 backdrop-blur-lg",
-                          "p-2 shadow-xl",
-                        )}
-                        onClick={(e) => e.stopPropagation()}
+                      <Box
+                        position="absolute" zIndex={20} mt={2} w="full" rounded="lg" border="1px solid" borderColor="rgba(255,255,255,0.1)" bg="rgba(0,0,0,0.45)" backdropFilter="blur(12px)"
+                        p={2} boxShadow="xl"
+                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
                       >
-                        <div className="flex gap-2">
-                          <button
+                        <HStack gap={2}>
+                          <Btn
                             type="button"
-                            className={cn(
-                              "flex-1 px-2 py-2 rounded-lg border border-white/10 text-xs font-extrabold",
-                              requestsKind === "incoming"
-                                ? "bg-white/10"
-                                : "bg-white/5 hover:bg-white/10",
-                            )}
+                            flex={1}
+                            p={2}
+                            rounded="lg"
+                            border="1px solid rgba(255,255,255,0.1)"
+                            fontSize="xs"
+                            fontWeight={800}
+                            bg={requestsKind === "incoming" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.05)"}
+                            color="white"
+                            cursor="pointer"
+                            fontFamily="inherit"
                             onClick={() => setRequestsKind("incoming")}
                           >
                             {t("friendsMenu.received")}
-                          </button>
-                          <button
+                          </Btn>
+                          <Btn
                             type="button"
-                            className={cn(
-                              "flex-1 px-2 py-2 rounded-lg border border-white/10 text-xs font-extrabold",
-                              requestsKind === "outgoing"
-                                ? "bg-white/10"
-                                : "bg-white/5 hover:bg-white/10",
-                            )}
+                            flex={1}
+                            p={2}
+                            rounded="lg"
+                            border="1px solid rgba(255,255,255,0.1)"
+                            fontSize="xs"
+                            fontWeight={800}
+                            bg={requestsKind === "outgoing" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.05)"}
+                            color="white"
+                            cursor="pointer"
+                            fontFamily="inherit"
                             onClick={() => setRequestsKind("outgoing")}
                           >
                             {t("friendsMenu.sent")}
-                          </button>
-                        </div>
+                          </Btn>
+                        </HStack>
 
-                        <div className="mt-2 max-h-44 overflow-y-auto dark-scrollbar">
+                        <Box mt={2} maxH="176px" overflowY="auto" className="dark-scrollbar">
                           {requestsKind === "incoming" ? (
                             incoming.length === 0 ? (
-                              <div className="text-xs text-white/60 px-2 py-2">
+                              <Box fontSize="xs" color="rgba(255,255,255,0.6)" px={2} py={2}>
                                 {t("friendsMenu.none")}
-                              </div>
+                              </Box>
                             ) : (
-                              <div className="space-y-1">
+                              <VStack gap={1} align="stretch">
                                 {incoming.map((r) => (
-                                  <div
+                                  <HStack
                                     key={r.id}
-                                    className="flex items-center justify-between gap-2 px-2 py-2 rounded-lg border border-white/10 bg-white/5"
+                                    justify="space-between" gap={2} px={2} py={2} rounded="lg" border="1px solid" borderColor="rgba(255,255,255,0.1)" bg="rgba(255,255,255,0.05)"
                                   >
-                                    <div className="truncate text-xs font-bold">
+                                    <Box overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap" fontSize="xs" fontWeight="bold">
                                       {displayHandle(r.fromHandle)}
-                                    </div>
-                                    <div className="flex gap-2 shrink-0">
-                                      <button
+                                    </Box>
+                                    <HStack gap={2} flexShrink={0}>
+                                      <Btn
                                         type="button"
-                                        className="px-2 py-1 text-[10px] rounded-lg border border-white/10 bg-white/5 hover:bg-white/10"
+                                        p="2px 8px"
+                                        fontSize="10px"
+                                        rounded="lg"
+                                        border="1px solid rgba(255,255,255,0.1)"
+                                        bg="rgba(255,255,255,0.05)"
+                                        color="white"
+                                        cursor="pointer"
+                                        fontFamily="inherit"
                                         onClick={() => void acceptIncoming(r.id)}
                                       >
                                         {t("friendsMenu.accept")}
-                                      </button>
-                                      <button
+                                      </Btn>
+                                      <Btn
                                         type="button"
-                                        className="px-2 py-1 text-[10px] rounded-lg border border-red-400/20 bg-red-500/10 hover:bg-red-500/20 text-red-200"
+                                        p="2px 8px"
+                                        fontSize="10px"
+                                        rounded="lg"
+                                        border="1px solid rgba(248,113,113,0.2)"
+                                        bg="rgba(239,68,68,0.1)"
+                                        color="#fecaca"
+                                        cursor="pointer"
+                                        fontFamily="inherit"
                                         onClick={() => void rejectIncoming(r.id)}
                                       >
                                         {t("friendsMenu.reject")}
-                                      </button>
-                                    </div>
-                                  </div>
+                                      </Btn>
+                                    </HStack>
+                                  </HStack>
                                 ))}
-                              </div>
+                              </VStack>
                             )
                           ) : outgoing.length === 0 ? (
-                            <div className="text-xs text-white/60 px-2 py-2">
+                            <Box fontSize="xs" color="rgba(255,255,255,0.6)" px={2} py={2}>
                               {t("friendsMenu.none")}
-                            </div>
+                            </Box>
                           ) : (
-                            <div className="space-y-1">
+                            <VStack gap={1} align="stretch">
                               {outgoing.map((r) => (
-                                <div
+                                <HStack
                                   key={r.id}
-                                  className="flex items-center justify-between gap-2 px-2 py-2 rounded-lg border border-white/10 bg-white/5"
+                                  justify="space-between" gap={2} px={2} py={2} rounded="lg" border="1px solid" borderColor="rgba(255,255,255,0.1)" bg="rgba(255,255,255,0.05)"
                                 >
-                                  <div className="truncate text-xs font-bold">
+                                  <Box overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap" fontSize="xs" fontWeight="bold">
                                     {displayHandle(r.toHandle)}
-                                  </div>
-                                  <button
+                                  </Box>
+                                  <Btn
                                     type="button"
-                                    className="px-2 py-1 text-[10px] rounded-lg border border-white/10 bg-white/5 hover:bg-white/10"
+                                    p="2px 8px"
+                                    fontSize="10px"
+                                    rounded="lg"
+                                    border="1px solid rgba(255,255,255,0.1)"
+                                    bg="rgba(255,255,255,0.05)"
+                                    color="white"
+                                    cursor="pointer"
+                                    fontFamily="inherit"
                                     onClick={() => void cancelOutgoing(r.id)}
                                   >
                                     {t("friendsMenu.cancel")}
-                                  </button>
-                                </div>
+                                  </Btn>
+                                </HStack>
                               ))}
-                            </div>
+                            </VStack>
                           )}
-                        </div>
-                      </div>
+                        </Box>
+                      </Box>
                     ) : null}
-                  </div>
-                </div>
+                  </Box>
+                </Box>
 
-                <div className="mt-3 flex items-center justify-between gap-2">
-                  <div className="text-[11px] font-normal tracking-widest text-white/70 uppercase">
+                <HStack mt={3} justify="space-between" gap={2}>
+                  <Box fontSize="11px" fontWeight="normal" letterSpacing="widest" color="rgba(255,255,255,0.7)" textTransform="uppercase">
                     {t("friendsMenu.friendsListCounts", {
                       online: friendsOnlineCount,
                       total: friends.length,
                     })}
-                  </div>
-                  <div className="relative">
-                    <button
+                  </Box>
+                  <Box position="relative">
+                    <Btn
                       type="button"
-                      className="p-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition"
+                      p={2}
+                      rounded="lg"
+                      border="1px solid rgba(255,255,255,0.1)"
+                      bg="rgba(255,255,255,0.05)"
+                      color="white"
+                      cursor="pointer"
+                      lineHeight={0}
                       title={t("friendsMenu.addFriend")}
-                      onClick={(e) => {
+                      onClick={(e: React.MouseEvent) => {
                         e.stopPropagation();
                         setAddOpen((v) => !v);
                       }}
                     >
                       <IconUserPlus size={18} />
-                    </button>
+                    </Btn>
 
                     {addOpen ? (
-                      <div
-                        className={cn(
-                          "absolute z-30 right-0 mt-2 w-[260px] rounded-lg border border-white/10",
-                          "bg-black/45 backdrop-blur-md shadow-xl p-2",
-                        )}
-                        onClick={(e) => e.stopPropagation()}
+                      <Box
+                        position="absolute" zIndex={30} right={0} mt={2} w="260px" rounded="lg" border="1px solid" borderColor="rgba(255,255,255,0.1)"
+                        bg="rgba(0,0,0,0.45)" backdropFilter="blur(12px)" boxShadow="xl" p={2}
+                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
                       >
-                        <div className="text-[10px] font-extrabold tracking-widest text-white/70 uppercase">
+                        <Box fontSize="10px" fontWeight="extrabold" letterSpacing="widest" color="rgba(255,255,255,0.7)" textTransform="uppercase">
                           {t("friendsMenu.addFriend")}
-                        </div>
-                        <input
+                        </Box>
+                        <Input
+                          mt={2}
                           value={addHandle}
                           onChange={(e) => setAddHandle(e.target.value)}
                           placeholder={t("friendsMenu.placeholders.handle")}
-                          className={cn(
-                            "mt-2 w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2",
-                            "text-xs placeholder:text-white/40 focus:outline-none focus:border-white/20",
-                          )}
+                          w="100%"
+                          bg="rgba(255,255,255,0.05)"
+                          border="1px solid rgba(255,255,255,0.1)"
+                          rounded="lg"
+                          p="8px 12px"
+                          fontSize="xs"
+                          color="white"
+                          outline="none"
+                          fontFamily="inherit"
+                          boxSizing="border-box"
                           onKeyDown={(e) => {
                             if (e.key === "Enter") void sendFriendRequest();
                           }}
                         />
-                        <button
+                        <Btn
                           type="button"
-                          className="mt-2 w-full px-3 py-2 rounded-lg font-extrabold text-xs border border-white/10 bg-white/5 hover:bg-white/10 transition"
+                          mt={2}
+                          w="100%"
+                          p="8px 12px"
+                          rounded="lg"
+                          fontWeight={800}
+                          fontSize="xs"
+                          border="1px solid rgba(255,255,255,0.1)"
+                          bg="rgba(255,255,255,0.05)"
+                          color="white"
+                          cursor="pointer"
+                          fontFamily="inherit"
                           onClick={() => void sendFriendRequest()}
                         >
                           {t("friendsMenu.sendRequest")}
-                        </button>
-                      </div>
+                        </Btn>
+                      </Box>
                     ) : null}
-                  </div>
-                </div>
+                  </Box>
+                </HStack>
 
-                <div className="mt-2 flex-1 min-h-0 overflow-y-auto dark-scrollbar pr-1">
-                  <div className="space-y-1">
+                <Box mt={2} flex={1} minH={0} overflowY="auto" className="dark-scrollbar" pr={1}>
+                  <VStack gap={1} align="stretch">
                     {filteredFriends.length === 0 ? (
-                      <div className="text-xs text-white/60 px-2 py-3">
+                      <Box fontSize="xs" color="rgba(255,255,255,0.6)" px={2} py={3}>
                         {t("friendsMenu.noFriendsFound")}
-                      </div>
+                      </Box>
                     ) : (
                       filteredFriends.map((f) => {
                         const isOnline = f.state !== "offline";
@@ -5033,69 +4683,60 @@ export default function FriendsMenu({
                                   : t("friendsMenu.status.offline");
 
                         return (
-                          <button
+                          <Btn
                             key={f.id}
                             type="button"
-                            className={cn(
-                              "w-full text-left rounded-xl px-3 py-2",
-                              "bg-white/5 hover:bg-white/10 border border-white/0 hover:border-white/10",
-                              "transition",
-                              selectedFriend?.id === f.id &&
-                                "border-white/10 ring-2 ring-white/10",
-                            )}
+                            w="100%"
+                            textAlign="left"
+                            rounded="xl"
+                            p="8px 12px"
+                            bg={selectedFriend?.id === f.id ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.05)"}
+                            border={selectedFriend?.id === f.id ? "1px solid rgba(255,255,255,0.1)" : "1px solid transparent"}
+                            color="white"
+                            cursor="pointer"
+                            fontFamily="inherit"
+                            outline={selectedFriend?.id === f.id ? "2px solid rgba(255,255,255,0.1)" : "none"}
                             onClick={() => setSelectedFriend(f)}
-                            onDoubleClick={(e) => {
+                            onDoubleClick={(e: React.MouseEvent) => {
                               e.preventDefault();
                               e.stopPropagation();
                               void openDmChat(f);
                             }}
-                            onContextMenu={(e) => {
+                            onContextMenu={(e: React.MouseEvent) => {
                               e.preventDefault();
                               e.stopPropagation();
 
                               const root = containerRef.current;
                               const rect = root?.getBoundingClientRect();
-                              const x0 = rect
-                                ? e.clientX - rect.left
-                                : e.clientX;
-                              const y0 = rect
-                                ? e.clientY - rect.top
-                                : e.clientY;
+                              const x0 = rect ? e.clientX - rect.left : e.clientX;
+                              const y0 = rect ? e.clientY - rect.top : e.clientY;
 
-                              const x = Math.max(
-                                8,
-                                Math.min(x0, (rect?.width ?? 520) - 200),
-                              );
-                              const y = Math.max(
-                                8,
-                                Math.min(y0, (rect?.height ?? 700) - 120),
-                              );
+                              const x = Math.max(8, Math.min(x0, (rect?.width ?? 520) - 200));
+                              const y = Math.max(8, Math.min(y0, (rect?.height ?? 700) - 120));
                               setCtxMenu({ x, y, friend: f });
                             }}
                           >
-                            <div className="flex items-center gap-3 min-w-0 w-full">
-                              <div className="relative h-10 w-10 rounded-full bg-white/10 border border-white/10 flex items-center justify-center shrink-0 overflow-hidden">
+                            <HStack gap={3} minW={0} w="full">
+                              <Box position="relative" h="40px" w="40px" rounded="full" bg="rgba(255,255,255,0.1)" border="1px solid rgba(255,255,255,0.1)" display="flex" alignItems="center" justifyContent="center" flexShrink={0} overflow="hidden">
                                 {(() => {
-                                  const h =
-                                    avatarHashByUserId[f.id] ||
-                                    String(f.avatarHash || "").trim();
+                                  const h = avatarHashByUserId[f.id] || String(f.avatarHash || "").trim();
                                   const broken = !!avatarBrokenByUserId[f.id];
-                                  const src = !broken
-                                    ? avatarUrlFor(f.id, h)
-                                    : null;
+                                  const src = !broken ? avatarUrlFor(f.id, h) : null;
                                   if (!src) {
                                     return (
-                                      <span className="text-xs font-extrabold text-white/80">
+                                      <Box as="span" fontSize="0.75rem" fontWeight={800} color="rgba(255,255,255,0.8)">
                                         {initials(f.handle)}
-                                      </span>
+                                      </Box>
                                     );
                                   }
 
                                   return (
-                                    <img
+                                    <Image
                                       src={src}
                                       alt={f.handle}
-                                      className="h-full w-full object-cover"
+                                      h="100%"
+                                      w="100%"
+                                      objectFit="cover"
                                       onError={() =>
                                         setAvatarBrokenByUserId((prev) => ({
                                           ...prev,
@@ -5105,198 +4746,135 @@ export default function FriendsMenu({
                                     />
                                   );
                                 })()}
-                              </div>
+                                <Box
+                                  as="span"
+                                  position="absolute"
+                                  right="-2px"
+                                  bottom="-2px"
+                                  h="12px"
+                                  w="12px"
+                                  rounded="full"
+                                  border="2px solid rgba(0,0,0,0.4)"
+                                  bg={isOnline ? "#4ade80" : "rgba(255,255,255,0.2)"}
+                                />
+                              </Box>
 
-                              <div className="min-w-0">
-                                <div className="truncate text-sm font-extrabold tracking-wide">
+                              <Box minW={0}>
+                                <Box overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap" fontSize="sm" fontWeight="extrabold" letterSpacing="wide">
                                   {displayHandle(f.handle)}
-                                </div>
-                                <div
-                                  className={cn(
-                                    "mt-0.5 flex items-center gap-2 text-xs",
-                                    isOnline
-                                      ? "text-white/75"
-                                      : "text-white/40",
-                                  )}
-                                >
-                                  <span
-                                    className={cn(
-                                      "h-2 w-2 rounded-full",
-                                      isOnline ? "bg-green-400" : "bg-white/20",
-                                    )}
-                                  />
-                                  <span className="font-semibold">
-                                    {statusLabel}
-                                  </span>
-                                </div>
-                              </div>
+                                </Box>
+                                <HStack mt="2px" gap={2} fontSize="xs" color={isOnline ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.4)"}>
+                                  <Box as="span" h="8px" w="8px" rounded="full" bg={isOnline ? "#4ade80" : "rgba(255,255,255,0.2)"} flexShrink={0} display="inline-block" />
+                                  <Box as="span" fontWeight={600}>{statusLabel}</Box>
+                                </HStack>
+                              </Box>
 
-                              <div className="ml-auto shrink-0 flex items-center gap-1">
-                                {unreadDmByFriendId[f.id] ? (
-                                  <div className="mr-1 shrink-0">
-                                    <div
-                                      className={cn(
-                                        "min-w-[22px] h-[18px] px-1.5",
-                                        "rounded-full",
-                                        "bg-yellow-400 text-black",
-                                        "text-[11px] font-extrabold",
-                                        "flex items-center justify-center",
-                                      )}
-                                      title={t("friendsMenu.unread.badgeTitle")}
-                                    >
-                                      {unreadDmByFriendId[f.id]}
-                                    </div>
-                                  </div>
-                                ) : null}
-
-                                {canInvite ? (
-                                  <button
-                                    type="button"
-                                    className={cn(
-                                      "p-1.5 rounded-lg border border-white/10",
-                                      "bg-white/5 hover:bg-white/10 transition",
-                                      myPresenceLoading && "opacity-70",
-                                    )}
-                                    title={t(
-                                      "friendsMenu.game.inviteTitle",
-                                      "Invitar a jugar",
-                                    )}
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      void sendQuickDmCommand(f, "/invite");
-                                    }}
+                              {unreadDmByFriendId[f.id] ? (
+                                <Box ml="auto" flexShrink={0}>
+                                  <Box
+                                    minW="22px"
+                                    h="18px"
+                                    p="0 6px"
+                                    rounded="full"
+                                    bg="#facc15"
+                                    color="black"
+                                    fontSize="11px"
+                                    fontWeight={800}
+                                    display="flex"
+                                    alignItems="center"
+                                    justifyContent="center"
+                                    title={t("friendsMenu.unread.badgeTitle")}
                                   >
-                                    <span className="relative inline-flex items-center justify-center w-[18px] h-[18px]">
-                                      <IconDeviceGamepad2 size={16} />
-                                      <span
-                                        className={cn(
-                                          "absolute -right-2 -top-2",
-                                          "w-4 h-4 rounded-full",
-                                          "border border-white/10 bg-black/35",
-                                          "flex items-center justify-center",
-                                          "text-emerald-300",
-                                        )}
-                                      >
-                                        <IconPlus size={10} />
-                                      </span>
-                                    </span>
-                                  </button>
-                                ) : null}
-
-                                {canJoin ? (
-                                  <button
-                                    type="button"
-                                    className={cn(
-                                      "p-1.5 rounded-lg border border-white/10",
-                                      "bg-white/5 hover:bg-white/10 transition",
-                                    )}
-                                    title={t(
-                                      "friendsMenu.game.joinTitle",
-                                      "Unirse",
-                                    )}
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      void (async () => {
-                                        const ok = await copyToClipboard(server);
-                                        if (ok)
-                                          showFriendsCopyNotice(
-                                            t(
-                                              "friendsMenu.game.ipCopiedNotice",
-                                              "La IP se ha copiado",
-                                            ),
-                                          );
-                                      })();
-                                    }}
-                                  >
-                                    <IconPlayerPlay size={18} />
-                                  </button>
-                                ) : null}
-
-                                {canRequestJoin ? (
-                                  <button
-                                    type="button"
-                                    className={cn(
-                                      "p-1.5 rounded-lg border border-white/10",
-                                      "bg-white/5 hover:bg-white/10 transition",
-                                    )}
-                                    title={t(
-                                      "friendsMenu.game.requestJoinTitle",
-                                      "Solicitar unirse",
-                                    )}
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      void sendQuickDmCommand(
-                                        f,
-                                        "/request-to-join",
-                                      );
-                                    }}
-                                  >
-                                    <IconPlayerPlay size={18} />
-                                  </button>
-                                ) : null}
-                              </div>
-                            </div>
-                          </button>
+                                    {unreadDmByFriendId[f.id]}
+                                  </Box>
+                                </Box>
+                              ) : null}
+                            </HStack>
+                          </Box>
                         );
                       })
                     )}
-                  </div>
+                  </VStack>
 
-                  <div className="text-[10px] text-gray-300/60 mt-2">
+                  <Box fontSize="10px" color="rgba(209,213,219,0.6)" mt={2}>
                     {loadingFriends ? t("friendsMenu.refreshing") : ""}
-                  </div>
-                </div>
+                  </Box>
+                </Box>
 
                 {ctxMenu ? (
-                  <div
-                    className={cn(
-                      "absolute z-40 rounded-lg border border-white/10 bg-black/70 backdrop-blur-md shadow-xl",
-                      "w-[190px] overflow-hidden",
-                    )}
-                    style={{ left: ctxMenu.x, top: ctxMenu.y }}
-                    onClick={(e) => e.stopPropagation()}
+                  <Box
+                    position="absolute" zIndex={40} rounded="lg" border="1px solid" borderColor="rgba(255,255,255,0.1)" bg="rgba(0,0,0,0.7)"
+                    w="190px" overflow="hidden"
+                    left={ctxMenu.x} top={ctxMenu.y} backdropFilter="blur(12px)" boxShadow="0 25px 50px -12px rgba(0,0,0,0.5)"
+                    onClick={(e: React.MouseEvent) => e.stopPropagation()}
                   >
-                    <button
+                    <Btn
                       type="button"
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold hover:bg-white/5 transition"
+                      w="100%"
+                      display="flex"
+                      alignItems="center"
+                      gap="8px"
+                      p="8px 12px"
+                      fontSize="0.75rem"
+                      fontWeight={700}
+                      bg="none"
+                      border="none"
+                      color="white"
+                      cursor="pointer"
+                      fontFamily="inherit"
                       onClick={() => {
                         const f = ctxMenu.friend;
                         setCtxMenu(null);
                         void openDmChat(f);
                       }}
                     >
-                      <IconMessage size={16} className="text-white/80" />
-                      <span>{t("friendsMenu.ctx.sendMessage")}</span>
-                    </button>
-                    <button
+                      <IconMessage size={16} style={{color:"rgba(255,255,255,0.8)"}} />
+                      <Box as="span">{t("friendsMenu.ctx.sendMessage")}</Box>
+                    </Btn>
+                    <Btn
                       type="button"
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold hover:bg-white/5 transition text-red-200"
+                      w="100%"
+                      display="flex"
+                      alignItems="center"
+                      gap="8px"
+                      p="8px 12px"
+                      fontSize="0.75rem"
+                      fontWeight={700}
+                      bg="none"
+                      border="none"
+                      color="#fecaca"
+                      cursor="pointer"
+                      fontFamily="inherit"
                       onClick={() => {
                         const f = ctxMenu.friend;
                         setCtxMenu(null);
                         void removeFriend(f.id);
                       }}
                     >
-                      <IconTrash size={16} className="text-red-200" />
-                      <span>{t("friendsMenu.ctx.removeFriend")}</span>
-                    </button>
-                  </div>
+                      <IconTrash size={16} style={{color:"#fecaca"}} />
+                      <Box as="span">{t("friendsMenu.ctx.removeFriend")}</Box>
+                    </Btn>
+                  </Box>
                 ) : null}
               </>
             ) : (
               <>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-[11px] font-extrabold tracking-widest text-white/70 uppercase">
+                <HStack justify="space-between" gap={2}>
+                  <Box fontSize="11px" fontWeight="extrabold" letterSpacing="widest" color="rgba(255,255,255,0.7)" textTransform="uppercase">
                     {appView === "globalChat"
                       ? t("friendsMenu.globalChat")
                       : displayHandle(selectedFriend?.handle)}
-                  </div>
-                  <button
+                  </Box>
+                  <Btn
                     type="button"
-                    className="px-2 py-1 text-xs rounded-lg border border-white/10 bg-black/25 hover:bg-white/5 transition"
+                    p="2px 8px"
+                    fontSize="0.75rem"
+                    rounded="lg"
+                    border="1px solid rgba(255,255,255,0.1)"
+                    bg="rgba(0,0,0,0.25)"
+                    color="white"
+                    cursor="pointer"
+                    fontFamily="inherit"
                     onClick={() => {
                       setAppView("friends");
                       setMessages([]);
@@ -5306,18 +4884,18 @@ export default function FriendsMenu({
                     }}
                   >
                     {t("friendsMenu.backToFriends")}
-                  </button>
-                </div>
+                  </Btn>
+                </HStack>
 
-                <div className="mt-2 flex-1 min-h-0 relative">
-                  <div
+                <Box mt={2} flex={1} minH={0} position="relative">
+                  <Box
                     ref={msgScrollRef}
-                    className="h-full overflow-y-auto overflow-x-hidden rounded-xl border border-white/10 bg-black/25 p-2 dark-scrollbar"
+                    h="full" overflowY="auto" overflowX="hidden" rounded="xl" border="1px solid" borderColor="rgba(255,255,255,0.1)" bg="rgba(0,0,0,0.25)" p={2} className="dark-scrollbar"
                   >
                     {loadingMsgs && messages.length === 0 ? (
-                      <div className="text-xs text-white/50">
+                      <Box fontSize="xs" color="rgba(255,255,255,0.5)">
                         {t("common.loading")}
-                      </div>
+                      </Box>
                     ) : null}
                     {messages.map((m, idx) => {
                     const showUnreadSep =
@@ -5341,37 +4919,30 @@ export default function FriendsMenu({
                     return (
                       <div key={m.id} data-msg-id={m.id}>
                         {unreadInsertIndex === idx ? (
-                          <div className="flex items-center gap-2 py-1">
-                            <div className="flex-1 h-px bg-white/10" />
-                            <div className="text-[10px] font-extrabold tracking-widest text-yellow-200/90 uppercase">
+                          <HStack gap={2} py={1}>
+                            <Box flex={1} h="1px" bg="rgba(255,255,255,0.1)" />
+                            <Box fontSize="10px" fontWeight="extrabold" letterSpacing="widest" color="rgba(250,230,133,0.9)" textTransform="uppercase">
                               {t("friendsMenu.unread.separator")}
-                            </div>
-                            <div className="flex-1 h-px bg-white/10" />
-                          </div>
+                            </Box>
+                            <Box flex={1} h="1px" bg="rgba(255,255,255,0.1)" />
+                          </HStack>
                         ) : null}
 
-                        <div
-                          className={cn(
-                            "flex group",
-                            isMe ? "justify-end" : "justify-start",
-                            isSameAsPrev ? "mt-0.5" : "mt-3",
-                          )}
+                        <Box
+                          display="flex"
+                          justifyContent={isMe ? "flex-end" : "flex-start"}
+                          mt={isSameAsPrev ? "2px" : 3}
                         >
-                          <div
-                            className={cn(
-                              "max-w-[85%] text-left",
-                            )}
+                          <Box
+                            maxW="85%"
+                            style={{textAlign: isMe ? "right" : "left"}}
                           >
-                            <div className={cn("flex gap-2")}>
+                            <HStack gap={2} align="flex-start">
                               {!isMe ? (
                                 appView === "globalChat" ? (
                                   <button
                                     type="button"
-                                    className={cn(
-                                      "relative h-8 w-8 rounded-full bg-white/10 border border-white/10",
-                                      "flex items-center justify-center shrink-0 overflow-hidden",
-                                      "hover:border-white/20 transition",
-                                    )}
+                                    style={{position:"relative", height:"32px", width:"32px", borderRadius:"9999px", background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.1)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, overflow:"hidden", cursor:"pointer"}}
                                     onClick={(e) => {
                                       e.preventDefault();
                                       e.stopPropagation();
@@ -5392,7 +4963,7 @@ export default function FriendsMenu({
                                           : null;
                                       if (!src) {
                                         return (
-                                          <span className="text-[10px] font-extrabold text-white/80">
+                                          <span style={{fontSize:"10px", fontWeight:800, color:"rgba(255,255,255,0.8)"}}>
                                             {initials(
                                               displayHandle(m.fromHandle),
                                             )}
@@ -5403,7 +4974,7 @@ export default function FriendsMenu({
                                         <img
                                           src={src}
                                           alt={displayHandle(m.fromHandle)}
-                                          className="h-full w-full object-cover"
+                                          style={{height:"100%", width:"100%", objectFit:"cover"}}
                                           onError={() =>
                                             setAvatarBrokenByUserId((prev) => ({
                                               ...prev,
@@ -5415,7 +4986,7 @@ export default function FriendsMenu({
                                     })()}
                                   </button>
                                 ) : (
-                                  <div className="relative h-8 w-8 rounded-full bg-white/10 border border-white/10 flex items-center justify-center shrink-0 overflow-hidden">
+                                  <div style={{position:"relative", height:"32px", width:"32px", borderRadius:"9999px", background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.1)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, overflow:"hidden"}}>
                                     {(() => {
                                       const userId = String(m.fromId || "");
                                       const h =
@@ -5429,7 +5000,7 @@ export default function FriendsMenu({
                                           : null;
                                       if (!src) {
                                         return (
-                                          <span className="text-[10px] font-extrabold text-white/80">
+                                          <span style={{fontSize:"10px", fontWeight:800, color:"rgba(255,255,255,0.8)"}}>
                                             {initials(
                                               displayHandle(m.fromHandle),
                                             )}
@@ -5440,7 +5011,7 @@ export default function FriendsMenu({
                                         <img
                                           src={src}
                                           alt={displayHandle(m.fromHandle)}
-                                          className="h-full w-full object-cover"
+                                          style={{height:"100%", width:"100%", objectFit:"cover"}}
                                           onError={() =>
                                             setAvatarBrokenByUserId((prev) => ({
                                               ...prev,
@@ -5456,15 +5027,13 @@ export default function FriendsMenu({
 
                               {isMe ? (
                                 <div
-                                  className={cn(
-                                    "relative shrink-0 flex items-center",
-                                    "opacity-0 group-hover:opacity-100 transition",
-                                  )}
+                                  style={{position:"relative", flexShrink:0, display:"flex", alignItems:"center", opacity:0}}
+                                  className="group-hover:opacity-100 transition"
                                   data-msg-menu-root="1"
                                 >
                                   <button
                                     type="button"
-                                    className="px-1.5 py-1 rounded-lg border border-white/10 bg-black/35 hover:bg-white/5"
+                                    style={{padding:"4px 6px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.1)", background:"rgba(0,0,0,0.35)", color:"white", cursor:"pointer", lineHeight:0}}
                                     onPointerDown={(e) => {
                                       // Open on pointer *down* to avoid accidental opens when the user
                                       // releases the mouse over the button (common with hover-revealed controls).
@@ -5505,12 +5074,12 @@ export default function FriendsMenu({
                                     {activeDir === "left" ? (
                                       <IconChevronLeft
                                         size={14}
-                                        className="text-white/70"
+                                        style={{color:"rgba(255,255,255,0.7)"}}
                                       />
                                     ) : (
                                       <IconChevronRight
                                         size={14}
-                                        className="text-white/70"
+                                        style={{color:"rgba(255,255,255,0.7)"}}
                                       />
                                     )}
                                   </button>
@@ -5518,24 +5087,31 @@ export default function FriendsMenu({
                                   {msgMenu?.id === m.id ? (
                                     <div
                                       ref={msgMenuBoxRef}
-                                      className={cn(
-                                        "absolute w-40 rounded-xl border border-white/10 bg-black/70 backdrop-blur p-1 text-xs",
-                                        msgMenu.v === "up"
-                                          ? "bottom-0"
-                                          : "top-0",
-                                        msgMenu.dir === "left"
-                                          ? "right-full mr-2"
-                                          : "left-full ml-2",
-                                      )}
+                                      style={{
+                                        position:"absolute",
+                                        width:"160px",
+                                        borderRadius:"12px",
+                                        border:"1px solid rgba(255,255,255,0.1)",
+                                        background:"rgba(0,0,0,0.7)",
+                                        backdropFilter:"blur(12px)",
+                                        padding:"4px",
+                                        fontSize:"0.75rem",
+                                        bottom: msgMenu.v === "up" ? 0 : undefined,
+                                        top: msgMenu.v === "up" ? undefined : 0,
+                                        right: msgMenu.dir === "left" ? "100%" : undefined,
+                                        marginRight: msgMenu.dir === "left" ? "8px" : undefined,
+                                        left: msgMenu.dir === "left" ? undefined : "100%",
+                                        marginLeft: msgMenu.dir === "left" ? undefined : "8px",
+                                      }}
                                     >
-                                      <div className="px-2 py-1 text-[10px] text-white/60">
+                                      <div style={{padding:"4px 8px", fontSize:"10px", color:"rgba(255,255,255,0.6)"}}>
                                         {t("friendsMenu.msgMenu.sentAt")}:{" "}
                                         {new Date(m.createdAt).toLocaleString()}
                                       </div>
 
                                       <button
                                         type="button"
-                                        className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/5 transition"
+                                        style={{width:"100%", textAlign:"left", padding:"6px 8px", borderRadius:"8px", background:"none", border:"none", color:"white", cursor:"pointer", fontFamily:"inherit", fontSize:"inherit"}}
                                         onClick={() => {
                                           startReply(m, true);
                                           setMsgMenu(null);
@@ -5545,12 +5121,8 @@ export default function FriendsMenu({
                                       </button>
                                       <button
                                         type="button"
-                                        className={cn(
-                                          "w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/5 transition",
-                                          m.deleted &&
-                                            "opacity-50 cursor-not-allowed hover:bg-transparent",
-                                        )}
                                         disabled={m.deleted}
+                                        style={{width:"100%", textAlign:"left", padding:"6px 8px", borderRadius:"8px", background:"none", border:"none", color:"white", cursor: m.deleted ? "not-allowed" : "pointer", opacity: m.deleted ? 0.5 : 1, fontFamily:"inherit", fontSize:"inherit"}}
                                         onClick={() => {
                                           void copyMessage(m);
                                           setMsgMenu(null);
@@ -5561,12 +5133,8 @@ export default function FriendsMenu({
 
                                       <button
                                         type="button"
-                                        className={cn(
-                                          "w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/5 transition text-red-200",
-                                          m.deleted &&
-                                            "opacity-50 cursor-not-allowed hover:bg-transparent",
-                                        )}
                                         disabled={m.deleted}
+                                        style={{width:"100%", textAlign:"left", padding:"6px 8px", borderRadius:"8px", background:"none", border:"none", color:"#fecaca", cursor: m.deleted ? "not-allowed" : "pointer", opacity: m.deleted ? 0.5 : 1, fontFamily:"inherit", fontSize:"inherit"}}
                                         onClick={() => {
                                           setMsgMenu(null);
                                           void deleteOwnMessage(m.id);
@@ -5579,15 +5147,10 @@ export default function FriendsMenu({
                                 </div>
                               ) : null}
 
-                              <div className="min-w-0">
+                              <div style={{minWidth:0}}>
                                 {!isSameAsPrev && (
                                   <div
-                                    className={cn(
-                                      "text-[10px] font-bold",
-                                      isMe
-                                        ? "text-blue-300"
-                                        : "text-gray-300/70",
-                                    )}
+                                    style={{fontSize:"10px", fontWeight:"bold", color: isMe ? "#93c5fd" : "rgba(209,213,219,0.7)"}}
                                   >
                                     {isMe ? (
                                       appView === "globalChat" ? (
@@ -5609,11 +5172,11 @@ export default function FriendsMenu({
                                         t("friendsMenu.you")
                                       )
                                     ) : (
-                                      <span className="inline-flex items-center gap-1.5">
+                                      <span style={{display:"inline-flex", alignItems:"center", gap:"6px"}}>
                                         {appView === "globalChat" ? (
                                           <button
                                             type="button"
-                                            className="hover:underline underline-offset-2 text-left"
+                                            style={{background:"none", border:"none", color:"inherit", cursor:"pointer", textAlign:"left", padding:0, font:"inherit"}}
                                             onClick={(e) => {
                                               e.preventDefault();
                                               e.stopPropagation();
@@ -5638,14 +5201,14 @@ export default function FriendsMenu({
 
                                           if (isDev) {
                                             return (
-                                              <span className="px-1.5 py-0.5 rounded bg-red-600/80 text-white text-[9px] font-black uppercase">
+                                              <span style={{padding:"2px 6px", borderRadius:"4px", background:"rgba(220,38,38,0.8)", color:"white", fontSize:"9px", fontWeight:900, textTransform:"uppercase"}}>
                                                 {t("friendsMenu.devs")}
                                               </span>
                                             );
                                           }
                                           if (isMod) {
                                             return (
-                                              <span className="px-1.5 py-0.5 rounded-full border border-sky-300/25 bg-sky-500/15 text-sky-200 text-[9px] font-black uppercase">
+                                              <span style={{padding:"2px 6px", borderRadius:"9999px", border:"1px solid rgba(125,211,252,0.25)", background:"rgba(14,165,233,0.15)", color:"#bae6fd", fontSize:"9px", fontWeight:900, textTransform:"uppercase"}}>
                                                 MOD
                                               </span>
                                             );
@@ -5657,63 +5220,49 @@ export default function FriendsMenu({
                                   </div>
                                 )}
                                 <div
-                                  className={cn(
-                                    "px-3 py-2 rounded-2xl text-xs border whitespace-pre-wrap break-words [overflow-wrap:anywhere]",
-                                    (() => {
-                                      const badge = String(
-                                        m.fromBadge || "",
-                                      ).toLowerCase();
-                                      const isDev = m.fromIsDev || badge === "dev";
-                                      const isMod = badge === "mod";
-                                      const isSponsor =
-                                        String(m.fromHandle || "")
-                                          .trim()
-                                          .toLowerCase() === "sponsor";
-
-                                      if (isSponsor) return "border-white/10";
-                                      if (isDev) return "border-red-400/25";
-                                      if (isMod) return "border-sky-300/25";
-                                      return "border-white/10";
-                                    })(),
-                                    (() => {
-                                      const badge = String(
-                                        m.fromBadge || "",
-                                      ).toLowerCase();
-                                      const isDev = m.fromIsDev || badge === "dev";
-                                      const isMod = badge === "mod";
-                                      const isSponsor =
-                                        String(m.fromHandle || "")
-                                          .trim()
-                                          .toLowerCase() === "sponsor";
-
-                                      if (!isSponsor) {
-                                        if (isDev) {
-                                          return isMe
-                                            ? "bg-red-600/70"
-                                            : "bg-red-500/10";
-                                        }
-                                        if (isMod) {
-                                          return isMe
-                                            ? "bg-sky-600/70"
-                                            : "bg-sky-500/10";
-                                        }
-                                      }
-                                      return isMe ? "bg-blue-600/80" : "bg-white/5";
-                                    })(),
-                                    m.deleted && "italic text-gray-300/70",
-                                    isSameAsPrev && (isMe ? "rounded-tr-none" : "rounded-tl-none"),
-                                    isSameAsNext && (isMe ? "rounded-br-none" : "rounded-bl-none"),
-                                    highlightMsgId === m.id &&
-                                      "border-blue-300/90 ring-4 ring-blue-400/60 shadow-xl shadow-blue-500/30 motion-safe:animate-pulse",
-                                  )}
+                                  style={(() => {
+                                    const badge = String(m.fromBadge || "").toLowerCase();
+                                    const isDev = m.fromIsDev || badge === "dev";
+                                    const isMod = badge === "mod";
+                                    const isSponsor = String(m.fromHandle || "").trim().toLowerCase() === "sponsor";
+                                    const isHighlight = highlightMsgId === m.id;
+                                    const borderColor = isHighlight
+                                      ? "rgba(147,197,253,0.9)"
+                                      : (!isSponsor && isDev)
+                                        ? "rgba(248,113,113,0.25)"
+                                        : (!isSponsor && isMod)
+                                          ? "rgba(125,211,252,0.25)"
+                                          : "rgba(255,255,255,0.1)";
+                                    const background = !isSponsor && isDev
+                                      ? (isMe ? "rgba(220,38,38,0.7)" : "rgba(239,68,68,0.1)")
+                                      : !isSponsor && isMod
+                                        ? (isMe ? "rgba(2,132,199,0.7)" : "rgba(14,165,233,0.1)")
+                                        : (isMe ? "rgba(37,99,235,0.8)" : "rgba(255,255,255,0.05)");
+                                    return {
+                                      padding: "8px 12px",
+                                      borderRadius: "16px",
+                                      fontSize: "0.75rem",
+                                      border: `1px solid ${borderColor}`,
+                                      whiteSpace: "pre-wrap" as const,
+                                      wordBreak: "break-word" as const,
+                                      overflowWrap: "anywhere" as const,
+                                      textAlign: "justify" as const,
+                                      background,
+                                      fontStyle: m.deleted ? "italic" : undefined,
+                                      color: m.deleted ? "rgba(209,213,219,0.7)" : "white",
+                                      borderTopRightRadius: isSameAsPrev && isMe ? 0 : undefined,
+                                      borderTopLeftRadius: isSameAsPrev && !isMe ? 0 : undefined,
+                                      borderBottomRightRadius: isSameAsNext && isMe ? 0 : undefined,
+                                      borderBottomLeftRadius: isSameAsNext && !isMe ? 0 : undefined,
+                                      outline: isHighlight ? "4px solid rgba(96,165,250,0.6)" : undefined,
+                                      animation: isHighlight ? "pulse 2s cubic-bezier(0.4,0,0.6,1) infinite" : undefined,
+                                    };
+                                  })()}
                                 >
                                   {m.replyToId ? (
                                     <button
                                       type="button"
-                                      className={cn(
-                                        "w-full mb-1 px-2 py-1 rounded-xl border border-white/10 bg-black/20 text-[10px] text-white/70 text-left",
-                                        "hover:bg-black/30 transition",
-                                      )}
+                                      style={{width:"100%", marginBottom:"4px", padding:"4px 8px", borderRadius:"12px", border:"1px solid rgba(255,255,255,0.1)", background:"rgba(0,0,0,0.2)", fontSize:"10px", color:"rgba(255,255,255,0.7)", textAlign:"left", cursor:"pointer", fontFamily:"inherit"}}
                                       onMouseDown={(e) => {
                                         e.stopPropagation();
                                         try {
@@ -5728,11 +5277,11 @@ export default function FriendsMenu({
                                         if (m.replyToId) void jumpToMessage(m.replyToId);
                                       }}
                                     >
-                                      <div className="font-extrabold tracking-widest uppercase text-white/50">
+                                      <div style={{fontWeight:800, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(255,255,255,0.5)"}}>
                                         {t("friendsMenu.reply.to")}{" "}
                                         {displayHandle(String(m.replyToFromHandle || "-"))}
                                       </div>
-                                      <div className="text-white/80">
+                                      <div style={{color:"rgba(255,255,255,0.8)"}}>
                                         {String(m.replyToSnippet || "")}
                                       </div>
                                     </button>
@@ -6039,7 +5588,7 @@ export default function FriendsMenu({
                                             <a
                                               key={idx}
                                               href={p.href}
-                                              className="text-blue-300 hover:text-blue-200 underline underline-offset-2 break-all"
+                                              style={{color:"#93c5fd", textDecoration:"underline", textUnderlineOffset:"2px", wordBreak:"break-all"}}
                                               onClick={(e) => {
                                                 e.preventDefault();
                                                 void openExternalSafe(p.href!);
@@ -6057,15 +5606,13 @@ export default function FriendsMenu({
 
                               {!isMe ? (
                                 <div
-                                  className={cn(
-                                    "relative shrink-0 flex items-center",
-                                    "opacity-0 group-hover:opacity-100 transition",
-                                  )}
+                                  style={{position:"relative", flexShrink:0, display:"flex", alignItems:"center", opacity:0}}
+                                  className="group-hover:opacity-100 transition"
                                   data-msg-menu-root="1"
                                 >
                                   <button
                                     type="button"
-                                    className="px-1.5 py-1 rounded-lg border border-white/10 bg-black/35 hover:bg-white/5"
+                                    style={{padding:"4px 6px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.1)", background:"rgba(0,0,0,0.35)", color:"white", cursor:"pointer", lineHeight:0}}
                                     onPointerDown={(e) => {
                                       if (e.button !== 0) return;
                                       e.preventDefault();
@@ -6104,12 +5651,12 @@ export default function FriendsMenu({
                                     {activeDir === "left" ? (
                                       <IconChevronLeft
                                         size={14}
-                                        className="text-white/70"
+                                        style={{color:"rgba(255,255,255,0.7)"}}
                                       />
                                     ) : (
                                       <IconChevronRight
                                         size={14}
-                                        className="text-white/70"
+                                        style={{color:"rgba(255,255,255,0.7)"}}
                                       />
                                     )}
                                   </button>
@@ -6117,24 +5664,31 @@ export default function FriendsMenu({
                                   {msgMenu?.id === m.id ? (
                                     <div
                                       ref={msgMenuBoxRef}
-                                      className={cn(
-                                        "absolute w-40 rounded-xl border border-white/10 bg-black/70 backdrop-blur p-1 text-xs",
-                                        msgMenu.v === "up"
-                                          ? "bottom-0"
-                                          : "top-0",
-                                        msgMenu.dir === "left"
-                                          ? "right-full mr-2"
-                                          : "left-full ml-2",
-                                      )}
+                                      style={{
+                                        position:"absolute",
+                                        width:"160px",
+                                        borderRadius:"12px",
+                                        border:"1px solid rgba(255,255,255,0.1)",
+                                        background:"rgba(0,0,0,0.7)",
+                                        backdropFilter:"blur(12px)",
+                                        padding:"4px",
+                                        fontSize:"0.75rem",
+                                        bottom: msgMenu.v === "up" ? 0 : undefined,
+                                        top: msgMenu.v === "up" ? undefined : 0,
+                                        right: msgMenu.dir === "left" ? "100%" : undefined,
+                                        marginRight: msgMenu.dir === "left" ? "8px" : undefined,
+                                        left: msgMenu.dir === "left" ? undefined : "100%",
+                                        marginLeft: msgMenu.dir === "left" ? undefined : "8px",
+                                      }}
                                     >
-                                      <div className="px-2 py-1 text-[10px] text-white/60">
+                                      <div style={{padding:"4px 8px", fontSize:"10px", color:"rgba(255,255,255,0.6)"}}>
                                         {t("friendsMenu.msgMenu.sentAt")}:{" "}
                                         {new Date(m.createdAt).toLocaleString()}
                                       </div>
 
                                       <button
                                         type="button"
-                                        className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/5 transition"
+                                        style={{width:"100%", textAlign:"left", padding:"6px 8px", borderRadius:"8px", background:"none", border:"none", color:"white", cursor:"pointer", fontFamily:"inherit", fontSize:"inherit"}}
                                         onClick={() => {
                                           startReply(m, false);
                                           setMsgMenu(null);
@@ -6144,12 +5698,8 @@ export default function FriendsMenu({
                                       </button>
                                       <button
                                         type="button"
-                                        className={cn(
-                                          "w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/5 transition",
-                                          m.deleted &&
-                                            "opacity-50 cursor-not-allowed hover:bg-transparent",
-                                        )}
                                         disabled={m.deleted}
+                                        style={{width:"100%", textAlign:"left", padding:"6px 8px", borderRadius:"8px", background:"none", border:"none", color:"white", cursor: m.deleted ? "not-allowed" : "pointer", opacity: m.deleted ? 0.5 : 1, fontFamily:"inherit", fontSize:"inherit"}}
                                         onClick={() => {
                                           void copyMessage(m);
                                           setMsgMenu(null);
@@ -6160,12 +5710,8 @@ export default function FriendsMenu({
 
                                       <button
                                         type="button"
-                                        className={cn(
-                                          "w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/5 transition",
-                                          m.deleted &&
-                                            "opacity-50 cursor-not-allowed hover:bg-transparent",
-                                        )}
                                         disabled={m.deleted}
+                                        style={{width:"100%", textAlign:"left", padding:"6px 8px", borderRadius:"8px", background:"none", border:"none", color:"white", cursor: m.deleted ? "not-allowed" : "pointer", opacity: m.deleted ? 0.5 : 1, fontFamily:"inherit", fontSize:"inherit"}}
                                         onClick={() => openReport(m)}
                                       >
                                         {t("friendsMenu.msgMenu.report")}
@@ -6179,12 +5725,8 @@ export default function FriendsMenu({
                                       })() ? (
                                         <button
                                           type="button"
-                                          className={cn(
-                                            "w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/5 transition text-red-200",
-                                            m.deleted &&
-                                              "opacity-50 cursor-not-allowed hover:bg-transparent",
-                                          )}
                                           disabled={m.deleted}
+                                          style={{width:"100%", textAlign:"left", padding:"6px 8px", borderRadius:"8px", background:"none", border:"none", color:"#fecaca", cursor: m.deleted ? "not-allowed" : "pointer", opacity: m.deleted ? 0.5 : 1, fontFamily:"inherit", fontSize:"inherit"}}
                                           onClick={() => {
                                             setMsgMenu(null);
                                             void deleteOwnMessage(m.id);
@@ -6199,108 +5741,51 @@ export default function FriendsMenu({
                               ) : null}
 
                               {isMe ? (
-                                appView === "globalChat" ? (
-                                  <button
-                                    type="button"
-                                    className={cn(
-                                      "relative h-8 w-8 rounded-full bg-white/10 border border-white/10",
-                                      "flex items-center justify-center shrink-0 overflow-hidden",
-                                      "hover:border-white/20 transition",
-                                    )}
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      void openUserProfile(String(me.id || ""), {
-                                        allowSelfPublic: true,
-                                      });
-                                    }}
-                                    title={t("friendsMenu.userProfile.open")}
-                                  >
-                                    {(() => {
-                                      const userId = String(me.id || "");
-                                      const h =
-                                        avatarHashByUserId[userId] ||
-                                        String(me.avatarHash || "").trim();
-                                      const broken =
-                                        !!avatarBrokenByUserId[userId];
-                                      const src = !broken
-                                        ? avatarUrlFor(userId, h)
-                                        : null;
-                                      if (!src) {
-                                        return (
-                                          <span className="text-[10px] font-extrabold text-white/80">
-                                            {initials(me.handle)}
-                                          </span>
-                                        );
-                                      }
+                                <div style={{position:"relative", height:"32px", width:"32px", borderRadius:"9999px", background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.1)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, overflow:"hidden"}}>
+                                  {(() => {
+                                    const userId = String(me.id || "");
+                                    const h =
+                                      avatarHashByUserId[userId] ||
+                                      String(me.avatarHash || "").trim();
+                                    const broken = !!avatarBrokenByUserId[userId];
+                                    const src = !broken
+                                      ? avatarUrlFor(userId, h)
+                                      : null;
+                                    if (!src) {
                                       return (
-                                        <img
-                                          src={src}
-                                          alt={me.handle}
-                                          className="h-full w-full object-cover"
-                                          onError={() =>
-                                            setAvatarBrokenByUserId((prev) => ({
-                                              ...prev,
-                                              [userId]: true,
-                                            }))
-                                          }
-                                        />
+                                        <span style={{fontSize:"10px", fontWeight:800, color:"rgba(255,255,255,0.8)"}}>
+                                          {initials(me.handle)}
+                                        </span>
                                       );
-                                    })()}
-                                  </button>
-                                ) : (
-                                  <div className="relative h-8 w-8 rounded-full bg-white/10 border border-white/10 flex items-center justify-center shrink-0 overflow-hidden">
-                                    {(() => {
-                                      const userId = String(me.id || "");
-                                      const h =
-                                        avatarHashByUserId[userId] ||
-                                        String(me.avatarHash || "").trim();
-                                      const broken =
-                                        !!avatarBrokenByUserId[userId];
-                                      const src = !broken
-                                        ? avatarUrlFor(userId, h)
-                                        : null;
-                                      if (!src) {
-                                        return (
-                                          <span className="text-[10px] font-extrabold text-white/80">
-                                            {initials(me.handle)}
-                                          </span>
-                                        );
-                                      }
-                                      return (
-                                        <img
-                                          src={src}
-                                          alt={me.handle}
-                                          className="h-full w-full object-cover"
-                                          onError={() =>
-                                            setAvatarBrokenByUserId((prev) => ({
-                                              ...prev,
-                                              [userId]: true,
-                                            }))
-                                          }
-                                        />
-                                      );
-                                    })()}
-                                  </div>
-                                )
+                                    }
+                                    return (
+                                      <img
+                                        src={src}
+                                        alt={me.handle}
+                                        style={{height:"100%", width:"100%", objectFit:"cover"}}
+                                        onError={() =>
+                                          setAvatarBrokenByUserId((prev) => ({
+                                            ...prev,
+                                            [userId]: true,
+                                          }))
+                                        }
+                                      />
+                                    );
+                                  })()}
+                                </div>
                               ) : null}
-                            </div>
-                          </div>
-                        </div>
+                            </HStack>
+                          </Box>
+                        </Box>
                       </div>
                     );
                     })}
-                  </div>
+                  </Box>
 
                   {showScrollToBottom ? (
                     <button
                       type="button"
-                      className={cn(
-                        "absolute bottom-3 right-3 z-10",
-                        "h-[36px] w-[36px] rounded-full",
-                        "border border-white/10 bg-black/40 hover:bg-white/5 transition",
-                        "inline-flex items-center justify-center",
-                      )}
+                      style={{position:"absolute", bottom:"12px", right:"12px", zIndex:10, height:"36px", width:"36px", borderRadius:"9999px", border:"1px solid rgba(255,255,255,0.1)", background:"rgba(0,0,0,0.4)", display:"inline-flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"white"}}
                       onClick={() => {
                         const el = msgScrollRef.current;
                         if (!el) return;
@@ -6322,31 +5807,31 @@ export default function FriendsMenu({
                       aria-label={t("common.back")}
                       title={t("common.back")}
                     >
-                      <IconChevronDown size={18} className="text-white/80" />
+                      <IconChevronDown size={18} style={{color:"rgba(255,255,255,0.8)"}} />
                     </button>
                   ) : null}
-                </div>
+                </Box>
 
-                <div className="mt-2 space-y-2">
+                <VStack mt={2} gap={2} align="stretch">
                   {replyDraft ? (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 bg-black/25">
-                      <div className="text-[10px] font-extrabold tracking-widest text-white/60 uppercase">
+                    <HStack gap={2} px={3} py={2} rounded="xl" border="1px solid" borderColor="rgba(255,255,255,0.1)" bg="rgba(0,0,0,0.25)">
+                      <Box fontSize="10px" fontWeight="extrabold" letterSpacing="widest" color="rgba(255,255,255,0.6)" textTransform="uppercase">
                         {t("friendsMenu.reply.replyingTo")}
-                      </div>
-                      <div className="flex-1 min-w-0 text-[11px] text-white/80 truncate">
+                      </Box>
+                      <Box flex={1} minW={0} fontSize="11px" color="rgba(255,255,255,0.8)" style={{overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
                         {displayHandle(replyDraft.fromHandle)}: {replyDraft.snippet}
-                      </div>
+                      </Box>
                       <button
                         type="button"
-                        className="px-2 py-1 text-[11px] rounded-lg border border-white/10 bg-black/35 hover:bg-white/5 transition"
+                        style={{padding:"2px 8px", fontSize:"11px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.1)", background:"rgba(0,0,0,0.35)", color:"white", cursor:"pointer", fontFamily:"inherit"}}
                         onClick={() => setReplyDraft(null)}
                       >
                         {t("friendsMenu.reply.cancel")}
                       </button>
-                    </div>
+                    </HStack>
                   ) : null}
 
-                  <div className="flex gap-2 items-stretch">
+                  <HStack gap={2} align="stretch">
                     <textarea
                       ref={msgInputRef}
                       rows={1}
@@ -6362,13 +5847,7 @@ export default function FriendsMenu({
                           : t("friendsMenu.placeholders.dmMessage")
                       }
                       disabled={appView === "dm" && !selectedFriend}
-                      className={cn(
-                        "flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500",
-                        "resize-none min-h-[40px] max-h-24 overflow-y-auto",
-                        appView === "dm" &&
-                          !selectedFriend &&
-                          "opacity-60 cursor-not-allowed",
-                      )}
+                      style={{flex:1, background:"rgba(0,0,0,0.4)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"8px", padding:"8px 12px", fontSize:"0.875rem", color:"white", outline:"none", fontFamily:"inherit", resize:"none", minHeight:"40px", maxHeight:"96px", overflowY:"auto", opacity: appView === "dm" && !selectedFriend ? 0.6 : 1, cursor: appView === "dm" && !selectedFriend ? "not-allowed" : "auto", boxSizing:"border-box"}}
                       onKeyDown={(e) => {
                         if (e.key !== "Enter") return;
                         if (e.shiftKey) {
@@ -6385,11 +5864,11 @@ export default function FriendsMenu({
                       }}
                     />
                     <div
-                      className="relative shrink-0 flex items-stretch gap-2"
+                      style={{position:"relative", flexShrink:0, display:"flex", alignItems:"stretch", gap:"8px"}}
                       data-kaomoji-root="1"
                     >
                       {countLineBreaks(msgText) > 0 ? (
-                        <div className="absolute -top-4 right-0 px-1.5 py-0.5 rounded-md border border-white/10 bg-black/35 text-[10px] text-white/80">
+                        <div style={{position:"absolute", top:"-16px", right:0, padding:"2px 6px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.1)", background:"rgba(0,0,0,0.35)", fontSize:"10px", color:"rgba(255,255,255,0.8)"}}>
                           {Math.min(
                             countLineBreaks(msgText),
                             MAX_MSG_LINE_BREAKS,
@@ -6404,12 +5883,7 @@ export default function FriendsMenu({
                         disabled={appView === "dm" && !selectedFriend}
                         title={t("friendsMenu.kaomojis.title")}
                         aria-label={t("friendsMenu.kaomojis.title")}
-                        className={cn(
-                          "h-[40px] w-[56px] inline-flex items-center justify-center rounded-lg border border-white/10 bg-black/35 hover:bg-white/5 transition",
-                          appView === "dm" &&
-                            !selectedFriend &&
-                            "opacity-60 cursor-not-allowed hover:bg-black/35",
-                        )}
+                        style={{height:"40px", width:"56px", display:"inline-flex", alignItems:"center", justifyContent:"center", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.1)", background:"rgba(0,0,0,0.35)", cursor: (appView === "dm" && !selectedFriend) ? "not-allowed" : "pointer", opacity: (appView === "dm" && !selectedFriend) ? 0.6 : 1, color:"white"}}
                         onMouseDown={(e) => {
                           e.stopPropagation();
                           try {
@@ -6424,7 +5898,7 @@ export default function FriendsMenu({
                           setKaomojiOpen((v) => !v);
                         }}
                       >
-                        <span className="text-[11px] leading-none font-extrabold tracking-tight text-white/80 whitespace-nowrap">
+                        <span style={{fontSize:"11px", lineHeight:1, fontWeight:800, letterSpacing:"-0.025em", color:"rgba(255,255,255,0.8)", whiteSpace:"nowrap"}}>
                           {t("friendsMenu.kaomojis.trigger")}
                         </span>
                       </button>
@@ -6434,12 +5908,17 @@ export default function FriendsMenu({
                             <div
                               ref={kaomojiBoxRef}
                               data-kaomoji-box="1"
-                              className={cn(
-                                "fixed z-[9999]",
-                                "w-[520px] max-w-[95vw] rounded-lg border border-white/10",
-                                "bg-black/45 backdrop-blur-md shadow-xl p-2",
-                              )}
                               style={{
+                                position:"fixed",
+                                zIndex:9999,
+                                width:"520px",
+                                maxWidth:"95vw",
+                                borderRadius:"8px",
+                                border:"1px solid rgba(255,255,255,0.1)",
+                                background:"rgba(0,0,0,0.45)",
+                                backdropFilter:"blur(12px)",
+                                boxShadow:"0 25px 50px -12px rgba(0,0,0,0.5)",
+                                padding:"8px",
                                 left: kaomojiMenuPos?.left ?? 8,
                                 top: kaomojiMenuPos?.top ?? 8,
                               }}
@@ -6456,29 +5935,23 @@ export default function FriendsMenu({
                                 } catch {}
                               }}
                             >
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="text-[10px] font-extrabold tracking-widest text-white uppercase">
+                              <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px"}}>
+                                <div style={{fontSize:"10px", fontWeight:800, letterSpacing:"0.1em", color:"white", textTransform:"uppercase"}}>
                                   {t("friendsMenu.kaomojis.title")}
                                 </div>
                               </div>
 
-                              <div className="mt-2 flex gap-2">
-                                <div className="w-[210px] max-h-[280px] overflow-y-auto dark-scrollbar pr-1">
-                                  <div className="space-y-1">
+                              <div style={{marginTop:"8px", display:"flex", gap:"8px"}}>
+                                <div style={{width:"210px", maxHeight:"280px", overflowY:"auto"}} className="dark-scrollbar">
+                                  <div style={{display:"flex", flexDirection:"column", gap:"4px"}}>
                                     {KAOMOJI_CATEGORIES.map((c) => (
                                       <button
                                         key={c.id}
                                         type="button"
-                                        className={cn(
-                                          "w-full text-left px-2 py-2 rounded-lg border border-white/10",
-                                          "text-[11px] font-bold text-white",
-                                          c.id === kaomojiCatId
-                                            ? "bg-white/10"
-                                            : "bg-white/5 hover:bg-white/10",
-                                        )}
+                                        style={{width:"100%", textAlign:"left", padding:"8px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.1)", fontSize:"11px", fontWeight:"bold", color:"white", background: c.id === kaomojiCatId ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.05)", cursor:"pointer", fontFamily:"inherit"}}
                                         onClick={() => setKaomojiCatId(c.id)}
                                       >
-                                        <div className="truncate">
+                                        <div style={{overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
                                           {t(`friendsMenu.kaomojis.categories.${c.id}`)}
                                         </div>
                                       </button>
@@ -6486,8 +5959,8 @@ export default function FriendsMenu({
                                   </div>
                                 </div>
 
-                                <div className="flex-1 max-h-[280px] overflow-y-auto dark-scrollbar">
-                                  <div className="space-y-1">
+                                <div style={{flex:1, maxHeight:"280px", overflowY:"auto"}} className="dark-scrollbar">
+                                  <div style={{display:"flex", flexDirection:"column", gap:"4px"}}>
                                     {(KAOMOJI_CATEGORIES.find(
                                       (c) => c.id === kaomojiCatId,
                                     )?.items ||
@@ -6497,29 +5970,26 @@ export default function FriendsMenu({
                                         `friendsMenu.kaomojis.items.${kaomojiCatId}.${idx}`,
                                         { defaultValue: "" },
                                       );
-                                        return (
-                                          <button
-                                            key={idx}
-                                            type="button"
-                                            className={cn(
-                                              "w-full px-2 py-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition",
-                                              "text-left",
-                                            )}
-                                            title={meaning}
-                                            onClick={(e) =>
-                                              insertKaomoji(k.text, e.shiftKey)
-                                            }
-                                          >
-                                            <div className="min-w-0">
-                                              <div className="text-sm font-extrabold text-white/90 whitespace-nowrap overflow-x-auto dark-scrollbar">
-                                                {k.text}
-                                              </div>
-                                              <div className="mt-0.5 text-[10px] text-white/60 truncate">
-                                                {meaning}
-                                              </div>
+                                      return (
+                                        <button
+                                          key={k.text}
+                                          type="button"
+                                          style={{width:"100%", padding:"8px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.1)", background:"rgba(255,255,255,0.05)", textAlign:"left", cursor:"pointer", fontFamily:"inherit"}}
+                                          title={meaning}
+                                          onClick={(e) =>
+                                            insertKaomoji(k.text, e.shiftKey)
+                                          }
+                                        >
+                                          <div style={{minWidth:0}}>
+                                            <div style={{fontSize:"0.875rem", fontWeight:800, color:"rgba(255,255,255,0.9)", whiteSpace:"nowrap", overflowX:"auto"}} className="dark-scrollbar">
+                                              {k.text}
                                             </div>
-                                          </button>
-                                        );
+                                            <div style={{marginTop:"2px", fontSize:"10px", color:"rgba(255,255,255,0.6)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
+                                              {meaning}
+                                            </div>
+                                          </div>
+                                        </button>
+                                      );
                                     })}
                                   </div>
                                 </div>
@@ -6534,34 +6004,29 @@ export default function FriendsMenu({
                         disabled={appView === "dm" && !selectedFriend}
                         title={t("common.send")}
                         aria-label={t("common.send")}
-                        className={cn(
-                          "h-[40px] w-[40px] inline-flex items-center justify-center rounded-lg border border-white/10 bg-black/35 hover:bg-white/5 transition",
-                          appView === "dm" &&
-                            !selectedFriend &&
-                            "opacity-60 cursor-not-allowed hover:bg-black/35",
-                        )}
+                        style={{height:"40px", width:"40px", display:"inline-flex", alignItems:"center", justifyContent:"center", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.1)", background:"rgba(0,0,0,0.35)", cursor: (appView === "dm" && !selectedFriend) ? "not-allowed" : "pointer", opacity: (appView === "dm" && !selectedFriend) ? 0.6 : 1, color:"white"}}
                         onClick={() => void sendMessage()}
                       >
-                        <IconArrowUpRight size={18} className="text-white/80" />
+                        <IconArrowUpRight size={18} style={{color:"rgba(255,255,255,0.8)"}} />
                       </button>
                     </div>
-                  </div>
-                </div>
+                  </HStack>
+                </VStack>
               </>
             )}
-          </div>
+          </Btn>
         ) : null}
 
         {report.open ? (
-          <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/50 p-3">
-            <div className="w-full max-w-[360px] rounded-2xl border border-white/10 bg-black/70 backdrop-blur p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-xs font-extrabold tracking-widest text-white/70 uppercase">
+          <Box position="absolute" inset={0} zIndex={40} display="flex" alignItems="center" justifyContent="center" bg="rgba(0,0,0,0.5)" p={3}>
+            <Box w="full" maxW="360px" rounded="2xl" border="1px solid rgba(255,255,255,0.1)" bg="rgba(0,0,0,0.7)" style={{backdropFilter:"blur(12px)"}} p={3}>
+              <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px"}}>
+                <div style={{fontSize:"0.75rem", fontWeight:800, letterSpacing:"0.1em", color:"rgba(255,255,255,0.7)", textTransform:"uppercase"}}>
                   {t("friendsMenu.report.title")}
                 </div>
                 <button
                   type="button"
-                  className="px-2 py-1 text-xs rounded-lg border border-white/10 bg-black/25 hover:bg-white/5 transition"
+                  style={{padding:"4px 8px", fontSize:"0.75rem", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.1)", background:"rgba(0,0,0,0.25)", color:"white", cursor:"pointer", fontFamily:"inherit"}}
                   onClick={() =>
                     setReport({
                       open: false,
@@ -6578,15 +6043,15 @@ export default function FriendsMenu({
                 </button>
               </div>
 
-              <div className="mt-2 text-[11px] text-white/70">
+              <div style={{marginTop:"8px", fontSize:"11px", color:"rgba(255,255,255,0.7)"}}>
                 {t("friendsMenu.report.reporting")}{" "}
-                <span className="font-bold text-white/80">
+                <span style={{fontWeight:"bold", color:"rgba(255,255,255,0.8)"}}>
                   {report.msg?.fromHandle || "-"}
                 </span>
               </div>
 
-              <div className="mt-3 space-y-2 text-xs">
-                <div className="text-[11px] font-bold text-white/70 uppercase">
+              <div style={{marginTop:"12px", display:"flex", flexDirection:"column", gap:"8px", fontSize:"0.75rem"}}>
+                <div style={{fontSize:"11px", fontWeight:"bold", color:"rgba(255,255,255,0.7)", textTransform:"uppercase"}}>
                   {t("friendsMenu.report.category")}
                 </div>
                 {(
@@ -6608,7 +6073,7 @@ export default function FriendsMenu({
                 ).map((c) => (
                   <label
                     key={c.k}
-                    className="flex items-center gap-2 p-2 rounded-xl border border-white/10 bg-black/25"
+                    style={{display:"flex", alignItems:"center", gap:"8px", padding:"8px", borderRadius:"12px", border:"1px solid rgba(255,255,255,0.1)", background:"rgba(0,0,0,0.25)", cursor:"pointer"}}
                   >
                     <input
                       type="radio"
@@ -6629,10 +6094,10 @@ export default function FriendsMenu({
 
                 {report.category && report.category !== "other" ? (
                   <>
-                    <div className="mt-2 text-[11px] font-bold text-white/70 uppercase">
+                    <div style={{marginTop:"8px", fontSize:"11px", fontWeight:"bold", color:"rgba(255,255,255,0.7)", textTransform:"uppercase"}}>
                       {t("friendsMenu.report.reason")}
                     </div>
-                    <div className="space-y-2">
+                    <div style={{display:"flex", flexDirection:"column", gap:"8px"}}>
                       {report.category === "security_violence" ? (
                         <>
                           {(
@@ -6655,7 +6120,7 @@ export default function FriendsMenu({
                           ).map((r) => (
                             <label
                               key={r.k}
-                              className="flex items-center gap-2 p-2 rounded-xl border border-white/10 bg-black/25"
+                              style={{display:"flex", alignItems:"center", gap:"8px", padding:"8px", borderRadius:"12px", border:"1px solid rgba(255,255,255,0.1)", background:"rgba(0,0,0,0.25)", cursor:"pointer"}}
                             >
                               <input
                                 type="radio"
@@ -6691,7 +6156,7 @@ export default function FriendsMenu({
                           ).map((r) => (
                             <label
                               key={r.k}
-                              className="flex items-center gap-2 p-2 rounded-xl border border-white/10 bg-black/25"
+                              style={{display:"flex", alignItems:"center", gap:"8px", padding:"8px", borderRadius:"12px", border:"1px solid rgba(255,255,255,0.1)", background:"rgba(0,0,0,0.25)", cursor:"pointer"}}
                             >
                               <input
                                 type="radio"
@@ -6723,7 +6188,7 @@ export default function FriendsMenu({
                           ).map((r) => (
                             <label
                               key={r.k}
-                              className="flex items-center gap-2 p-2 rounded-xl border border-white/10 bg-black/25"
+                              style={{display:"flex", alignItems:"center", gap:"8px", padding:"8px", borderRadius:"12px", border:"1px solid rgba(255,255,255,0.1)", background:"rgba(0,0,0,0.25)", cursor:"pointer"}}
                             >
                               <input
                                 type="radio"
@@ -6749,17 +6214,14 @@ export default function FriendsMenu({
                       setReport((p) => ({ ...p, details: e.target.value }))
                     }
                     placeholder={t("friendsMenu.report.otherPlaceholder")}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs min-h-[90px] focus:outline-none focus:border-blue-500"
+                    style={{width:"100%", background:"rgba(0,0,0,0.4)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"8px", padding:"8px 12px", fontSize:"0.75rem", minHeight:"90px", outline:"none", color:"white", fontFamily:"inherit", resize:"vertical", boxSizing:"border-box"}}
                   />
                 ) : null}
 
-                <div className="mt-3 flex gap-2">
+                <div style={{marginTop:"12px", display:"flex", gap:"8px"}}>
                   <button
                     type="button"
-                    className={cn(
-                      "flex-1 px-3 py-2 rounded-lg font-bold border border-white/10 bg-black/35 hover:bg-white/5 transition",
-                      report.sending && "opacity-60 cursor-not-allowed",
-                    )}
+                    style={{flex:1, padding:"8px 12px", borderRadius:"8px", fontWeight:"bold", border:"1px solid rgba(255,255,255,0.1)", background:"rgba(0,0,0,0.35)", color:"white", cursor: report.sending ? "not-allowed" : "pointer", opacity: report.sending ? 0.6 : 1, fontFamily:"inherit", fontSize:"inherit"}}
                     onClick={() =>
                       setReport({
                         open: false,
@@ -6776,10 +6238,7 @@ export default function FriendsMenu({
                   </button>
                   <button
                     type="button"
-                    className={cn(
-                      "flex-1 px-3 py-2 rounded-lg font-bold border border-white/10 bg-blue-600/80 hover:bg-blue-600/70 transition",
-                      report.sending && "opacity-60 cursor-not-allowed",
-                    )}
+                    style={{flex:1, padding:"8px 12px", borderRadius:"8px", fontWeight:"bold", border:"1px solid rgba(255,255,255,0.1)", background:"rgba(37,99,235,0.8)", color:"white", cursor: report.sending ? "not-allowed" : "pointer", opacity: report.sending ? 0.6 : 1, fontFamily:"inherit", fontSize:"inherit"}}
                     onClick={() => void submitReport()}
                     disabled={report.sending}
                   >
@@ -6787,10 +6246,10 @@ export default function FriendsMenu({
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
+            </Box>
+          </Box>
         ) : null}
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 }

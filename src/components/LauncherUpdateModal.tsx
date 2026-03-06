@@ -1,7 +1,16 @@
 import React, { useMemo, useState } from "react";
 import { IconX } from "@tabler/icons-react";
-import cn from "../utils/cn";
 import { useTranslation } from "react-i18next";
+import {
+  Box,
+  Button,
+  Checkbox,
+  HStack,
+  IconButton,
+  Text,
+  VStack,
+} from "@chakra-ui/react";
+import { ModalBackdrop, ModalCard, GradientButton } from "./ui";
 
 export type LauncherUpdateInfo = {
   currentVersion: string;
@@ -18,24 +27,19 @@ const renderChangelog = (changelog?: string | string[]) => {
     const items = changelog
       .map((x) => (typeof x === "string" ? x.trim() : ""))
       .filter(Boolean);
-
     if (!items.length) return null;
-
     return (
-      <ul className="mt-2 list-disc pl-5 text-sm text-gray-200 space-y-1">
+      <Box as="ul" mt={2} pl={5} fontSize="sm" color="whiteAlpha.800" listStyleType="disc">
         {items.map((line, idx) => (
-          <li key={idx}>{line}</li>
+          <Box as="li" key={idx} mb={1}>{line}</Box>
         ))}
-      </ul>
+      </Box>
     );
   }
 
   const text = typeof changelog === "string" ? changelog.trim() : "";
   if (!text) return null;
-
-  return (
-    <div className="mt-2 text-sm text-gray-200 whitespace-pre-wrap">{text}</div>
-  );
+  return <Text mt={2} fontSize="sm" color="whiteAlpha.800" whiteSpace="pre-wrap">{text}</Text>;
 };
 
 const LauncherUpdateModal: React.FC<{
@@ -50,92 +54,85 @@ const LauncherUpdateModal: React.FC<{
   const title = t("launcherUpdate.title");
   const subtitle = useMemo(() => {
     const parts: string[] = [];
-    if (info.currentVersion) {
-      parts.push(
-        t("launcherUpdate.subtitleCurrent", { version: info.currentVersion }),
-      );
-    }
-    if (info.latestVersion) {
-      parts.push(
-        t("launcherUpdate.subtitleLatest", { version: info.latestVersion }),
-      );
-    }
+    if (info.currentVersion) parts.push(t("launcherUpdate.subtitleCurrent", { version: info.currentVersion }));
+    if (info.latestVersion) parts.push(t("launcherUpdate.subtitleLatest", { version: info.latestVersion }));
     return parts.join(" • ");
   }, [i18n.language, info.currentVersion, info.latestVersion, t]);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[10050] flex items-center justify-center glass-backdrop animate-fade-in">
-      <div
-        className={cn(
-          "relative w-full max-w-2xl rounded-xl shadow-2xl bg-linear-to-b from-[#1b2030]/95 to-[#141824]/95 border border-[#2a3146] p-6 animate-settings-in",
-        )}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="text-white font-extrabold text-xl">{title}</div>
-            <div className="mt-1 text-sm text-gray-300">
-              {t("launcherUpdate.description")}
-            </div>
-            {!!subtitle && (
-              <div className="mt-2 text-xs text-gray-400">{subtitle}</div>
-            )}
+    <ModalBackdrop zIndex={10050}>
+      <ModalCard maxW="2xl">
+        <HStack justify="space-between" align="flex-start">
+          <VStack align="flex-start" gap={1}>
+            <Text color="white" fontWeight="extrabold" fontSize="xl">{title}</Text>
+            <Text fontSize="sm" color="whiteAlpha.700">{t("launcherUpdate.description")}</Text>
+            {!!subtitle && <Text fontSize="xs" color="whiteAlpha.500">{subtitle}</Text>}
             {info.publishedAt && (
-              <div className="mt-1 text-xs text-gray-400">
+              <Text fontSize="xs" color="whiteAlpha.500">
                 {t("launcherUpdate.released", { date: info.publishedAt })}
-              </div>
+              </Text>
             )}
-          </div>
+          </VStack>
 
-          <button
-            type="button"
-            className="w-8 h-8 rounded-full bg-[#23293a] text-gray-400 hover:text-white hover:bg-[#2f3650] transition flex items-center justify-center"
+          <IconButton
+            aria-label={t("common.close")}
+            size="sm"
+            variant="ghost"
+            color="whiteAlpha.600"
+            _hover={{ color: "white", bg: "whiteAlpha.100" }}
+            rounded="full"
+            flexShrink={0}
             onClick={() => onClose(dontRemindAgain)}
-            title={t("common.close")}
           >
-            <IconX size={20} />
-          </button>
-        </div>
+            <IconX size={18} />
+          </IconButton>
+        </HStack>
 
-        <div className="mt-5">
-          <div className="text-white font-bold">{t("launcherUpdate.whatsNew")}</div>
+        <Box mt={5}>
+          <Text color="white" fontWeight="bold">{t("launcherUpdate.whatsNew")}</Text>
           {renderChangelog(info.changelog) ?? (
-            <div className="mt-2 text-sm text-gray-200">
+            <Text mt={2} fontSize="sm" color="whiteAlpha.800">
               {t("launcherUpdate.noChangelog")}
-            </div>
+            </Text>
           )}
-        </div>
+        </Box>
 
-        <label className="mt-5 flex items-center gap-2 select-none text-sm text-gray-200">
-          <input
-            type="checkbox"
-            className="accent-blue-500"
+        <HStack mt={5} gap={2} align="center">
+          <Checkbox.Root
             checked={dontRemindAgain}
-            onChange={(e) => setDontRemindAgain(e.target.checked)}
-          />
-            {t("launcherUpdate.dontRemindAgain")}
-        </label>
+            onCheckedChange={(d) => setDontRemindAgain(!!d.checked)}
+            colorPalette="blue"
+          >
+            <Checkbox.HiddenInput />
+            <Checkbox.Control />
+            <Checkbox.Label fontSize="sm" color="whiteAlpha.800">
+              {t("launcherUpdate.dontRemindAgain")}
+            </Checkbox.Label>
+          </Checkbox.Root>
+        </HStack>
 
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            className="px-4 py-2 rounded-lg border border-[#2a3146] text-gray-300 hover:text-white hover:bg-[#2f3650] transition"
+        <HStack mt={6} justify="flex-end" gap={3}>
+          <Button
+            variant="outline"
+            size="sm"
+            borderColor="whiteAlpha.200"
+            color="whiteAlpha.700"
+            _hover={{ color: "white", bg: "whiteAlpha.100" }}
             onClick={() => onClose(dontRemindAgain)}
           >
             {t("launcherUpdate.notNow")}
-          </button>
-          <button
-            type="button"
-            className="px-4 py-2 rounded-lg bg-linear-to-r from-[#0268D4] to-[#02D4D4] text-white font-bold hover:scale-[1.02] transition"
+          </Button>
+          <GradientButton
+            size="sm"
             onClick={() => onUpdate(dontRemindAgain)}
           >
             {t("launcherUpdate.update")}
-          </button>
-        </div>
-      </div>
-    </div>
+          </GradientButton>
+        </HStack>
+      </ModalCard>
+    </ModalBackdrop>
   );
 };
 

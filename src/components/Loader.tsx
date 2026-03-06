@@ -1,8 +1,9 @@
-import butterLogo from "../assets/butter-logo.png";
-import butterBg from "../assets/butter-bg.png";
-import butterLauncherOgg from "../assets/butterlauncher.ogg";
+import butterLogo from "../assets/images/butter-logo.png";
+import butterBg from "../assets/images/butter-bg.jpeg";
+import butterLauncherOgg from "../assets/sounds/butterlauncher.ogg";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Box, Text } from "@chakra-ui/react";
 
 type GlobalStartupSoundState = {
   audio: HTMLAudioElement | null;
@@ -279,65 +280,82 @@ const Loader: React.FC = () => {
   }, []);
 
   return (
-    <div
-      className="splash-root fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden"
+    <Box
+      className="splash-root"
       style={{
-        // @ts-ignore (electron app-region)
         appRegion: "drag",
-        // Provide a simple 0..1 intensity to CSS
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ["--splash-beat" as any]: String(beat.toFixed(3)),
-      }}
+      } as React.CSSProperties}
     >
-      <div aria-hidden="true" className="absolute inset-0">
-        <div
-          className="absolute inset-0 opacity-35"
-          style={{
-            backgroundImage: `url(${butterBg})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            filter: "blur(1px)",
-          }}
+      {/* Background layers */}
+      <Box aria-hidden="true" position="absolute" inset={0}>
+        <Box
+          position="absolute"
+          inset={0}
+          opacity={0.35}
+          backgroundImage={`url(${butterBg})`}
+          backgroundSize="cover"
+          backgroundPosition="center"
+          filter="blur(1px)"
         />
-        <div className="splash-vignette absolute inset-0" />
-        <div className="splash-aurora absolute inset-0" />
-      </div>
+        <Box className="splash-vignette" position="absolute" inset={0} />
+        <Box className="splash-aurora" position="absolute" inset={0} />
+      </Box>
 
-      <div className="relative w-[min(520px,86vw)] px-6">
-        <div className="relative mx-auto w-[240px] h-[240px]">
-          <div className="splash-ring absolute inset-0 rounded-full" />
-          <div className="splash-ring2 absolute inset-0 rounded-full" />
-          <div className="splash-glow absolute inset-0 rounded-full" />
-
-          <div className="splash-logo absolute inset-0 flex items-center justify-center">
-            <img
+      {/* Content */}
+      <Box position="relative" w="min(520px, 86vw)" px={6}>
+        {/* Logo ring */}
+        <Box position="relative" mx="auto" w="240px" h="240px">
+          <Box className="splash-ring" position="absolute" inset={0} rounded="full" />
+          <Box className="splash-ring2" position="absolute" inset={0} rounded="full" />
+          <Box className="splash-glow" position="absolute" inset={0} rounded="full" />
+          <Box
+            className="splash-logo"
+            position="absolute"
+            inset={0}
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+          >
+            <Box
+              as="img"
               src={butterLogo}
               alt={t("splash.logoAlt")}
               draggable={false}
-              className="w-[220px] select-none pointer-events-none"
+              w="220px"
+              pointerEvents="none"
+              userSelect="none"
             />
-          </div>
-        </div>
+          </Box>
+        </Box>
 
-        <div className="mt-6 text-center">
-          <div className="splash-title text-2xl font-extrabold tracking-wider uppercase">
+        {/* Title */}
+        <Box mt={6} textAlign="center">
+          <Text
+            className="splash-title"
+            fontSize="1.5rem"
+            fontWeight={800}
+            letterSpacing="0.12em"
+            textTransform="uppercase"
+          >
             {t("splash.title")}
-          </div>
-          <div className="mt-2 text-sm font-semibold text-gray-200/90">
+          </Text>
+          <Text mt={2} fontSize="sm" fontWeight="semibold" color="whiteAlpha.800">
             {t("splash.initializing")}
-          </div>
-        </div>
+          </Text>
+        </Box>
 
-        <div className="mt-6">
-          <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-            <div className="splash-bar h-full rounded-full" />
-          </div>
-          <div className="mt-2 text-center text-xs font-semibold text-gray-300/80">
+        {/* Progress bar */}
+        <Box mt={6}>
+          <Box h="8px" borderRadius="full" bg="whiteAlpha.100" overflow="hidden">
+            <Box className="splash-bar" h="100%" rounded="full" />
+          </Box>
+          <Text mt={2} textAlign="center" fontSize="xs" fontWeight="semibold" color="whiteAlpha.600">
             {t("splash.preparing")}
-          </div>
-        </div>
-      </div>
-    </div>
+          </Text>
+        </Box>
+      </Box>
+    </Box>
   );
 };
 

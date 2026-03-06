@@ -34,6 +34,16 @@
     "copied": "Copied",
     "closeDownloadWarning": "Closing the launcher will cancel the current download. Are you sure you want to close it?"
   },
+  "chat": {
+    "channels": "Channels",
+    "globalChat": "Global Chat",
+    "directMessages": "Direct Messages",
+    "online": "Online",
+    "typing": "{{user}} is typing...",
+    "placeholder": "Write to {{target}}...",
+    "send": "Send",
+    "emoji": "Emoji"
+  },
   "supportTicket": {
     "devAssistSoon": "A developer will assist you shortly.",
     "invalidOrExpired": "Invalid or expired ticket.",
@@ -852,7 +862,7 @@
     "update": "Update"
   },
   "settings": {
-    "title": "SYSTEM SETTINGS",
+    "title": "System settings",
     "teamName": "Butter Launcher Team",
     "madeBy": "Made by",
     "language": {
@@ -878,7 +888,9 @@
       "saved": "Saved: {{uuid}}"
     },
     "discordRPC": "Discord RPC",
+    "discordRPCHint": "Show current game activity in Discord",
     "startupSound": "Startup sound",
+    "startupSoundHint": "Play a sound when the launcher starts",
     "steamDeck": {
       "label": "SteamDeck mode",
       "applying": "Applying fix...",
@@ -929,9 +941,9 @@
       "designLauncher": "Design Launcher"
     },
     "updates": {
-      "check": "CHECK FOR UPDATES",
-      "checking": "CHECKING..."
+      "check": "Check for updates",
+      "checking": "Checking..."
     },
-    "logout": "LOGOUT"
+    "logout": "Log out"
   }
 }

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import cn from "../utils/cn";
 import { useTranslation } from "react-i18next";
+import { Box, Button, Text } from "@chakra-ui/react";
+import { ModalBackdrop, ModalCard, GradientButton } from "./ui";
 
 const HostServerModal: React.FC<{
   open: boolean;
@@ -22,81 +23,87 @@ const HostServerModal: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center glass-backdrop animate-fade-in">
-      <div
-        className={cn(
-          `
-          relative w-[92vw] max-w-[1400px] h-[88vh] mx-auto
-          rounded-xl
-          bg-linear-to-b from-[#1b2030]/95 to-[#141824]/95
-          border border-[#2a3146]
-          shadow-2xl
-          px-10 py-6
-          flex flex-col animate-settings-in`,
-          closing && "animate-settings-out",
-        )}
-      >
-        <button
-          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-[#23293a] text-gray-400 hover:text-white hover:bg-[#2f3650] transition flex items-center justify-center"
-          onClick={close}
-          title={t("common.close")}
-        >
-          ×
-        </button>
+    <ModalBackdrop onClose={close}>
+      <ModalCard maxW="1400px" w="92vw">
+        <Box h="88vh" display="flex" flexDir="column" px={4}>
+          <Button
+            position="absolute"
+            top={3}
+            right={3}
+            size="sm"
+            variant="ghost"
+            color="whiteAlpha.600"
+            _hover={{ color: "white", bg: "whiteAlpha.100" }}
+            rounded="full"
+            minW={8}
+            h={8}
+            p={0}
+            onClick={close}
+            aria-label={t("common.close")}
+          >
+            ×
+          </Button>
 
-        <h2 className="text-lg font-semibold text-white tracking-wide mb-4">
-          {t("hostServerModal.title")}
-        </h2>
+          <Text fontSize="lg" fontWeight="semibold" color="white" letterSpacing="wide" mb={4}>
+            {t("hostServerModal.title")}
+          </Text>
 
-        <div className="flex-1 min-h-0 overflow-y-auto pr-2">
-          <div className="space-y-4">
-            <div className="rounded-lg border border-[#2a3146] bg-[#1f2538]/70 p-4">
-              <div className="flex justify-center">
-                <button
-                  type="button"
-                  className="px-4 py-2 rounded-lg font-semibold border border-[#2a3146] text-gray-200 hover:bg-white/5 transition"
-                  onClick={() => setLocalHostNoteOpen(true)}
+          <Box flex={1} minH={0} overflowY="auto" pr={2}>
+            <Box display="flex" flexDir="column" gap={4}>
+              <Box rounded="lg" border="1px solid" borderColor="whiteAlpha.100" bg="rgba(31,37,56,0.7)" p={4}>
+                <Box display="flex" justifyContent="center">
+                  <Button
+                    variant="outline"
+                    borderColor="whiteAlpha.200"
+                    color="whiteAlpha.800"
+                    _hover={{ bg: "whiteAlpha.50" }}
+                    onClick={() => setLocalHostNoteOpen(true)}
+                  >
+                    {t("hostServerModal.localHost.button")}
+                  </Button>
+                </Box>
+                {localHostNoteOpen ? (
+                  <Box mt={3} rounded="lg" border="1px solid" borderColor="rgba(253,230,138,0.2)" bg="blackAlpha.500" px={3} py={2}>
+                    <Text fontSize="11px" color="yellow.200" lineHeight="relaxed">
+                      {t("hostServerModal.localHost.note")}
+                    </Text>
+                  </Box>
+                ) : null}
+              </Box>
+
+              <Box rounded="lg" border="1px solid" borderColor="whiteAlpha.100" bg="rgba(31,37,56,0.7)" p={4}>
+                <Text
+                  fontSize="sm"
+                  fontWeight="extrabold"
+                  letterSpacing="wider"
+                  textTransform="uppercase"
+                  style={{
+                    background: "linear-gradient(90deg,#3b82f6,#22d3ee,#3b82f6)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                  }}
                 >
-                  {t("hostServerModal.localHost.button")}
-                </button>
-              </div>
+                  {t("hostServerModal.proHosting.section")}
+                </Text>
 
-              {localHostNoteOpen ? (
-                <div className="mt-3 rounded-lg border border-amber-200/20 bg-black/30 px-3 py-2">
-                  <div className="text-[11px] text-amber-200 leading-relaxed">
-                    {t("hostServerModal.localHost.note")}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="rounded-lg border border-[#2a3146] bg-[#1f2538]/70 p-4">
-              <div
-                className={cn(
-                  "text-sm font-extrabold tracking-wider uppercase",
-                  "bg-linear-to-r from-blue-500 via-cyan-400 to-blue-500 bg-clip-text text-transparent",
-                  "bg-chroma-animated animate-chroma-shift",
-                )}
-              >
-                {t("hostServerModal.proHosting.section")}
-              </div>
-
-              <button
-                type="button"
-                className="mt-3 mx-auto block px-5 py-2 rounded-lg font-bold text-white bg-linear-to-r from-blue-500 to-cyan-400 hover:from-blue-600 hover:to-cyan-500 transition shadow-lg"
-                onClick={() => {
-                  void window.config.openExternal(
-                    "https://www.hycloudhosting.com/gameservers/hytale?ref=butterlauncher",
-                  );
-                }}
-              >
-                {t("hostServerModal.proHosting.button")}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+                <Box display="flex" justifyContent="center" mt={3}>
+                  <GradientButton
+                    shadow="lg"
+                    onClick={() => {
+                      void window.config.openExternal(
+                        "https://www.hycloudhosting.com/gameservers/hytale?ref=butterlauncher",
+                      );
+                    }}
+                  >
+                    {t("hostServerModal.proHosting.button")}
+                  </GradientButton>
+                </Box>
+              </Box>
+            </Box>
+          </Box>
+        </Box>
+      </ModalCard>
+    </ModalBackdrop>
   );
 };
 
