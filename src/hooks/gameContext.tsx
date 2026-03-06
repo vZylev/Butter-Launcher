@@ -62,6 +62,7 @@ interface GameContextType {
   launchGame: (version: GameVersion, username: string) => void;
   checkForUpdates: (reason?: "startup" | "manual") => Promise<void>;
   startPendingOnlinePatch: () => void;
+  forceOfflineServerPatchForSelectedBuild: () => Promise<void>;
   reconnect: () => void;
 }
 
@@ -230,6 +231,74 @@ export const GameContextProvider = ({
       installingVersion,
     );
   }, [gameDir, installingVersion]);
+
+  const forceOfflineServerPatchForSelectedBuild = useCallback(async () => {
+    let effectiveGameDir = gameDir;
+    if (!effectiveGameDir) {
+      try {
+        const persisted = await (window.config as any).getDownloadDirectory?.();
+        if (typeof persisted === "string" && persisted.trim()) {
+          effectiveGameDir = persisted.trim();
+        }
+      } catch {
+        // ignore
+      }
+
+      if (!effectiveGameDir) {
+        try {
+          const fallback = await window.config.getDefaultGameDirectory();
+          if (typeof fallback === "string" && fallback.trim()) {
+            effectiveGameDir = fallback.trim();
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (effectiveGameDir) {
+        try {
+          setGameDir(effectiveGameDir);
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    if (!effectiveGameDir) {
+      alert("Game directory is not set yet.");
+      return;
+    }
+
+    const list = versionType === "pre-release" ? preReleaseVersionsRef.current : releaseVersionsRef.current;
+    const v = list[selectedVersion];
+    if (!v) {
+      alert("No build selected.");
+      return;
+    }
+
+    try {
+      const res = await window.config.offlineServerJwksPatchForce({
+        gameDir: effectiveGameDir,
+        version: v,
+      });
+      if (!res || (res as any).ok !== true) {
+        const msg = (res as any)?.error ? String((res as any).error) : "Failed";
+        alert(`Force patch failed: ${msg}`);
+        return;
+      }
+
+      const result = (res as any).result;
+      if (result === "applied") {
+        alert("Offline patch rebuilt for selected build.");
+      } else if (result === "skipped") {
+        alert("Offline patch rebuild skipped (server jar not found or not supported). Install the build first.");
+      } else {
+        alert(`Offline patch result: ${String(result)}`);
+      }
+    } catch (e) {
+      alert(`Force patch failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }, [gameDir, versionType, selectedVersion, setGameDir]);
 
   const launchGame = useCallback(
     (version: GameVersion, username: string) => {
@@ -685,7 +754,25 @@ export const GameContextProvider = ({
             ? payload
             : 1000;
       console.error("Online unpatch error code:", code);
-      alert(`Error #${code}`);
+
+      if (code === 1103) {
+        alert(
+          "Could not disable Online Patch because game files are in use. Close the game and try again.",
+        );
+        return;
+      }
+      if (code === 1601) {
+        alert("Online Patch operation already in progress.");
+        return;
+      }
+      if (code === 1102) {
+        alert(
+          "Could not disable Online Patch due to missing permissions. Try running the launcher as administrator.",
+        );
+        return;
+      }
+
+      alert(`Online Patch failed (Error #${code}).`);
     });
     window.ipcRenderer.on("online-patch-error", (_, error: unknown) => {
       setPatchingOnline(false);
@@ -697,7 +784,25 @@ export const GameContextProvider = ({
             ? payload
             : 1000;
       console.error("Online patch error code:", code);
-      alert(`Error #${code}`);
+
+      if (code === 1103) {
+        alert(
+          "Could not enable Online Patch because game files are in use. Close the game and try again.",
+        );
+        return;
+      }
+      if (code === 1601) {
+        alert("Online Patch operation already in progress.");
+        return;
+      }
+      if (code === 1102) {
+        alert(
+          "Could not enable Online Patch due to missing permissions. Try running the launcher as administrator.",
+        );
+        return;
+      }
+
+      alert(`Online Patch failed (Error #${code}).`);
     });
     window.ipcRenderer.on("install-started", () => {
       setInstalling(true);
@@ -790,6 +895,11 @@ export const GameContextProvider = ({
           ? payload.message
           : null;
 
+      const logPath =
+        payload && typeof payload === "object" && typeof payload.logPath === "string"
+          ? payload.logPath
+          : null;
+
       const i18nKey =
         payload && typeof payload === "object" && typeof payload.i18nKey === "string"
           ? payload.i18nKey
@@ -810,7 +920,8 @@ export const GameContextProvider = ({
       }
 
       if (message && message.trim()) {
-        alert(message);
+        const suffix = logPath && logPath.trim() ? `\n\nLogs: ${logPath}` : "";
+        alert(`Error #${code}\n\n${message}${suffix}`);
         return;
       }
 
@@ -927,6 +1038,7 @@ export const GameContextProvider = ({
         launchGame,
         checkForUpdates,
         startPendingOnlinePatch: () => {},
+        forceOfflineServerPatchForSelectedBuild,
         reconnect,
       }}
     >

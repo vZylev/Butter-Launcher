@@ -48,6 +48,34 @@
     "initializing": "Iniciando",
     "preparing": "Preparando tu sesión"
   },
+  "friendsMenu": {
+    "game": {
+      "inviteTitle": "Invitar a jugar",
+      "requestJoinTitle": "Solicitar unirse",
+      "joinTitle": "Unirse",
+      "invite": "Invitación",
+      "joinRequest": "Solicitud",
+      "joinAccepted": "Aceptado",
+      "joinDeclined": "Rechazado",
+      "copyIp": "Copiar IP",
+      "ipCopied": "IP copiada",
+      "ipCopiedNotice": "La IP se ha copiado",
+      "accept": "Aceptar",
+      "decline": "Rechazar",
+      "inviteSent": "Has invitado a {{user}} a jugar.",
+      "inviteSentWithServer": "Has invitado a {{user}} a jugar en {{server}}.",
+      "inviteReceived": "{{user}} te ha invitado a jugar.",
+      "inviteReceivedWithServer": "{{user}} te ha invitado a jugar en {{server}}.",
+      "joinRequestSent": "Has solicitado unirte a {{user}}.",
+      "joinRequestReceived": "{{user}} quiere unirse contigo.",
+      "joinAcceptedByYou": "Has aceptado a {{user}}.",
+      "joinAcceptedByOther": "{{user}} aceptó tu solicitud.",
+      "joinDeclinedByYou": "Has rechazado a {{user}}.",
+      "joinDeclinedByOther": "{{user}} rechazó tu solicitud.",
+      "requestAccepted": "Aceptada",
+      "requestDeclined": "Rechazada"
+    }
+  },
   "launcher": {
     "offlineMode": "Modo Offline",
     "buttons": {
@@ -78,6 +106,15 @@
       "smartInstallTooltip": "Instalación inteligente (parche diferencial)",
       "play": "Jugar",
       "running": "Juego en ejecución"
+    },
+    "patchNotes": {
+      "button": "Notas del parche",
+      "title": "Notas del parche",
+      "contents": "Contenido",
+      "loading": "Cargando notas del parche...",
+      "failed": "No se pudieron cargar las notas del parche.",
+      "empty": "No hay notas del parche disponibles.",
+      "noContents": "No se encontraron encabezados."
     },
     "onlinePatch": {
       "label": "Online Patch",

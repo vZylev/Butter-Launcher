@@ -61,6 +61,15 @@
       "maxLength": "Nickname must be at most {{max}} characters long"
     }
   },
+  "runtimeLock": {
+    "accountType": {
+      "premium": "Premium",
+      "custom": "custom"
+    },
+    "accountTypeLocked_one": "There is {{count}} game open with a {{accountType}} account.\n\nWhile the game is open you can only use accounts of that type.",
+    "accountTypeLocked_other": "There are {{count}} games open with a {{accountType}} account.\n\nWhile the game is open you can only use accounts of that type.",
+    "logoutBlocked": "You can't log out while the game is open.\n\nActive account type: {{accountType}}\nOpen games: {{count}}"
+  },
   "splash": {
     "title": "Butter Launcher",
     "logoAlt": "Butter Launcher",
@@ -102,6 +111,15 @@
       "smartInstallTooltip": "Smart Install (differential patch)",
       "play": "Play",
       "running": "Running Game"
+    },
+    "patchNotes": {
+      "button": "Patch Notes",
+      "title": "Patch Notes",
+      "contents": "Contents",
+      "loading": "Loading patch notes...",
+      "failed": "Failed to load patch notes.",
+      "empty": "No patch notes available.",
+      "noContents": "No headings found."
     },
     "onlinePatch": {
       "label": "Online Patch",
@@ -214,10 +232,14 @@
       "avatarRequirementsError": "Only images under 1MB and exactly 92x92 are allowed.",
       "username": "Username",
       "usernameCopied": "Copied!",
+      "publicStatusTitle": "Public status",
+      "publicStatusHint": "This is what your friends see.",
       "createdAt": "Created",
       "totalMessages": "Total messages sent",
       "dndTitle": "Do Not Disturb",
-      "dndHint": "Mutes DM notification sounds"
+      "dndHint": "Mutes DM notification sounds",
+      "hideServerIpTitle": "Hide server IP",
+      "hideServerIpHint": "Hides the server address from friends while you’re in multiplayer"
     },
 
     "userProfile": {
@@ -242,6 +264,8 @@
     "friends": "Friends",
     "globalChat": "Global Chat",
     "logout": "Logout",
+    "logoutConfirmTitle": "Logout",
+    "logoutConfirmMessage": "Are you sure you want to log out?",
     "copy": "Copy",
     "continue": "Continue",
     "signIn": "Sign in",
@@ -278,6 +302,7 @@
       "offline": "Offline",
       "inGame": "In-Game",
       "multiplayer": "Multiplayer",
+      "playingIn": "Playing in {{server}}",
       "singleplayer": "Singleplayer"
     },
 
@@ -523,6 +548,33 @@
           "5": "Hiding under the table"
         }
       }
+    },
+
+    "game": {
+      "inviteTitle": "Invite to play",
+      "requestJoinTitle": "Request to join",
+      "joinTitle": "Join",
+      "invite": "Invite",
+      "joinRequest": "Join request",
+      "joinAccepted": "Accepted",
+      "joinDeclined": "Declined",
+      "copyIp": "Copy IP",
+      "ipCopied": "IP copied",
+      "ipCopiedNotice": "The IP has been copied",
+      "accept": "Accept",
+      "decline": "Decline",
+      "inviteSent": "You invited {{user}} to play.",
+      "inviteSentWithServer": "You invited {{user}} to play on {{server}}.",
+      "inviteReceived": "{{user}} invited you to play.",
+      "inviteReceivedWithServer": "{{user}} invited you to play on {{server}}.",
+      "joinRequestSent": "You requested to join {{user}}.",
+      "joinRequestReceived": "{{user}} wants to join you.",
+      "joinAcceptedByYou": "You accepted {{user}}.",
+      "joinAcceptedByOther": "{{user}} accepted your request.",
+      "joinDeclinedByYou": "You declined {{user}}.",
+      "joinDeclinedByOther": "{{user}} declined your request.",
+      "requestAccepted": "Accepted",
+      "requestDeclined": "Declined"
     },
 
     "errors": {
@@ -863,6 +915,14 @@
       "description": "Deletes incomplete install folders left behind after an interrupted download (e.g. build-10.staging-...).",
       "cleared": "Cleared {{count}} incomplete install folder(s).",
       "noneFound": "No incomplete install folders were found."
+    },
+    "background": {
+      "label": "Custom Background",
+      "pickTitle": "Select Background File",
+      "pickImage": "Image",
+      "pickVideo": "Video / Live",
+      "clear": "Remove background",
+      "description": "Set a custom background image or live video wallpaper. Supported: PNG, JPG, GIF, WebP, MP4, WebM."
     },
     "credits": {
       "label": "Credits",

@@ -16,6 +16,7 @@
   "files": [
     "dist",
     "dist-electron",
+    "build",
     ".env"
   ],
   "mac": {

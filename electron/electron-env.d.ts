@@ -30,6 +30,10 @@ declare namespace NodeJS {
 interface Window {
   ipcRenderer: import("electron").IpcRenderer;
   config: {
+    getRuntimeGameLock: () => Promise<
+      | { ok: true; active: boolean; accountType: "premium" | "custom" | null; games: number }
+      | { ok: false; active: false; accountType: null; games: 0 }
+    >;
     OS: NodeJS.Platform;
     ARCH: NodeJS.Architecture;
     getDefaultGameDirectory: () => Promise<string>;
@@ -92,6 +96,9 @@ interface Window {
     startupSoundSet: (enabled: boolean) => Promise<{ ok: boolean; settingsPath: string; error: string | null }>;
     startupSoundMarkFirstRunPlayed: () => Promise<{ ok: boolean; settingsPath: string; error: string | null }>;
 
+    backgroundGet: () => Promise<{ ok: boolean; backgroundType: string; backgroundPath: string; error: string | null }>;
+    backgroundSet: (backgroundType: string, backgroundPath: string) => Promise<{ ok: boolean; settingsPath: string; error: string | null }>;
+
     offlineTokenRefresh: (payload: {
       username: string;
       accountType?: string | null;
@@ -108,6 +115,11 @@ interface Window {
 
     officialJwksRefresh: () => Promise<
       | { ok: true; keys: number }
+      | { ok: false; error: string }
+    >;
+
+    offlineServerJwksPatchForce: (payload: { gameDir: string; version: GameVersion }) => Promise<
+      | { ok: true; result: "noop" | "applied" | "restored" | "skipped" }
       | { ok: false; error: string }
     >;
 
@@ -156,6 +168,7 @@ interface Window {
         assetsZipPath?: string | null;
         authMode?: "offline" | "authenticated" | "insecure";
         noAot?: boolean;
+        acceptEarlyPlugins?: boolean;
         ramMinGb?: number | null;
         ramMaxGb?: number | null;
         customJvmArgs?: string | null;

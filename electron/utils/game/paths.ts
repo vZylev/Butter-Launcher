@@ -4,7 +4,55 @@ import { INSTALLED_MANIFEST_FILENAME, readInstallManifest, writeInstallManifest 
 
 const BUILD_DIR_PREFIX = "build-";
 
-export const getGameRootDir = (baseDir: string) => path.join(baseDir, "game");
+const normalizeBaseDir = (maybeBaseDir: string): string => {
+  const raw = typeof maybeBaseDir === "string" ? maybeBaseDir.trim() : "";
+  if (!raw) return raw;
+
+  try {
+    // Expected layout is: <baseDir>/game/(release|pre-release|latest)
+    // If the user picked <baseDir>/game, treat its parent as baseDir.
+    const hasChannelDirs =
+      fs.existsSync(path.join(raw, "release")) ||
+      fs.existsSync(path.join(raw, "pre-release")) ||
+      fs.existsSync(path.join(raw, "latest"));
+    if (hasChannelDirs) {
+      return path.dirname(raw);
+    }
+
+    // If the user picked <baseDir>/game/<channel>, go up two levels.
+    // (channel dir contains build-* folders)
+    try {
+      const entries = fs.readdirSync(raw, { withFileTypes: true });
+      const hasBuildDirs = entries.some(
+        (e) => e.isDirectory() && /^build-\d+$/i.test(e.name),
+      );
+      if (hasBuildDirs) {
+        return path.dirname(path.dirname(raw));
+      }
+
+      // If the user picked an actual build directory (<baseDir>/game/<channel>/build-N),
+      // it contains Client/Server; go up three levels.
+      const hasClientOrServer = entries.some(
+        (e) => e.isDirectory() && (e.name === "Client" || e.name === "Server" || e.name === "Servers"),
+      );
+      if (hasClientOrServer) {
+        return path.dirname(path.dirname(path.dirname(raw)));
+      }
+    } catch {
+      // ignore
+    }
+
+    // Happy path: the provided dir already looks like baseDir.
+    if (fs.existsSync(path.join(raw, "game"))) return raw;
+  } catch {
+    // ignore
+  }
+
+  return raw;
+};
+
+export const getGameRootDir = (baseDir: string) =>
+  path.join(normalizeBaseDir(baseDir), "game");
 
 export const getLatestDir = (baseDir: string) => path.join(getGameRootDir(baseDir), "latest");
 
@@ -270,6 +318,9 @@ export const resolveClientPath = (installDir: string) => {
 };
 
 export const resolveServerPath = (installDir: string) => {
+  const serverDirCandidates = ["Server", "Servers", "server", "servers"];
+
+  // Prefer the canonical name if present.
   const primary = path.join(installDir, "Server", "HytaleServer.jar");
   try {
     if (fs.existsSync(primary)) return primary;
@@ -278,27 +329,35 @@ export const resolveServerPath = (installDir: string) => {
   }
 
   // Windows/Linux sometimes ship the server jar under a slightly different name or location.
-  // Prefer staying inside installDir/Server to avoid expensive deep scans.
-  try {
-    const serverDir = path.join(installDir, "Server");
-    if (fs.existsSync(serverDir)) {
+  // Prefer staying inside installDir/<ServerDir> to avoid expensive deep scans.
+  for (const dirName of serverDirCandidates) {
+    try {
+      const serverDir = path.join(installDir, dirName);
+      if (!fs.existsSync(serverDir)) continue;
+
       const entries = fs.readdirSync(serverDir, { withFileTypes: true });
 
-      // First: anything that looks like HytaleServer*.jar
+      // First: exact expected jar name
+      for (const e of entries) {
+        if (!e.isFile()) continue;
+        if (e.name === "HytaleServer.jar") return path.join(serverDir, e.name);
+      }
+
+      // Then: anything that looks like HytaleServer*.jar
       for (const e of entries) {
         if (!e.isFile()) continue;
         if (!/\.jar$/i.test(e.name)) continue;
         if (/^hytaleserver/i.test(e.name)) return path.join(serverDir, e.name);
       }
 
-      // Fallback: if there's exactly one jar in Server/, use it.
+      // Fallback: if there's exactly one jar in the folder, use it.
       const jars = entries
         .filter((e) => e.isFile() && /\.jar$/i.test(e.name))
         .map((e) => path.join(serverDir, e.name));
       if (jars.length === 1) return jars[0]!;
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
   }
 
   // Last resort: look for a server jar in the install root.
@@ -320,6 +379,7 @@ export const resolveServerPath = (installDir: string) => {
     const appDir = path.join(clientDir, "HytaleClient.app");
     const candidates = [
       path.join(clientDir, "Server", "HytaleServer.jar"),
+      path.join(clientDir, "Servers", "HytaleServer.jar"),
       path.join(clientDir, "HytaleServer.jar"),
       path.join(appDir, "Contents", "Resources", "Server", "HytaleServer.jar"),
       path.join(appDir, "Contents", "Resources", "HytaleServer.jar"),

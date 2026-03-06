@@ -1,16 +1,29 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
   IconArrowUpRight,
+  IconCheck,
   IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
+  IconCopy,
+  IconDeviceGamepad2,
   IconMessage,
+  IconPlayerPlay,
+  IconPlus,
   IconRefresh,
   IconTrash,
   IconUserCircle,
   IconUserPlus,
+  IconX,
 } from "@tabler/icons-react";
 import { Box, HStack, VStack, Text } from "@chakra-ui/react";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -19,6 +32,7 @@ const cn = (...args: (string | boolean | undefined | null)[]): string =>
 import matchaIcon from "../assets/icons/matcha_bold.svg";
 import matchaStartSfx from "../assets/sounds/matchastart.ogg";
 import notiSfx from "../assets/sounds/noti.ogg";
+import ConfirmModal from "./ConfirmModal";
 
 // ── Extracted imports ──────────────────────────────────────────
 import { MATCHA_API_BASE, MATCHA_WS_URL } from "../ipc/channels";
@@ -68,6 +82,17 @@ const authHeaders = (token: string | null) => {
   const h: Record<string, string> = { "Content-Type": "application/json" };
   if (token) h.Authorization = `Bearer ${token}`;
   return h;
+};
+
+// Best-effort: let the main process know our Matcha token so it can send an
+// `offline` heartbeat on app quit (renderer unload fetches can be canceled).
+const syncTokenToMain = (token: string | null) => {
+  try {
+    const ipc = (window as any)?.ipcRenderer;
+    if (ipc && typeof ipc.send === "function") ipc.send("matcha:token", { token });
+  } catch {
+    // ignore
+  }
 };
 
 const readSavedToken = (): string | null => StorageService.getMatchaToken();
@@ -123,6 +148,8 @@ export default function FriendsMenu({
 }) {
   const { t } = useTranslation();
 
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+
   const [token, setToken] = useState<string | null>(() => readSavedToken());
 
   const [me, setMe] = useState<MatchaMe | null>(null);
@@ -140,6 +167,14 @@ export default function FriendsMenu({
   const [profileLoadingUi, setProfileLoadingUi] = useState(false);
   const [profileErr, setProfileErr] = useState<string>("");
   const [profileUser, setProfileUser] = useState<MatchaMe | null>(null);
+  const [profileSettingsWorking, setProfileSettingsWorking] = useState(false);
+  const [profilePublicPresence, setProfilePublicPresence] = useState<null | {
+    state: string;
+    server: string;
+  }>(null);
+  const [profilePublicPresenceLoading, setProfilePublicPresenceLoading] = useState(false);
+  const [profilePublicPresenceErr, setProfilePublicPresenceErr] = useState<string>("");
+  const profilePublicPresenceInFlightRef = useRef(false);
   const profileFetchInFlightRef = useRef(false);
   const profileLoadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -198,6 +233,26 @@ export default function FriendsMenu({
   const friendsLoadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+
+  const [myPresence, setMyPresence] = useState<{ state: string; server: string }>(
+    {
+      state: "offline",
+      server: "",
+    },
+  );
+  const [myPresenceLoading, setMyPresenceLoading] = useState(false);
+  const myPresenceInFlightRef = useRef(false);
+
+  const [friendsCopyNotice, setFriendsCopyNotice] = useState<string>("");
+  const friendsCopyNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  const [copiedIpMsgId, setCopiedIpMsgId] = useState<string | null>(null);
+  const copiedIpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [joinReqWorkingById, setJoinReqWorkingById] = useState<
+    Record<string, "accept" | "decline">
+  >({});
   const [lastInteractionByFriendId, setLastInteractionByFriendId] = useState<
     Record<string, number>
   >({});
@@ -230,6 +285,91 @@ export default function FriendsMenu({
     if (!userId || !h) return null;
     return `${MATCHA_API_BASE}/api/matcha/avatar/${encodeURIComponent(userId)}?v=${encodeURIComponent(h)}`;
   };
+
+  const refreshMyPresence = useCallback(async () => {
+    if (!token) return;
+    if (!me?.id) return;
+    const userId = String(me.id || "").trim();
+    if (!isMongoObjectId(userId)) return;
+    if (myPresenceInFlightRef.current) return;
+    myPresenceInFlightRef.current = true;
+    setMyPresenceLoading(true);
+
+    try {
+      const resp = await apiJson(
+        `/api/matcha/users/${encodeURIComponent(userId)}`,
+        {
+          method: "GET",
+          headers: authHeaders(token),
+        },
+      );
+      if (!resp?.ok) return;
+
+      const u = resp.user as MatchaPublicProfile;
+      const p = (u as any)?.presence;
+      const state = String(p?.state || "offline");
+      const server = String(p?.server || "").trim();
+      setMyPresence({ state, server });
+    } catch {
+      // ignore
+    } finally {
+      myPresenceInFlightRef.current = false;
+      setMyPresenceLoading(false);
+    }
+  }, [token, me?.id]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (mode !== "app") return;
+    void refreshMyPresence();
+    const id = setInterval(() => {
+      void refreshMyPresence();
+    }, 15_000);
+    return () => clearInterval(id);
+  }, [open, mode, refreshMyPresence]);
+
+  const refreshProfilePublicPresence = useCallback(async () => {
+    if (!token) return;
+    if (!me?.id) return;
+    const userId = String(me.id || "").trim();
+    if (!isMongoObjectId(userId)) return;
+
+    if (profilePublicPresenceInFlightRef.current) return;
+    profilePublicPresenceInFlightRef.current = true;
+    setProfilePublicPresenceLoading(true);
+    setProfilePublicPresenceErr("");
+
+    try {
+      const resp = await apiJson(
+        `/api/matcha/users/${encodeURIComponent(userId)}`,
+        {
+          method: "GET",
+          headers: authHeaders(token),
+        },
+      );
+      if (!resp?.ok) throw new Error(String(resp?.error || "Failed"));
+
+      const u = resp.user as MatchaPublicProfile;
+      const p = (u as any)?.presence;
+      const state = String(p?.state || "offline");
+      const server = String(p?.server || "").trim();
+      setProfilePublicPresence({ state, server });
+    } catch (e) {
+      setProfilePublicPresenceErr(String((e as any)?.message || "Failed"));
+    } finally {
+      profilePublicPresenceInFlightRef.current = false;
+      setProfilePublicPresenceLoading(false);
+    }
+  }, [token, me?.id]);
+
+  useEffect(() => {
+    if (!profileOpen) return;
+    void refreshProfilePublicPresence();
+    const id = setInterval(() => {
+      void refreshProfilePublicPresence();
+    }, 20_000);
+    return () => clearInterval(id);
+  }, [profileOpen, refreshProfilePublicPresence]);
 
   const [friendSearch, setFriendSearch] = useState("");
 
@@ -635,6 +775,16 @@ export default function FriendsMenu({
     return false;
   };
 
+  const showFriendsCopyNotice = (text: string) => {
+    setFriendsCopyNotice(text);
+    if (friendsCopyNoticeTimerRef.current)
+      clearTimeout(friendsCopyNoticeTimerRef.current);
+    friendsCopyNoticeTimerRef.current = setTimeout(() => {
+      setFriendsCopyNotice("");
+      friendsCopyNoticeTimerRef.current = null;
+    }, 1500);
+  };
+
   useEffect(() => {
     if (profileOpen) return;
     if (profileUsernameCopiedTimerRef.current) {
@@ -937,6 +1087,7 @@ export default function FriendsMenu({
   const openProfile = async () => {
     if (!token) return;
     setProfileOpen(true);
+    void refreshProfilePublicPresence();
     setProfileErr("");
     // Keep existing data visible to avoid a noticeable "refresh" flash.
     setProfileUser((prev) => prev ?? me);
@@ -978,15 +1129,19 @@ export default function FriendsMenu({
     }
   };
 
-  const openUserProfile = async (userIdRaw: string) => {
+  const openUserProfile = async (
+    userIdRaw: string,
+    opts?: { allowSelfPublic?: boolean },
+  ) => {
     if (!token) return;
     if (!me?.id) return;
 
     const userId = String(userIdRaw || "").trim();
     if (!isMongoObjectId(userId)) return;
 
-    // If the user clicks themselves, open the self-profile UI.
-    if (String(me.id) === userId) {
+    // If the user clicks themselves, normally open the self-profile UI.
+    // In global chat we also support opening the public profile view ("as others see you").
+    if (String(me.id) === userId && !opts?.allowSelfPublic) {
       void openProfile();
       return;
     }
@@ -1055,7 +1210,47 @@ export default function FriendsMenu({
     }
   };
 
+  const updateHideServerIp = async (nextValue: boolean) => {
+    if (!token) return;
+    if (profileSettingsWorking) return;
+
+    setProfileSettingsWorking(true);
+    try {
+      const resp = await apiJson("/api/matcha/me/settings", {
+        method: "POST",
+        headers: authHeaders(token),
+        body: JSON.stringify({ hideServerIp: !!nextValue }),
+      });
+      if (!resp?.ok) throw new Error(String(resp?.error || "Failed"));
+
+      const hideServerIp = !!resp?.settings?.hideServerIp;
+
+      setMe((prev) =>
+        prev
+          ? {
+              ...prev,
+              settings: { ...(prev.settings || {}), hideServerIp },
+            }
+          : prev,
+      );
+      setProfileUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              settings: { ...(prev.settings || {}), hideServerIp },
+            }
+          : prev,
+      );
+    } catch (e) {
+      setProfileErr(String((e as any)?.message || "Failed"));
+    } finally {
+      setProfileSettingsWorking(false);
+    }
+  };
+
   useEffect(() => {
+    syncTokenToMain(token);
+
     if (!token) {
       setMe(null);
       setUnreadDmByFriendId({});
@@ -1100,6 +1295,12 @@ export default function FriendsMenu({
     return () => {
       alive = false;
     };
+  }, [token]);
+
+  useEffect(() => {
+    // Presence events are forwarded globally by MatchaBackground.
+    // Friends list refresh is handled by polling while the menu is open.
+    return;
   }, [token]);
 
   useEffect(() => {
@@ -1399,6 +1600,26 @@ export default function FriendsMenu({
           }, 0);
         }
 
+        if (data?.type === "message_update") {
+          const convo = String(data?.convo || "");
+          const m = data?.message as MsgRow | undefined;
+          if (!convo || !m || !m.id) return;
+
+          const view = appViewRef.current;
+          const sf = selectedFriendRef.current;
+          const activeConvo =
+            view === "globalChat"
+              ? "global"
+              : view === "dm" && sf
+                ? makeConvoIdClient(me.id, sf.id)
+                : null;
+          if (!activeConvo || convo !== activeConvo) return;
+
+          setMessages((prev) =>
+            prev.map((x) => (x.id === m.id ? { ...x, ...m } : x)),
+          );
+        }
+
         if (data?.type === "announcement") {
           const m = data?.message as MsgRow | undefined;
           if (!m || !m.id) return;
@@ -1495,7 +1716,7 @@ export default function FriendsMenu({
     beat();
 
     const friendsTimer = window.setInterval(refresh, 12_000);
-    const hbTimer = window.setInterval(beat, 5 * 60_000);
+    const hbTimer = window.setInterval(beat, 60_000);
     return () => {
       window.clearInterval(friendsTimer);
       window.clearInterval(hbTimer);
@@ -1964,6 +2185,73 @@ export default function FriendsMenu({
     }, 0);
   };
 
+  const sendQuickDmCommand = async (
+    friend: FriendRow,
+    command: "/invite" | "/request-to-join",
+  ) => {
+    if (!token) return;
+    const body = String(command || "").trim();
+    if (!body) return;
+    const to = String(friend?.handle || "").trim();
+    const withId = String(friend?.id || "").trim();
+    if (!to || !withId) return;
+
+    await openDmChat(friend);
+
+    setLastInteractionByFriendId((prev) => ({
+      ...prev,
+      [withId]: Date.now(),
+    }));
+
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN && wsAuthedRef.current) {
+      try {
+        ws.send(JSON.stringify({ type: "send", to, body }));
+      } catch {
+        const resp = await apiJson("/api/matcha/messages/send", {
+          method: "POST",
+          headers: authHeaders(token),
+          body: JSON.stringify({ to, body }),
+        });
+        if (!resp?.ok) {
+          if (String((resp as any)?.error || "") === "Banned" || (resp as any)?.bannedUntil) {
+            kickForBan(resp);
+            return;
+          }
+          setError(String(resp?.error || "Failed"));
+          return;
+        }
+        await loadMessages(token, withId);
+      }
+    } else {
+      const resp = await apiJson("/api/matcha/messages/send", {
+        method: "POST",
+        headers: authHeaders(token),
+        body: JSON.stringify({ to, body }),
+      });
+      if (!resp?.ok) {
+        if (String((resp as any)?.error || "") === "Banned" || (resp as any)?.bannedUntil) {
+          kickForBan(resp);
+          return;
+        }
+        setError(String(resp?.error || "Failed"));
+        return;
+      }
+      await loadMessages(token, withId);
+    }
+
+    setTimeout(() => {
+      try {
+        msgScrollRef.current?.scrollTo({
+          top: msgScrollRef.current.scrollHeight,
+          behavior: "smooth",
+        });
+      } catch {
+        // ignore
+      }
+    }, 0);
+  };
+
   useEffect(() => {
     if (appView !== "dm" || !selectedFriend) {
       setDmUnreadMarker(null);
@@ -2105,6 +2393,96 @@ export default function FriendsMenu({
       await navigator.clipboard.writeText(text);
     } catch {
       // ignore
+    }
+  };
+
+  const copyServerIp = async (msgId: string, server: string) => {
+    const s = String(server || "").trim();
+    if (!s) return;
+    const ok = await copyToClipboard(s);
+    if (!ok) return;
+
+    setCopiedIpMsgId(msgId);
+    if (copiedIpTimerRef.current) clearTimeout(copiedIpTimerRef.current);
+    copiedIpTimerRef.current = setTimeout(() => {
+      setCopiedIpMsgId(null);
+      copiedIpTimerRef.current = null;
+    }, 1500);
+  };
+
+  const acceptJoinRequest = async (msgId: string) => {
+    if (!token) return;
+    const id = String(msgId || "").trim();
+    if (!isMongoObjectId(id)) return;
+    if (joinReqWorkingById[id]) return;
+
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== id) return m;
+        const meta = m.meta && typeof m.meta === "object" ? m.meta : {};
+        return { ...m, meta: { ...meta, status: "accepted" } };
+      }),
+    );
+
+    setJoinReqWorkingById((prev) => ({ ...prev, [id]: "accept" }));
+    try {
+      const r = await apiJson(
+        `/api/matcha/join-requests/${encodeURIComponent(id)}/accept`,
+        {
+          method: "POST",
+          headers: authHeaders(token),
+        },
+      );
+      if (!r?.ok) {
+        setError(String(r?.error || "Failed"));
+        return;
+      }
+    } catch (e) {
+      setError(String((e as any)?.message || "Failed"));
+    } finally {
+      setJoinReqWorkingById((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  };
+
+  const declineJoinRequest = async (msgId: string) => {
+    if (!token) return;
+    const id = String(msgId || "").trim();
+    if (!isMongoObjectId(id)) return;
+    if (joinReqWorkingById[id]) return;
+
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== id) return m;
+        const meta = m.meta && typeof m.meta === "object" ? m.meta : {};
+        return { ...m, meta: { ...meta, status: "declined" } };
+      }),
+    );
+
+    setJoinReqWorkingById((prev) => ({ ...prev, [id]: "decline" }));
+    try {
+      const r = await apiJson(
+        `/api/matcha/join-requests/${encodeURIComponent(id)}/decline`,
+        {
+          method: "POST",
+          headers: authHeaders(token),
+        },
+      );
+      if (!r?.ok) {
+        setError(String(r?.error || "Failed"));
+        return;
+      }
+    } catch (e) {
+      setError(String((e as any)?.message || "Failed"));
+    } finally {
+      setJoinReqWorkingById((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
     }
   };
 
@@ -2397,7 +2775,7 @@ export default function FriendsMenu({
               <button
                 type="button"
                 style={{ height: "36px", padding: "0 12px", fontSize: "0.75rem", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(0,0,0,0.35)", color: "white", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" }}
-                onClick={logout}
+                onClick={() => setLogoutConfirmOpen(true)}
                 title={t("friendsMenu.logout")}
               >
                 {t("friendsMenu.logout")}
@@ -2405,6 +2783,19 @@ export default function FriendsMenu({
             ) : null}
           </HStack>
         </HStack>
+
+        <ConfirmModal
+          open={logoutConfirmOpen}
+          title={t("friendsMenu.logoutConfirmTitle")}
+          message={t("friendsMenu.logoutConfirmMessage")}
+          cancelText={t("common.cancel")}
+          confirmText={t("friendsMenu.logout")}
+          onCancel={() => setLogoutConfirmOpen(false)}
+          onConfirm={() => {
+            setLogoutConfirmOpen(false);
+            logout();
+          }}
+        />
 
         {profileOpen && typeof document !== "undefined" && document.body
           ? createPortal(
@@ -3892,13 +4283,19 @@ export default function FriendsMenu({
                     ) : (
                       filteredFriends.map((f) => {
                         const isOnline = f.state !== "offline";
+                        const server = String(f.server || "").trim();
+                        const canInvite = myPresence.state === "multiplayer";
+                        const canJoin = f.state === "multiplayer" && !!server;
+                        const canRequestJoin = f.state === "multiplayer" && !server;
                         const statusLabel =
                           f.state === "in_game"
                             ? t("friendsMenu.status.inGame")
                             : f.state === "singleplayer"
                               ? t("friendsMenu.status.singleplayer")
                               : f.state === "multiplayer"
-                                ? t("friendsMenu.status.multiplayer")
+                                ? server
+                                  ? t("friendsMenu.status.playingIn", { server })
+                                  : t("friendsMenu.status.multiplayer")
                                 : isOnline
                                   ? t("friendsMenu.status.online")
                                   : t("friendsMenu.status.offline");
@@ -4316,7 +4713,24 @@ export default function FriendsMenu({
                                     style={{fontSize:"10px", fontWeight:"bold", color: isMe ? "#93c5fd" : "rgba(209,213,219,0.7)"}}
                                   >
                                     {isMe ? (
-                                      t("friendsMenu.you")
+                                      appView === "globalChat" ? (
+                                        <button
+                                          type="button"
+                                          className="hover:underline underline-offset-2 text-left"
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            void openUserProfile(String(me.id || ""), {
+                                              allowSelfPublic: true,
+                                            });
+                                          }}
+                                          title={t("friendsMenu.userProfile.open")}
+                                        >
+                                          {t("friendsMenu.you")}
+                                        </button>
+                                      ) : (
+                                        t("friendsMenu.you")
+                                      )
                                     ) : (
                                       <span style={{display:"inline-flex", alignItems:"center", gap:"6px"}}>
                                         {appView === "globalChat" ? (
@@ -4437,8 +4851,299 @@ export default function FriendsMenu({
                                     ? m.deletedByAdmin
                                       ? t("friendsMenu.deletedByAdmin")
                                       : t("friendsMenu.deleted")
-                                    : splitHttpLinks(String(m.body || "")).map(
-                                        (p, idx) =>
+                                    : (() => {
+                                        const kind = String(
+                                          (m as any)?.kind || "text",
+                                        ).trim();
+                                        const metaRaw = (m as any)?.meta;
+                                        const meta: Record<string, any> =
+                                          metaRaw && typeof metaRaw === "object"
+                                            ? metaRaw
+                                            : {};
+
+                                        const server = String(meta.server || "").trim();
+                                        const otherHandle = displayHandle(
+                                          isMe
+                                            ? selectedFriend?.handle
+                                            : String(m.fromHandle || ""),
+                                        );
+                                        const showServer = !!server;
+                                        const copied = copiedIpMsgId === m.id;
+
+                                        const copyBtn = server ? (
+                                          <button
+                                            type="button"
+                                            className={cn(
+                                              "mt-1 inline-flex items-center gap-2",
+                                              "px-2 py-1 rounded-lg text-[10px] font-extrabold tracking-widest uppercase",
+                                              "border border-white/10 bg-black/25 hover:bg-white/5 transition",
+                                            )}
+                                            onMouseDown={(e) => {
+                                              e.stopPropagation();
+                                              try {
+                                                (e.nativeEvent as any)?.stopImmediatePropagation?.();
+                                              } catch {}
+                                            }}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              try {
+                                                (e.nativeEvent as any)?.stopImmediatePropagation?.();
+                                              } catch {}
+                                              void copyServerIp(m.id, server);
+                                            }}
+                                          >
+                                            {copied ? (
+                                              <>
+                                                <IconCheck size={14} />
+                                                <span>
+                                                  {t(
+                                                    "friendsMenu.game.ipCopied",
+                                                    "IP copyied",
+                                                  )}
+                                                </span>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <IconCopy size={14} />
+                                                <span>
+                                                  {t(
+                                                    "friendsMenu.game.copyIp",
+                                                    "Copy IP",
+                                                  )}
+                                                </span>
+                                              </>
+                                            )}
+                                          </button>
+                                        ) : null;
+
+                                        if (kind === "game_invite") {
+                                          return (
+                                            <div className="space-y-1">
+                                              <div className="text-[10px] font-extrabold tracking-widest uppercase text-white/70">
+                                                {t(
+                                                  "friendsMenu.game.invite",
+                                                  "Invitación",
+                                                )}
+                                              </div>
+                                              <div className="text-xs font-semibold text-white/90">
+                                                {isMe
+                                                  ? showServer
+                                                    ? t(
+                                                        "friendsMenu.game.inviteSentWithServer",
+                                                        {
+                                                          user: otherHandle,
+                                                          server,
+                                                        },
+                                                      )
+                                                    : t(
+                                                        "friendsMenu.game.inviteSent",
+                                                        {
+                                                          user: otherHandle,
+                                                        },
+                                                      )
+                                                  : showServer
+                                                    ? t(
+                                                        "friendsMenu.game.inviteReceivedWithServer",
+                                                        {
+                                                          user: otherHandle,
+                                                          server,
+                                                        },
+                                                      )
+                                                    : t(
+                                                        "friendsMenu.game.inviteReceived",
+                                                        {
+                                                          user: otherHandle,
+                                                        },
+                                                      )}
+                                              </div>
+                                              {showServer ? (
+                                                <div className="text-[11px] text-white/80">
+                                                  <span className="font-extrabold tracking-widest uppercase text-white/50">
+                                                    IP
+                                                  </span>
+                                                  <span className="ml-2 font-semibold break-all">
+                                                    {server}
+                                                  </span>
+                                                </div>
+                                              ) : null}
+                                              {copyBtn}
+                                            </div>
+                                          );
+                                        }
+
+                                        if (kind === "join_request") {
+                                          const working = joinReqWorkingById[m.id];
+                                          const canRespond = !isMe;
+                                          const status = String(
+                                            meta.status || "pending",
+                                          )
+                                            .trim()
+                                            .toLowerCase();
+                                          const resolved =
+                                            status === "accepted" ||
+                                            status === "declined";
+                                          return (
+                                            <div className="space-y-2">
+                                              <div className="text-[10px] font-extrabold tracking-widest uppercase text-white/70">
+                                                {t(
+                                                  "friendsMenu.game.joinRequest",
+                                                  "Solicitud",
+                                                )}
+                                              </div>
+                                              <div className="text-xs font-semibold text-white/90">
+                                                {isMe
+                                                  ? t(
+                                                      "friendsMenu.game.joinRequestSent",
+                                                      { user: otherHandle },
+                                                    )
+                                                  : t(
+                                                      "friendsMenu.game.joinRequestReceived",
+                                                      { user: otherHandle },
+                                                    )}
+                                              </div>
+
+                                              {resolved ? (
+                                                <div className="text-[10px] font-extrabold tracking-widest uppercase text-white/60">
+                                                  {status === "accepted"
+                                                    ? t(
+                                                        "friendsMenu.game.requestAccepted",
+                                                        "Aceptada",
+                                                      )
+                                                    : t(
+                                                        "friendsMenu.game.requestDeclined",
+                                                        "Rechazada",
+                                                      )}
+                                                </div>
+                                              ) : canRespond ? (
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                  <button
+                                                    type="button"
+                                                    className={cn(
+                                                      "inline-flex items-center gap-2",
+                                                      "whitespace-nowrap",
+                                                      "px-2 py-1 rounded-lg text-[10px] font-extrabold tracking-widest uppercase",
+                                                      "border border-white/10 bg-white/5 hover:bg-white/10 transition",
+                                                      working && "opacity-70",
+                                                    )}
+                                                    disabled={!!working}
+                                                    onMouseDown={(e) => {
+                                                      e.stopPropagation();
+                                                      try {
+                                                        (e.nativeEvent as any)?.stopImmediatePropagation?.();
+                                                      } catch {}
+                                                    }}
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      try {
+                                                        (e.nativeEvent as any)?.stopImmediatePropagation?.();
+                                                      } catch {}
+                                                      void acceptJoinRequest(m.id);
+                                                    }}
+                                                  >
+                                                    <IconCheck size={14} />
+                                                    {t(
+                                                      "friendsMenu.game.accept",
+                                                      "Aceptar",
+                                                    )}
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    className={cn(
+                                                      "inline-flex items-center gap-2",
+                                                      "whitespace-nowrap",
+                                                      "px-2 py-1 rounded-lg text-[10px] font-extrabold tracking-widest uppercase",
+                                                      "border border-white/10 bg-black/25 hover:bg-white/5 transition",
+                                                      working && "opacity-70",
+                                                    )}
+                                                    disabled={!!working}
+                                                    onMouseDown={(e) => {
+                                                      e.stopPropagation();
+                                                      try {
+                                                        (e.nativeEvent as any)?.stopImmediatePropagation?.();
+                                                      } catch {}
+                                                    }}
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      try {
+                                                        (e.nativeEvent as any)?.stopImmediatePropagation?.();
+                                                      } catch {}
+                                                      void declineJoinRequest(m.id);
+                                                    }}
+                                                  >
+                                                    <IconX size={14} />
+                                                    {t(
+                                                      "friendsMenu.game.decline",
+                                                      "Rechazar",
+                                                    )}
+                                                  </button>
+                                                </div>
+                                              ) : null}
+                                            </div>
+                                          );
+                                        }
+
+                                        if (kind === "join_accept") {
+                                          return (
+                                            <div className="space-y-1">
+                                              <div className="text-[10px] font-extrabold tracking-widest uppercase text-white/70">
+                                                {t(
+                                                  "friendsMenu.game.joinAccepted",
+                                                  "Aceptado",
+                                                )}
+                                              </div>
+                                              <div className="text-xs font-semibold text-white/90">
+                                                {isMe
+                                                  ? t(
+                                                      "friendsMenu.game.joinAcceptedByYou",
+                                                      { user: otherHandle },
+                                                    )
+                                                  : t(
+                                                      "friendsMenu.game.joinAcceptedByOther",
+                                                      { user: otherHandle },
+                                                    )}
+                                              </div>
+                                              {showServer ? (
+                                                <div className="text-[11px] text-white/80">
+                                                  <span className="font-extrabold tracking-widest uppercase text-white/50">
+                                                    IP
+                                                  </span>
+                                                  <span className="ml-2 font-semibold break-all">
+                                                    {server}
+                                                  </span>
+                                                </div>
+                                              ) : null}
+                                              {copyBtn}
+                                            </div>
+                                          );
+                                        }
+
+                                        if (kind === "join_decline") {
+                                          return (
+                                            <div className="space-y-1">
+                                              <div className="text-[10px] font-extrabold tracking-widest uppercase text-white/70">
+                                                {t(
+                                                  "friendsMenu.game.joinDeclined",
+                                                  "Rechazado",
+                                                )}
+                                              </div>
+                                              <div className="text-xs font-semibold text-white/90">
+                                                {isMe
+                                                  ? t(
+                                                      "friendsMenu.game.joinDeclinedByYou",
+                                                      { user: otherHandle },
+                                                    )
+                                                  : t(
+                                                      "friendsMenu.game.joinDeclinedByOther",
+                                                      { user: otherHandle },
+                                                    )}
+                                              </div>
+                                            </div>
+                                          );
+                                        }
+
+                                        return splitHttpLinks(
+                                          String(m.body || ""),
+                                        ).map((p, idx) =>
                                           p.type === "link" && p.href ? (
                                             <a
                                               key={idx}
@@ -4454,7 +5159,8 @@ export default function FriendsMenu({
                                           ) : (
                                             <span key={idx}>{p.value}</span>
                                           ),
-                                      )}
+                                        );
+                                      })()}
                                 </div>
                               </div>
 

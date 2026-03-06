@@ -1,6 +1,46 @@
 import type { BrowserWindow } from "electron";
 
 import { customOnlinePatchProvider } from "../dynamicModules/customOnlinePatchProvider";
+import { formatErrorWithHints } from "../errorHints";
+
+const extractUrlMeta = (rawUrl?: string) => {
+  if (!rawUrl) return undefined;
+  try {
+    const u = new URL(rawUrl);
+    const host = u.hostname;
+    const tsRaw = u.searchParams.get("timestamp");
+    const ts = tsRaw ? Number(tsRaw) : NaN;
+    const timestampMs = Number.isFinite(ts) && ts > 0 ? ts : undefined;
+    return { host, timestampMs, nowMs: Date.now() };
+  } catch {
+    return undefined;
+  }
+};
+
+const wrapOnlinePatchError = (
+  err: unknown,
+  op: string,
+  version: GameVersion,
+): never => {
+  const statusMatch =
+    typeof (err as any)?.message === "string"
+      ? (err as any).message.match(/\((\d{3})\)/)
+      : null;
+  const status = statusMatch ? Number(statusMatch[1]) : undefined;
+
+  const urlMeta = extractUrlMeta(version.patch_url || version.original_url);
+
+  const { userMessage } = formatErrorWithHints(err, {
+    op,
+    status: Number.isFinite(status as any) ? status : undefined,
+    url: undefined,
+    urlMeta,
+  });
+
+  const wrapped = new Error(userMessage);
+  (wrapped as any).cause = err;
+  throw wrapped;
+};
 
 export const getClientPatchState = (gameDir: string, version: GameVersion) => {
   return customOnlinePatchProvider.getClientPatchState(gameDir, version);
@@ -36,13 +76,17 @@ export const enableClientPatch = async (
     "online-patch-progress",
   aggregate?: { total?: number; current: number },
 ) => {
-  return await customOnlinePatchProvider.enableClientPatch(
-    gameDir,
-    version,
-    win,
-    progressChannel,
-    aggregate,
-  );
+  try {
+    return await customOnlinePatchProvider.enableClientPatch(
+      gameDir,
+      version,
+      win,
+      progressChannel,
+      aggregate,
+    );
+  } catch (e) {
+    return wrapOnlinePatchError(e, "Enable client patch", version);
+  }
 };
 
 export const disableClientPatch = async (
@@ -99,13 +143,17 @@ export const enableServerPatch = async (
     "online-patch-progress",
   aggregate?: { total?: number; current: number },
 ) => {
-  return await customOnlinePatchProvider.enableServerPatch(
-    gameDir,
-    version,
-    win,
-    progressChannel,
-    aggregate,
-  );
+  try {
+    return await customOnlinePatchProvider.enableServerPatch(
+      gameDir,
+      version,
+      win,
+      progressChannel,
+      aggregate,
+    );
+  } catch (e) {
+    return wrapOnlinePatchError(e, "Enable server patch", version);
+  }
 };
 
 export const disableServerPatch = async (
@@ -137,12 +185,16 @@ export const enableOnlinePatch = async (
     | "install-progress"
     | "online-patch-progress" = "online-patch-progress",
 ) => {
-  return await customOnlinePatchProvider.enableOnlinePatch(
-    gameDir,
-    version,
-    win,
-    progressChannel,
-  );
+  try {
+    return await customOnlinePatchProvider.enableOnlinePatch(
+      gameDir,
+      version,
+      win,
+      progressChannel,
+    );
+  } catch (e) {
+    return wrapOnlinePatchError(e, "Enable online patch", version);
+  }
 };
 
 export const disableOnlinePatch = async (
@@ -197,10 +249,37 @@ export const fixOnlinePatch = async (
   win: BrowserWindow,
   progressChannel: "online-unpatch-progress" = "online-unpatch-progress",
 ) => {
-  return await customOnlinePatchProvider.fixOnlinePatch(
-    gameDir,
-    version,
-    win,
-    progressChannel,
-  );
+  try {
+    return await customOnlinePatchProvider.fixOnlinePatch(
+      gameDir,
+      version,
+      win,
+      progressChannel,
+    );
+  } catch (e) {
+    return wrapOnlinePatchError(e, "Fix online patch", version);
+  }
+};
+
+export const reconcileOfflineServerJwksPatchForLaunch = async (
+  gameDir: string,
+  version: GameVersion,
+  desired: "original" | "online" | "offline",
+  win?: BrowserWindow,
+  progressChannel: "online-patch-progress" = "online-patch-progress",
+  opts?: { force?: boolean; buildOnly?: boolean },
+): Promise<"noop" | "applied" | "restored" | "skipped"> => {
+  try {
+    return await customOnlinePatchProvider.reconcileOfflineServerJwksPatchForLaunch(
+      gameDir,
+      version,
+      {
+        desired,
+        ...(opts && typeof opts === "object" ? { force: !!opts.force, buildOnly: !!opts.buildOnly } : {}),
+        progress: win ? { win, progressChannel } : undefined,
+      },
+    );
+  } catch {
+    return "skipped";
+  }
 };

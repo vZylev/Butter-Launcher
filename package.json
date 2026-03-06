@@ -4,8 +4,8 @@
   "author": "Butter Labs <butterlauncher@gmail.com>",
   "private": false,
   "license": "MIT",
-  "version": "2.1.0",
-  "build_date": "ButterLauncher_03-01-2026",
+  "version": "2.1.1",
+  "build_date": "ButterLauncher_03-05-2026",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -33,9 +33,13 @@
     "react-country-flag": "^3.1.0",
     "react-dom": "^18.2.0",
     "react-i18next": "^16.5.4",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "tar": "^7.5.3",
     "uuid": "^13.0.0",
     "ws": "^8.19.0",
+    "yauzl": "^3.2.0",
+    "yazl": "^3.3.1",
     "zustand": "^5.0.11"
   },
   "devDependencies": {
@@ -45,6 +49,8 @@
     "@types/react": "^18.2.64",
     "@types/react-dom": "^18.2.21",
     "@types/tar": "^6.1.13",
+    "@types/yauzl": "^2.10.3",
+    "@types/yazl": "^3.3.0",
     "@typescript-eslint/eslint-plugin": "^7.1.1",
     "@typescript-eslint/parser": "^7.1.1",
     "@vitejs/plugin-react": "^4.2.1",

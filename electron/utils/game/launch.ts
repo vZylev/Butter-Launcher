@@ -5,7 +5,10 @@ import { spawn } from "child_process";
 import fs from "fs";
 import { genUUID } from "./uuid";
 import { logger } from "../logger";
-import { getOnlinePatchState } from "./onlinePatch.ts";
+import {
+  getOnlinePatchState,
+  reconcileOfflineServerJwksPatchForLaunch,
+} from "./onlinePatch.ts";
 import { customInstallProvider } from "../dynamicModules/customInstallProvider";
 import {
   fetchCustomAuthTokens,
@@ -50,8 +53,9 @@ export const launchGame = async (
   forceOfflineAuth: boolean = false,
   accountType: string | null = null,
   callbacks?: {
-    onGameSpawned?: () => void;
+    onGameSpawned?: (info: { pid: number }) => void;
     onGameExited?: (info: {
+      pid: number;
       code: number | null;
       signal: NodeJS.Signals | null;
     }) => void;
@@ -181,8 +185,20 @@ export const launchGame = async (
         patchEnabled &&
         ((hasProperPatchFlag && version.proper_patch === false) ||
           !hasProperPatchFlag);
-  // Nothing says "fun" like having two auth modes and three operating systems ;w;
-  // And now a third input: "the internet is down". Perfect.
+  try {
+    const desiredServerJar =
+      accountType === "premium" ? "original" : patchEnabled ? "online" : "offline";
+    await reconcileOfflineServerJwksPatchForLaunch(
+      baseDir,
+      version,
+      desiredServerJar,
+      win,
+      "online-patch-progress",
+      { force: false, buildOnly: false },
+    );
+  } catch {
+    // ignore (best-effort)
+  }
 
   if (useAuthenticated) {
     logger.info(
@@ -327,7 +343,7 @@ export const launchGame = async (
 
       child.on("spawn", () => {
         logger.info("Game process spawned successfully.");
-        callbacks?.onGameSpawned?.();
+        callbacks?.onGameSpawned?.({ pid: child.pid ?? 0 });
         win.webContents.send("launched");
       });
 
@@ -362,7 +378,7 @@ export const launchGame = async (
           );
         }
 
-        callbacks?.onGameExited?.({ code, signal });
+        callbacks?.onGameExited?.({ pid: child.pid ?? 0, code, signal });
         try {
           win.webContents.send("launch-finished", { code, signal });
         } catch {

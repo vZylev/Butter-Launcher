@@ -338,7 +338,10 @@ Auth required.
     "messagesSentTotal": 123,
     "avatarHash": "...",
     "avatarMode": "hytale",
-    "avatarDisabled": false
+    "avatarDisabled": false,
+    "settings": {
+      "hideServerIp": false
+    }
   },
   "system": {
     "devs": { "id": "...", "handle": "Devs#0000" }
@@ -348,11 +351,49 @@ Auth required.
 
 ---
 
+### POST /api/matcha/me/settings
+
+Auth required.
+
+Update self profile settings.
+
+Notes:
+
+- `hideServerIp` is a **server-side** privacy setting stored on your Matcha user profile.
+- It affects what **other users** can see about you:
+  - When your presence state is `multiplayer`, the backend may store your last reported `server` (from `POST /api/matcha/presence/event`).
+  - If `hideServerIp=true`, the backend will **redact** that value when returning presence to others (friends list / public profile), so they will not receive your `server` string.
+- This does not change your presence state (`multiplayer` vs `in_game` etc), only whether `server` is returned.
+
+#### Request
+
+```json
+{ "hideServerIp": true }
+```
+
+#### Response
+
+```json
+{ "ok": true, "settings": { "hideServerIp": true } }
+```
+
+---
+
 ### GET /api/matcha/users/:id
 
 Auth required.
 
 Returns a public profile (safe fields only).
+
+Notes:
+
+- The response includes a `user.presence` object (best-effort): `{ state, server }`.
+- Presence freshness is endpoint-specific:
+  - This endpoint treats presence as “fresh” for ~10 minutes.
+- Presence visibility is relationship-based:
+  - **Friends** may see detailed `state` values (`in_game`, `singleplayer`, `multiplayer`, etc).
+  - **Non-friends** only see `online` / `offline`.
+  - `server` is only included for friends when `state: "multiplayer"` and only if the user has not enabled `hideServerIp`.
 
 ## Presence
 
@@ -366,17 +407,55 @@ Auth required.
 { "state": "online" }
 ```
 
-Allowed states (server normalizes these):
+Allowed states:
 
 - `online`
-- `in_game`
-- `singleplayer`
-- `multiplayer`
 - `offline` (also accepts `logout`, `ended`, `session_ended`)
 
 Notes:
 
-- The backend may override the requested state by inferring a recent game session by IP.
+- `heartbeat` is used to keep `lastSeenAt` fresh and to mark a user online/offline.
+- It does **not** set in-game state. Use `POST /api/matcha/presence/event` for launcher-driven game/session presence.
+- To prevent “stuck in-game” after abrupt shutdowns (power loss / kill), if the stored state is game-related (`in_game`, `singleplayer`, `multiplayer`) but the last seen timestamp is already stale (currently ~2 minutes), the server will downgrade the state back to `online` on the next `online` heartbeat. This only happens when the previous presence was already stale; if the game is actually running, the launcher should soon send a new `POST /api/matcha/presence/event` (e.g. `game_opened` / `multiplayer_connected` / `singleplayer_entered`) which will update the state back from `online` to the correct in-game state.
+
+#### Response
+
+```json
+{ "ok": true }
+```
+
+---
+
+### POST /api/matcha/presence/event
+
+Auth required.
+
+Launcher-driven presence updates. Use this to explicitly report game lifecycle and session transitions.
+
+#### Request
+
+```json
+{ "event": "game_opened" }
+```
+
+Supported events:
+
+- `game_opened` → sets state `in_game`
+- `game_closed` → sets state `online`
+- `singleplayer_entered` → sets state `singleplayer`
+- `multiplayer_connected` → sets state `multiplayer` and stores `server`
+- `session_left` → sets state `in_game` (no active session)
+
+For `multiplayer_connected`, include the `server` string:
+
+```json
+{ "event": "multiplayer_connected", "server": "1.2.3.4:1234" }
+```
+
+Notes:
+
+- The launcher should still send `server` for `multiplayer_connected` so the backend can keep accurate state.
+- If the user has enabled `hideServerIp`, the backend will not expose this `server` value to other users in presence responses.
 
 #### Response
 
@@ -455,12 +534,14 @@ Auth required.
 Returns:
 
 - `friends`: list of friends with state and avatar hash
+  - For `state: "multiplayer"`, the server may also include `server` (string) **only if** that friend has not enabled `hideServerIp`.
 - `incoming`: incoming friend requests
 - `outgoing`: outgoing requests
 
 Presence:
 
-- Presence is considered “fresh” for ~10 minutes.
+- Presence is considered “fresh” for ~2 minutes.
+- If a friend's `lastSeenAt` is older than this window, the server returns `state: "offline"` for that friend (even if the DB still contains the last game-related state).
 
 ---
 
@@ -583,6 +664,8 @@ Message shape:
   "fromAvatarHash": "...",
   "toId": "...",
   "body": "...",
+  "kind": "text",
+  "meta": {},
   "deleted": false,
   "deletedByAdmin": false,
   "replyToId": null,
@@ -595,6 +678,8 @@ Message shape:
 Notes:
 
 - Deleted messages return `body: ""` and `deleted: true`.
+- `kind`/`meta` are optional structured fields used for richer UI cards.
+  - Clients should treat `meta` as an extensible object (unknown keys may appear).
 
 ---
 
@@ -632,6 +717,104 @@ Response:
 ```json
 { "ok": true, "id": "<messageId>" }
 ```
+
+---
+
+## Game invites & join requests (DM protocol)
+
+Matcha supports two **special DM commands** that are sent using the normal message send APIs (HTTP or WebSocket). When the backend detects these commands, it will store a structured message (`kind`/`meta`) instead of a plain text body.
+
+These commands are **DM-only** (they require an existing friend edge) and are detected by reading the **first token** of the message body (whitespace is ignored). Examples like `"/invite   "` are accepted.
+
+### Command: `/invite`
+
+Send a DM with `body: "/invite"`.
+
+Server behavior:
+
+- Requires the sender to currently be in `multiplayer` presence and have a non-empty `server` set.
+  - If not, the server returns `400` `{ ok: false, error: "Not in multiplayer" }`.
+- Persists a message with:
+  - `kind: "game_invite"`
+  - `body: ""`
+  - `meta: { server: "<ip:port>", serverHidden: <boolean> }`
+
+`serverHidden` is a **privacy hint** that reflects the sender’s profile setting `hideServerIp`.
+
+- If `serverHidden: true`, the sender has opted to hide their server IP in presence/public profile responses.
+- This flag is **not a security guarantee** (the invite/accept message may still carry `meta.server`). It exists so clients can choose a respectful UI (e.g. don’t display the IP by default, require a click to reveal/copy, etc.).
+
+### Command: `/request-to-join`
+
+Send a DM with `body: "/request-to-join"`.
+
+Server behavior:
+
+- Persists a message with:
+  - `kind: "join_request"`
+  - `body: ""`
+  - `meta: {}` initially
+
+The receiver can then accept/decline the request using the endpoints below.
+
+---
+
+## Join request actions
+
+Join requests are represented as a message with `kind: "join_request"`. Accepting/declining will **edit that original message** by updating `message.meta.status` (and `resolvedAt`) so clients can hide action buttons without spamming extra messages.
+
+### POST /api/matcha/join-requests/:id/accept
+
+Auth required.
+
+Accept a join request message (DM only). Only the **recipient** of the original request may accept.
+
+Behavior:
+
+- Marks the original request message `meta.status = "accepted"` and sets `meta.resolvedAt`.
+- Requires the accepter to be in `multiplayer` presence.
+- Creates a follow-up message:
+  - `kind: "join_accept"`
+  - `meta: { server: "<ip:port>", serverHidden: <boolean>, requestId: "<originalRequestMessageId>" }`
+
+`serverHidden` here has the same meaning as in `/invite` (privacy hint based on `hideServerIp`).
+
+Response:
+
+```json
+{ "ok": true, "id": "<joinAcceptMessageId>" }
+```
+
+Common failures:
+
+- `400` invalid id / not a join_request / not in multiplayer
+- `403` not allowed (not the recipient)
+- `404` request not found
+- `409` already declined
+
+### POST /api/matcha/join-requests/:id/decline
+
+Auth required.
+
+Decline a join request message (DM only). Only the **recipient** of the original request may decline.
+
+Behavior:
+
+- Marks the original request message `meta.status = "declined"` and sets `meta.resolvedAt`.
+- Does **not** create a follow-up “declined” message (silent edit).
+
+Response:
+
+```json
+{ "ok": true }
+```
+
+Common failures:
+
+- `400` invalid id / not a join_request
+- `403` not allowed (not the recipient)
+- `404` request not found
+- `409` already accepted
 
 ---
 

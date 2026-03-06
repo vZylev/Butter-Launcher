@@ -141,6 +141,7 @@ If you want to integrate Matcha into your own launcher/client/app, see the API d
 
 - [docs/matcha/README.md](docs/matcha/README.md)
 
+* **🎮 Play with Friends:** Invite your friends to your multiplayer matches, see which servers they are playing on, and join them instantly!
 * **🔗 Never Lose a Connection:** Met someone cool on a random server? Don't risk losing them forever! Just ask for their **Matcha!** handle to add them, chat, and play together later.
 * **💬 Global & Private Chat:** Meet new players in the global chat or coordinate privately with your squad.
 * **🟢 Live Status:** See if your friends are online, check if they're playing, and ask to join!

@@ -11,12 +11,14 @@ import { ChakraProvider } from "@chakra-ui/react";
 import { system } from "./theme";
 import { GameContextProvider } from "./hooks/gameContext";
 import { UserContextProvider } from "./hooks/userContext";
+import MatchaBackground from "./components/MatchaBackground";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ChakraProvider value={system}>
       <GameContextProvider>
         <UserContextProvider>
+          <MatchaBackground />
           <App />
         </UserContextProvider>
       </GameContextProvider>

@@ -25,8 +25,11 @@ import { customPatchPlanProvider } from "../dynamicModules/customPatchPlanProvid
 import { customPwrDownloadProvider } from "../dynamicModules/customPwrDownloadProvider";
 
 import {
+  getGameRootDir,
   getLatestDir,
+  getPreReleaseChannelDir,
   getReleaseBuildDir,
+  getReleaseChannelDir,
   migrateLegacyChannelInstallIfNeeded,
   resolveClientPath,
   resolveExistingInstallDir,
@@ -60,36 +63,172 @@ const safeRmDir = (dirPath: string) => {
   }
 };
 
-const replaceDirAtomically = (stagingDir: string, finalDir: string) => {
-  // Attempt to keep previous install intact until the very end.
-  // If finalDir exists, move it aside; if swap fails, attempt to restore.
-  const backupDir = `${finalDir}.backup-${Date.now()}`;
-
-  if (fs.existsSync(finalDir)) {
-    try {
-      fs.renameSync(finalDir, backupDir);
-    } catch {
-      // If rename fails (locked files), fall back to delete.
-      safeRmDir(finalDir);
+const sleepSync = (ms: number) => {
+  const t = Math.max(0, Math.floor(Number(ms) || 0));
+  if (!t) return;
+  try {
+    // Block current thread briefly; acceptable during installs.
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, t);
+  } catch {
+    const end = Date.now() + t;
+    while (Date.now() < end) {
+      // busy wait fallback
     }
   }
+};
 
-  try {
-    fs.renameSync(stagingDir, finalDir);
-  } catch (e) {
-    // Best-effort restore.
+const isRetryableFsError = (e: unknown): boolean => {
+  const code = (e as any)?.code;
+  return code === "EPERM" || code === "EBUSY" || code === "ENOTEMPTY" || code === "EACCES";
+};
+
+const withFsRetries = <T>(fn: () => T, opts?: { tries?: number; baseDelayMs?: number; label?: string }): T => {
+  // Keep retries low to avoid freezing on slower PCs.
+  // If it fails after a few attempts, show a useful error and let the user retry.
+  const tries = Math.max(1, Math.floor(opts?.tries ?? 3));
+  const baseDelayMs = Math.max(0, Math.floor(opts?.baseDelayMs ?? 60));
+  const label = String(opts?.label || "").trim();
+
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= tries; attempt++) {
     try {
-      if (fs.existsSync(backupDir) && !fs.existsSync(finalDir)) {
-        fs.renameSync(backupDir, finalDir);
+      return fn();
+    } catch (e) {
+      lastErr = e;
+      const code = (e as any)?.code;
+      const message = e instanceof Error ? e.message : String(e);
+
+      if (label) {
+        // Keep this as warn-level: useful when diagnosing Windows Defender/file locks.
+        logger.warn("fs retry", {
+          label,
+          attempt,
+          tries,
+          code,
+          message,
+        });
+      }
+
+      if (!isRetryableFsError(e) || attempt === tries) break;
+      // small linear backoff (Windows Defender / file locks)
+      sleepSync(baseDelayMs + attempt * 25);
+    }
+  }
+  throw lastErr;
+};
+
+const safeRmDirWithRetries = (dirPath: string) => {
+  try {
+    if (!fs.existsSync(dirPath)) return;
+    withFsRetries(() => fs.rmSync(dirPath, { recursive: true, force: true }));
+  } catch {
+    // ignore
+  }
+};
+
+const preflightDirIsRenameable = (finalDir: string) => {
+  // Avoid wasting time downloading/applying a large patch only to fail at the final swap.
+  // This checks whether Windows will allow a rename on the target directory.
+  if (!finalDir || !fs.existsSync(finalDir)) return;
+
+  const temp = `${finalDir}.preflight-${Date.now()}`;
+  try {
+    withFsRetries(() => fs.renameSync(finalDir, temp), { label: "preflight-final->temp" });
+    withFsRetries(() => fs.renameSync(temp, finalDir), { label: "preflight-temp->final" });
+  } catch (e) {
+    // Best-effort restore if we got stuck mid-flight.
+    try {
+      if (fs.existsSync(temp) && !fs.existsSync(finalDir)) {
+        withFsRetries(() => fs.renameSync(temp, finalDir), { label: "preflight-restore" });
       }
     } catch {
       // ignore
     }
     throw e;
   }
+};
+
+const replaceDirAtomically = (stagingDir: string, finalDir: string) => {
+  // Attempt to keep previous install intact until the very end.
+  // If finalDir exists, move it aside; if swap fails, attempt to restore.
+  const backupDir = `${finalDir}.backup-${Date.now()}`;
+
+  const statSafe = (p: string) => {
+    try {
+      const st = fs.statSync(p);
+      return { ok: true, isDir: st.isDirectory(), mode: st.mode, mtimeMs: st.mtimeMs, size: st.size };
+    } catch (e) {
+      const code = (e as any)?.code;
+      const message = e instanceof Error ? e.message : String(e);
+      return { ok: false, code, message };
+    }
+  };
+
+  logger.info("replaceDirAtomically: begin", {
+    stagingDir,
+    finalDir,
+    backupDir,
+    stagingExists: fs.existsSync(stagingDir),
+    finalExists: fs.existsSync(finalDir),
+    stagingStat: statSafe(stagingDir),
+    finalStat: statSafe(finalDir),
+  });
+
+  if (fs.existsSync(finalDir)) {
+    // IMPORTANT: if the directory is locked (Windows EPERM), do NOT delete it.
+    // Deleting a locked directory can leave a half-deleted/corrupt install.
+    // Instead, fail the install so the user can close the game and retry.
+    try {
+      withFsRetries(() => fs.renameSync(finalDir, backupDir), { label: "rename-final->backup" });
+    } catch (e) {
+      const code = (e as any)?.code;
+      const message = e instanceof Error ? e.message : String(e);
+      logger.error("replaceDirAtomically: failed to move existing install aside", {
+        code,
+        message,
+        finalDir,
+        backupDir,
+        hint:
+          "This usually means Windows has the directory locked (game still running, antivirus scan, Explorer preview). Close the game and any file explorers, then retry.",
+      });
+      throw e;
+    }
+  }
+
+  try {
+    withFsRetries(() => fs.renameSync(stagingDir, finalDir), { label: "rename-staging->final" });
+  } catch (e) {
+    // Best-effort restore.
+    try {
+      if (fs.existsSync(backupDir) && !fs.existsSync(finalDir)) {
+        withFsRetries(() => fs.renameSync(backupDir, finalDir), { label: "restore-backup" });
+      }
+    } catch {
+      // ignore
+    }
+
+    const code = (e as any)?.code;
+    const message = e instanceof Error ? e.message : String(e);
+    logger.error("replaceDirAtomically: failed to promote staging to final", {
+      code,
+      message,
+      stagingDir,
+      finalDir,
+      backupDir,
+      stagingStat: statSafe(stagingDir),
+      finalStat: statSafe(finalDir),
+      backupStat: statSafe(backupDir),
+    });
+    throw e;
+  }
 
   // Cleanup backup after successful swap.
-  safeRmDir(backupDir);
+  safeRmDirWithRetries(backupDir);
+
+  logger.info("replaceDirAtomically: success", {
+    finalDir,
+    finalStat: statSafe(finalDir),
+  });
 };
 
 const safeStat = (filePath: string): { size: number; mtimeMs: number } | null => {
@@ -565,10 +704,12 @@ const installGameFromPatchPlan = async (
     retireExistingLatestReleaseIfNeeded(gameDir, version);
 
     installDirFinal = resolveInstallDir(gameDir, version);
+    // Preflight: if the target directory is locked (game running / AV scan), fail early.
+    preflightDirIsRenameable(installDirFinal);
     installDirStaging = `${installDirFinal}.staging-${Date.now()}`;
 
     // Always patch into staging to avoid corrupting an existing install.
-    safeRmDir(installDirStaging);
+    safeRmDirWithRetries(installDirStaging);
 
     fs.mkdirSync(gameDir, { recursive: true });
     win.webContents.send("install-started");
@@ -719,17 +860,26 @@ const installGameFromPatchPlan = async (
   } catch (error) {
     if (error instanceof UserCancelledError) {
       logger.info(`${label} install cancelled by user`);
-      if (installDirStaging) safeRmDir(installDirStaging);
+      if (installDirStaging) safeRmDirWithRetries(installDirStaging);
       win.webContents.send("install-cancelled");
       return false;
     }
 
-    if (installDirStaging) safeRmDir(installDirStaging);
+    if (installDirStaging) safeRmDirWithRetries(installDirStaging);
     safeUnlink(path.join(gameDir, `temp_${version.build_index}.pwr`));
 
     const code = mapErrorToCode(error, { area: "install" });
+    const { userMessage } = formatErrorWithHints(error, {
+      op: `${label} install`,
+      dirPath: installDirFinal || undefined,
+    });
+
     logger.error(`${label} installation failed`, { code }, error);
-    win.webContents.send("install-error", { code });
+    win.webContents.send("install-error", {
+      code,
+      message: userMessage,
+      logPath: typeof (logger as any)?.getLogPath === "function" ? (logger as any).getLogPath() : undefined,
+    });
     return false;
   }
 };
@@ -756,6 +906,23 @@ export const installGameAlternative = async (
     win.webContents.send("install-started");
 
     targetDirFinal = resolveInstallDir(gameDir, version);
+
+    // Preflight: if the target directory is locked (game running / AV scan), fail early.
+    preflightDirIsRenameable(targetDirFinal);
+
+    // If a previous attempt left a broken directory behind (missing binaries),
+    // remove it so installs don't get stuck on locked/partial folders.
+    try {
+      if (targetDirFinal && fs.existsSync(targetDirFinal)) {
+        const clientPath = resolveClientPath(targetDirFinal);
+        const serverPath = resolveServerPath(targetDirFinal);
+        const ok = fs.existsSync(clientPath) && fs.existsSync(serverPath);
+        if (!ok) safeRmDirWithRetries(targetDirFinal);
+      }
+    } catch {
+      // ignore
+    }
+
     targetDirStaging = `${targetDirFinal}.staging-${Date.now()}`;
 
     // Ensure JRE exists (shared across builds, shared across our collective pain).
@@ -776,39 +943,124 @@ export const installGameAlternative = async (
       return await installGameAlternativeFull(gameDir, version, win);
     }
 
-    // Policy time: the alternative flow must have Build-1 installed before anything else.
-    // Build-1 itself is allowed, because we still want *someone* to be able to install something.
-    if (target !== 1) {
-      const build1: GameVersion = {
-        url: "",
-        type: version.type,
-        build_index: 1,
-        build_name: "Build-1",
-        isLatest: false,
-      };
-      const { client: b1c, server: b1s } = checkGameInstallation(gameDir, build1);
-      if (!b1c || !b1s) {
-        // Exception: allow installing the latest build even if Build-1 isn't present.
-        // This keeps the UX simple: latest should always be downloadable.
-        if (version.isLatest) {
-          logger.info(
-            "Build-1 missing, but target is latest -> falling back to full install.",
-            { target },
-          );
-          return await installGameAlternativeFull(gameDir, version, win);
-        }
-
-        throw new Error(
-          "You must install Build-1 before downloading other versions.",
-        );
-      }
-    }
-
+    // Pick the best installed base *first*.
+    // If the user already has a complete build below the target (e.g. Build-8 -> Build-11),
+    // allow patching upward even if Build-1 isn't installed.
     let base = pickBestInstalledBaseForTarget(gameDir, version.type, target);
 
-    // If Build-1 exists, base should never be 0 for target>1.
-    // This keeps server behavior consistent and avoids "0 -> latest" plans.
-    if (target !== 1 && (!Number.isFinite(base) || base <= 0)) base = 1;
+    // Policy time: the alternative flow needs a complete installed base build.
+    // If none exists, require Build-1 (or fall back to full install for `latest`).
+    if (!Number.isFinite(base) || base <= 0) {
+      const installed = listInstalledVersions(gameDir);
+      const installedRelease = installed
+        .filter((x) => x.type === "release")
+        .map((x) => Number(x.build_index))
+        .filter((n) => Number.isFinite(n) && n > 0)
+        .sort((a, b) => a - b);
+      const installedPre = installed
+        .filter((x) => x.type === "pre-release")
+        .map((x) => Number(x.build_index))
+        .filter((n) => Number.isFinite(n) && n > 0)
+        .sort((a, b) => a - b);
+
+      // Try to explain *why* no base was considered usable.
+      const candidateIndices = installed
+        .filter((x) => x.type === version.type)
+        .map((x) => Number(x.build_index))
+        .filter((n) => Number.isFinite(n) && n > 0 && n < target)
+        .sort((a, b) => b - a)
+        .slice(0, 8);
+
+      const candidateChecks = candidateIndices.map((idx) => {
+        const candidate: GameVersion = {
+          url: "",
+          type: version.type,
+          build_index: idx,
+          build_name: `Build-${idx}`,
+          isLatest: false,
+        };
+        const installDir = resolveExistingInstallDir(gameDir, candidate);
+        const manifest = readInstallManifest(installDir);
+        const clientPath = resolveClientPath(installDir);
+        const serverPath = resolveServerPath(installDir);
+        const hasClient = (() => {
+          try {
+            return fs.existsSync(clientPath);
+          } catch {
+            return false;
+          }
+        })();
+        const hasServer = (() => {
+          try {
+            return fs.existsSync(serverPath);
+          } catch {
+            return false;
+          }
+        })();
+        return {
+          build_index: idx,
+          installDir,
+          manifestBuildIndex: manifest?.build_index,
+          manifestType: manifest?.type,
+          clientPath,
+          serverPath,
+          hasClient,
+          hasServer,
+        };
+      });
+
+      const searchPaths = {
+        providedGameDir: gameDir,
+        gameRootDir: getGameRootDir(gameDir),
+        releaseChannelDir: getReleaseChannelDir(gameDir),
+        preReleaseChannelDir: getPreReleaseChannelDir(gameDir),
+        latestDir: getLatestDir(gameDir),
+      };
+
+      logger.warn("Alternative install blocked: no usable installed base build detected", {
+        target,
+        versionType: version.type,
+        isLatest: !!version.isLatest,
+        base,
+        searchPaths,
+        installed: {
+          release: installedRelease,
+          preRelease: installedPre,
+        },
+        candidateChecks,
+      });
+
+      // Exception: allow installing the latest build even if Build-1 isn't present.
+      // This keeps the UX simple: latest should always be downloadable.
+      if (version.isLatest) {
+        logger.info(
+          "No installed base build found, but target is latest -> falling back to full install.",
+          { target },
+        );
+        return await installGameAlternativeFull(gameDir, version, win);
+      }
+
+      const expectedChannelDir =
+        version.type === "pre-release"
+          ? getPreReleaseChannelDir(gameDir)
+          : getReleaseChannelDir(gameDir);
+      const detectedRelease = installedRelease.length
+        ? installedRelease.join(", ")
+        : "(none)";
+      const detectedPre = installedPre.length ? installedPre.join(", ") : "(none)";
+
+      throw new Error(
+        "You must install Build-1 before downloading other versions." +
+          `\n\nReason: no usable installed base build was detected below Build-${target} for '${version.type}'.` +
+          "\n\nSearched for installed builds under:" +
+          `\n- ${expectedChannelDir}${path.sep}build-N` +
+          `\n- ${getLatestDir(gameDir)} (release latest alias)` +
+          "\n\nDetected installed builds:" +
+          `\n- release: ${detectedRelease}` +
+          `\n- pre-release: ${detectedPre}` +
+          "\n\nA base build counts as usable only if it has both Client and Server (or Servers) plus a server .jar."
+      );
+    }
 
     const baseVersion: GameVersion = {
       ...version,
@@ -970,8 +1222,12 @@ export const installGameAlternative = async (
     if (targetDirStaging) safeRmDir(targetDirStaging);
 
     const code = mapErrorToCode(error, { area: "install" });
+    const { userMessage } = formatErrorWithHints(error, {
+      op: "Alternative install",
+      dirPath: targetDirFinal || undefined,
+    });
     logger.error("Alternative installation failed", { code }, error);
-    win.webContents.send("install-error", { code });
+    win.webContents.send("install-error", { code, message: userMessage });
     return false;
   }
 };
@@ -1049,135 +1305,300 @@ const downloadPwrSingle = async (opts: {
 }) => {
   const { url, logUrl, tempPath, win, controller, stepMeta, extraHeaders, buildName } = opts;
 
-  const startedAt = Date.now();
-  const response = await fetch(url, {
-    signal: controller.signal,
-    headers: extraHeaders,
-  });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} ${response.statusText}`);
-  }
-  if (!response.body) throw new Error("No response body");
+  const collectErrorCodes = (e: unknown, out: string[] = [], depth = 0): string[] => {
+    if (!e || depth > 4) return out;
 
-  const contentType = response.headers.get("content-type") || undefined;
-  const contentEncoding = response.headers.get("content-encoding") || undefined;
-  const etag = response.headers.get("etag") || undefined;
-  const lastModified = response.headers.get("last-modified") || undefined;
-  const acceptRanges = response.headers.get("accept-ranges") || undefined;
+    const code = (e as any)?.code;
+    if (typeof code === "string" && code) out.push(code);
 
-  const contentLength = response.headers.get("content-length");
-  const totalLength = contentLength ? parseInt(contentLength, 10) : undefined;
-  let downloadedLength = 0;
+    // undici often wraps network errors like:
+    // TypeError("fetch failed") -> cause: AggregateError([SocketError...])
+    const cause = (e as any)?.cause;
+    if (cause && typeof cause === "object") {
+      collectErrorCodes(cause, out, depth + 1);
+    }
 
-  logger.info(
-    `PWR size: ${totalLength ? (totalLength / 1024 / 1024).toFixed(2) + " MB" : "unknown"}`,
-  );
-  logger.info(
-    `PWR headers: content-type=${contentType ?? "unknown"} content-encoding=${contentEncoding ?? "none"} etag=${etag ?? "none"} last-modified=${lastModified ?? "none"} accept-ranges=${acceptRanges ?? "unknown"}`,
-  );
+    const errs = (e as any)?.errors;
+    if (Array.isArray(errs)) {
+      for (const inner of errs) {
+        collectErrorCodes(inner, out, depth + 1);
+      }
+    }
 
-  // Emit a start event so UI doesn't show 0/0.
-  win.webContents.send("install-progress", {
-    phase: "pwr-download",
-    percent: totalLength ? 0 : -1,
-    total: totalLength,
-    current: 0,
-    ...(stepMeta ?? {}),
-  });
-
-  const progressStream = new stream.PassThrough();
-  const progressIntervalMs = 200;
-  let lastProgressAt = 0;
-  const emitProgress = (force = false) => {
-    const now = Date.now();
-    if (!force && now - lastProgressAt < progressIntervalMs) return;
-    lastProgressAt = now;
-
-    const percent =
-      typeof totalLength === "number" && totalLength > 0
-        ? Math.round((downloadedLength / totalLength) * 100)
-        : -1;
-
-    win.webContents.send("install-progress", {
-      phase: "pwr-download",
-      percent,
-      total: totalLength,
-      current: downloadedLength,
-      ...(stepMeta ?? {}),
-    });
+    return out;
   };
 
-  progressStream.on("data", (chunk) => {
-    downloadedLength += chunk.length;
-    emitProgress(false);
+  const getErrCode = (e: unknown): string | undefined => {
+    const codes = collectErrorCodes(e, []);
+    return codes.length ? codes[0] : undefined;
+  };
+
+  const getErrMsg = (e: unknown): string => {
+    if (e instanceof Error) return e.message || String(e);
+    if (typeof e === "string") return e;
+    const m = (e as any)?.message;
+    if (typeof m === "string") return m;
+    return String(e);
+  };
+
+  const isTransientSocketTermination = (e: unknown): boolean => {
+    const codes = collectErrorCodes(e, []);
+    const msg = getErrMsg(e);
+    const causeMsg = getErrMsg((e as any)?.cause);
+
+    if (codes.includes("UND_ERR_SOCKET")) return true;
+    if (
+      codes.includes("ECONNRESET") ||
+      codes.includes("ETIMEDOUT") ||
+      codes.includes("EAI_AGAIN") ||
+      codes.includes("ENETUNREACH") ||
+      codes.includes("EHOSTUNREACH")
+    ) {
+      return true;
+    }
+
+    // undici frequently surfaces this as TypeError("terminated") with a SocketError cause.
+    if (/\bterminated\b/i.test(msg)) return true;
+    if (/other side closed/i.test(causeMsg)) return true;
+
+    // If undici only reports "fetch failed" we still retry a couple times,
+    // because underlying causes are frequently transient (DNS timeout / handshake / proxy).
+    if (/\bfetch failed\b/i.test(msg)) return true;
+    return false;
+  };
+
+  const startedAt = Date.now();
+  const MAX_ATTEMPTS = 3;
+
+  let totalLength: number | undefined = undefined;
+  let downloadedLength = 0;
+  let lastResponseHeaders: {
+    contentType?: string;
+    contentEncoding?: string;
+    etag?: string;
+    lastModified?: string;
+    acceptRanges?: string;
+  } = {};
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const existingSize = attempt > 1 ? (safeStat(tempPath)?.size ?? 0) : 0;
+    const wantsResume = existingSize > 0;
+
+    try {
+      const headers: Record<string, string> = { ...(extraHeaders ?? {}) };
+      if (wantsResume) {
+        headers.Range = `bytes=${existingSize}-`;
+      }
+
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers,
+      });
+
+      // If we requested a Range but the local file is larger than remote,
+      // servers may reply 416. In that case, discard and retry from scratch.
+      if (response.status === 416 && wantsResume) {
+        logger.warn("PWR resume failed (416); restarting from scratch", {
+          buildName,
+          attempt,
+          existingBytes: existingSize,
+        });
+        if (!shouldKeepFailedPWRs()) safeUnlink(tempPath);
+        continue;
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+      }
+      if (!response.body) throw new Error("No response body");
+
+      const contentType = response.headers.get("content-type") || undefined;
+      const contentEncoding = response.headers.get("content-encoding") || undefined;
+      const etag = response.headers.get("etag") || undefined;
+      const lastModified = response.headers.get("last-modified") || undefined;
+      const acceptRanges = response.headers.get("accept-ranges") || undefined;
+
+      lastResponseHeaders = {
+        contentType,
+        contentEncoding,
+        etag,
+        lastModified,
+        acceptRanges,
+      };
+
+      const contentRangeTotal =
+        response.status === 206
+          ? parseContentRangeTotal(response.headers.get("content-range"))
+          : null;
+      const contentLength = response.headers.get("content-length");
+      const remainingLength = contentLength ? parseInt(contentLength, 10) : undefined;
+
+      if (typeof contentRangeTotal === "number" && contentRangeTotal > 0) {
+        totalLength = contentRangeTotal;
+      } else if (response.status === 206 && wantsResume && typeof remainingLength === "number") {
+        totalLength = existingSize + remainingLength;
+      } else {
+        totalLength = remainingLength;
+      }
+
+      const isResuming = wantsResume && response.status === 206;
+      downloadedLength = isResuming ? existingSize : 0;
+
+      if (attempt === 1) {
+        logger.info(
+          `PWR size: ${totalLength ? (totalLength / 1024 / 1024).toFixed(2) + " MB" : "unknown"}`,
+        );
+        logger.info(
+          `PWR headers: content-type=${contentType ?? "unknown"} content-encoding=${contentEncoding ?? "none"} etag=${etag ?? "none"} last-modified=${lastModified ?? "none"} accept-ranges=${acceptRanges ?? "unknown"}`,
+        );
+      } else {
+        logger.warn("Retrying PWR download after disconnect", {
+          buildName,
+          attempt,
+          maxAttempts: MAX_ATTEMPTS,
+          resume: isResuming,
+          existingBytes: existingSize,
+          totalBytes: totalLength,
+        });
+      }
+
+      // Emit a start/resume event so UI doesn't show 0/0.
+      const startPercent =
+        typeof totalLength === "number" && totalLength > 0
+          ? Math.round((downloadedLength / totalLength) * 100)
+          : -1;
+      win.webContents.send("install-progress", {
+        phase: "pwr-download",
+        percent: startPercent,
+        total: totalLength,
+        current: downloadedLength,
+        ...(stepMeta ?? {}),
+      });
+
+      const progressStream = new stream.PassThrough();
+      const progressIntervalMs = 200;
+      let lastProgressAt = 0;
+      const emitProgress = (force = false) => {
+        const now = Date.now();
+        if (!force && now - lastProgressAt < progressIntervalMs) return;
+        lastProgressAt = now;
+
+        const percent =
+          typeof totalLength === "number" && totalLength > 0
+            ? Math.round((downloadedLength / totalLength) * 100)
+            : -1;
+
+        win.webContents.send("install-progress", {
+          phase: "pwr-download",
+          percent,
+          total: totalLength,
+          current: downloadedLength,
+          ...(stepMeta ?? {}),
+        });
+      };
+
+      progressStream.on("data", (chunk) => {
+        downloadedLength += chunk.length;
+        emitProgress(false);
+      });
+
+      const writeFlags = isResuming ? "a" : "w";
+
+      await pipeline(
+        // @ts-ignore
+        stream.Readable.fromWeb(response.body),
+        progressStream,
+        fs.createWriteStream(tempPath, { flags: writeFlags }),
+      );
+
+      const elapsedMs = Date.now() - startedAt;
+      const st = safeStat(tempPath);
+      logger.info(
+        `PWR download completed: ${tempPath} (written=${downloadedLength} bytes, onDisk=${st?.size ?? "?"} bytes, ms=${elapsedMs})`,
+      );
+
+      // Quick sanity check: if Content-Length exists and doesn't match file size, treat as corrupted/truncated.
+      if (
+        typeof totalLength === "number" &&
+        Number.isFinite(totalLength) &&
+        totalLength > 0 &&
+        typeof st?.size === "number" &&
+        st.size !== totalLength
+      ) {
+        logger.error(
+          `PWR size mismatch: expected=${totalLength} bytes but got=${st.size} bytes at ${tempPath}`,
+        );
+        throw new Error(
+          `Downloaded PWR appears truncated/corrupted (size mismatch: expected ${totalLength}, got ${st.size}).`,
+        );
+      }
+
+      // Hash the file so we can compare across runs (detect silent corruption).
+      try {
+        const hash = await sha256File(tempPath);
+        logger.info(`PWR sha256: ${hash}`);
+      } catch (e) {
+        logger.warn(
+          `Failed to compute PWR sha256: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+
+      // Sniff first bytes to detect HTML/error pages masquerading as .pwr.
+      const headHex = readHexSnippet(tempPath, 0, 32);
+      if (headHex) logger.info(`PWR header bytes (hex): ${headHex}`);
+      if (st?.size && st.size >= 32) {
+        const tailHex = readHexSnippet(tempPath, Math.max(0, st.size - 32), 32);
+        if (tailHex) logger.info(`PWR tail bytes (hex): ${tailHex}`);
+      }
+
+      win.webContents.send("install-progress", {
+        phase: "pwr-download",
+        percent: 100,
+        total: totalLength,
+        current: downloadedLength,
+        ...(stepMeta ?? {}),
+      });
+
+      return;
+    } catch (e) {
+      // Abort/cancel takes precedence.
+      if (
+        controller.signal.aborted ||
+        (e && typeof e === "object" && (e as any).name === "AbortError")
+      ) {
+        throw e;
+      }
+
+      const transient = isTransientSocketTermination(e);
+      if (!transient || attempt === MAX_ATTEMPTS) {
+        // Surface the original error; caller will format hints.
+        throw e;
+      }
+
+      const code = getErrCode(e);
+      const msg = getErrMsg(e);
+      logger.warn("PWR download interrupted; will retry", {
+        buildName,
+        attempt,
+        maxAttempts: MAX_ATTEMPTS,
+        code,
+        message: msg,
+      });
+      sleepSync(400 + attempt * 600);
+      continue;
+    }
+  }
+
+  // Unreachable: loop returns on success or throws.
+  logger.error("PWR download loop exited unexpectedly", {
+    buildName,
+    url: logUrl ?? url,
+    tempPath,
+    headers: lastResponseHeaders,
+    totalLength,
+    downloadedLength,
   });
-
-  try {
-    await pipeline(
-      // @ts-ignore
-      stream.Readable.fromWeb(response.body),
-      progressStream,
-      fs.createWriteStream(tempPath),
-    );
-  } catch (e) {
-    const { userMessage, meta } = formatErrorWithHints(e, {
-      op: `Download PWR (${buildName})`,
-      url: logUrl ?? url,
-      filePath: tempPath,
-    });
-    logger.error("PWR download pipeline failed", meta, e);
-    const wrapped = new Error(userMessage);
-    (wrapped as any).cause = e;
-    throw wrapped;
-  }
-
-  const elapsedMs = Date.now() - startedAt;
-  const st = safeStat(tempPath);
-  logger.info(
-    `PWR download completed: ${tempPath} (written=${downloadedLength} bytes, onDisk=${st?.size ?? "?"} bytes, ms=${elapsedMs})`,
-  );
-
-  // Hash the file so we can compare across runs (detect silent corruption).
-  try {
-    const hash = await sha256File(tempPath);
-    logger.info(`PWR sha256: ${hash}`);
-  } catch (e) {
-    logger.warn(
-      `Failed to compute PWR sha256: ${e instanceof Error ? e.message : String(e)}`,
-    );
-  }
-
-  // Quick sanity check: if Content-Length exists and doesn't match file size, treat as corrupted/truncated.
-  if (
-    typeof totalLength === "number" &&
-    Number.isFinite(totalLength) &&
-    totalLength > 0 &&
-    typeof st?.size === "number" &&
-    st.size !== totalLength
-  ) {
-    logger.error(
-      `PWR size mismatch: expected=${totalLength} bytes but got=${st.size} bytes at ${tempPath}`,
-    );
-    throw new Error(
-      `Downloaded PWR appears truncated/corrupted (size mismatch: expected ${totalLength}, got ${st.size}).`,
-    );
-  }
-
-  // Sniff first bytes to detect HTML/error pages masquerading as .pwr.
-  const headHex = readHexSnippet(tempPath, 0, 32);
-  if (headHex) logger.info(`PWR header bytes (hex): ${headHex}`);
-  if (st?.size && st.size >= 32) {
-    const tailHex = readHexSnippet(tempPath, Math.max(0, st.size - 32), 32);
-    if (tailHex) logger.info(`PWR tail bytes (hex): ${tailHex}`);
-  }
-
-  win.webContents.send("install-progress", {
-    phase: "pwr-download",
-    percent: 100,
-    total: totalLength,
-    current: downloadedLength,
-    ...(stepMeta ?? {}),
-  });
+  throw new Error("PWR download failed (unexpected loop exit)");
 };
 
 const downloadPwrParallelRanges = async (opts: {
@@ -1369,8 +1790,6 @@ const downloadPWR = async (
   const key = installKey(gameDir, version);
   const controller = new AbortController();
 
-  const isBaseDownloadMode = !extraHeaders || Object.keys(extraHeaders).length === 0;
-
   const isAllowedBasePwrUrl = (rawUrl: string): boolean => {
     try {
       const u = new URL(rawUrl);
@@ -1381,64 +1800,103 @@ const downloadPWR = async (
     }
   };
 
+  const extractUrlMeta = (rawUrl: string) => {
+    try {
+      const u = new URL(rawUrl);
+      const host = u.hostname;
+      const tsRaw = u.searchParams.get("timestamp");
+      const ts = tsRaw ? Number(tsRaw) : NaN;
+      const timestampMs = Number.isFinite(ts) && ts > 0 ? ts : undefined;
+      return {
+        host,
+        timestampMs,
+        nowMs: Date.now(),
+      };
+    } catch {
+      return { host: undefined, timestampMs: undefined, nowMs: Date.now() };
+    }
+  };
+
   // Resolve any custom/non-official PWR download through an optional dynamic module.
   // Base launcher (no dynamic module) must only download from *.hytale.com.
-  let resolvedUrl = String(version.url ?? "").trim();
-  let resolvedHeadUrl =
-    typeof (version as any)?.pwrHead === "string" ? String((version as any).pwrHead).trim() : "";
-  let resolvedHeaders: Record<string, string> | undefined = extraHeaders;
-  let safeUrlForMetaOverride: string | undefined = undefined;
+  const fromMaybe = Number((version as any)?.pwrFrom);
+  const toMaybe = Number((version as any)?.pwrTo);
 
-  if (isBaseDownloadMode && resolvedUrl && !isAllowedBasePwrUrl(resolvedUrl)) {
-    if (!customPwrDownloadProvider.isAvailable) {
-      throw new Error(
-        "Custom PWR download provider not installed (dynamic_modules missing).",
-      );
+  const resolveDownloadOnce = async (rawUrl: string, rawHeadUrl: string) => {
+    let resolvedUrl = String(rawUrl ?? "").trim();
+    let resolvedHeadUrl = String(rawHeadUrl ?? "").trim();
+    let resolvedHeaders: Record<string, string> | undefined = extraHeaders;
+    let safeUrlForMetaOverride: string | undefined = undefined;
+
+    if (resolvedUrl && !isAllowedBasePwrUrl(resolvedUrl)) {
+      if (!customPwrDownloadProvider.isAvailable) {
+        throw new Error(
+          "Custom PWR download provider not installed (dynamic_modules missing).",
+        );
+      }
+
+      const resolved = await customPwrDownloadProvider.resolvePwrDownload({
+        url: resolvedUrl,
+        headUrl: resolvedHeadUrl || undefined,
+        branch: version.type,
+        buildIndex: Number(version.build_index),
+        fromBuildIndex:
+          Number.isFinite(fromMaybe) && fromMaybe > 0 ? fromMaybe : undefined,
+        toBuildIndex: Number.isFinite(toMaybe) && toMaybe > 0 ? toMaybe : undefined,
+      });
+
+      if (!resolved || !resolved.url) {
+        throw new Error(
+          "Custom PWR download provider could not resolve the download request.",
+        );
+      }
+
+      resolvedUrl = String(resolved.url).trim();
+      resolvedHeadUrl =
+        typeof resolved.headUrl === "string" ? resolved.headUrl.trim() : resolvedHeadUrl;
+      resolvedHeaders = {
+        ...(extraHeaders ?? {}),
+        ...((resolved.headers as any) ?? {}),
+      };
+      safeUrlForMetaOverride =
+        typeof resolved.safeLogUrl === "string" && resolved.safeLogUrl.trim()
+          ? resolved.safeLogUrl.trim()
+          : undefined;
     }
 
-    const fromMaybe = Number((version as any)?.pwrFrom);
-    const toMaybe = Number((version as any)?.pwrTo);
-    const resolved = await customPwrDownloadProvider.resolvePwrDownload({
+    const describeVersionForLogs: GameVersion = {
+      ...version,
       url: resolvedUrl,
-      headUrl: resolvedHeadUrl || undefined,
-      branch: version.type,
-      buildIndex: Number(version.build_index),
-      fromBuildIndex:
-        Number.isFinite(fromMaybe) && fromMaybe > 0 ? fromMaybe : undefined,
-      toBuildIndex: Number.isFinite(toMaybe) && toMaybe > 0 ? toMaybe : undefined,
-    });
-
-    if (!resolved || !resolved.url) {
-      throw new Error(
-        "Custom PWR download provider could not resolve the download request.",
-      );
-    }
-
-    resolvedUrl = String(resolved.url).trim();
-    resolvedHeadUrl = typeof resolved.headUrl === "string" ? resolved.headUrl.trim() : resolvedHeadUrl;
-    resolvedHeaders = {
-      ...(extraHeaders ?? {}),
-      ...((resolved.headers as any) ?? {}),
     };
-    safeUrlForMetaOverride =
-      typeof resolved.safeLogUrl === "string" && resolved.safeLogUrl.trim()
-        ? resolved.safeLogUrl.trim()
-        : undefined;
-  }
+    if (resolvedHeadUrl) (describeVersionForLogs as any).pwrHead = resolvedHeadUrl;
+    const { startLogLine, safeUrlForMeta: describedSafeUrlForMeta } =
+      describePwrDownloadForLogs(describeVersionForLogs);
+    const safeUrlForMeta = safeUrlForMetaOverride ?? describedSafeUrlForMeta;
 
-  const describeVersionForLogs: GameVersion = {
-    ...version,
-    url: resolvedUrl,
+    return {
+      resolvedUrl,
+      resolvedHeadUrl,
+      resolvedHeaders,
+      safeUrlForMeta,
+      startLogLine,
+      urlMeta: extractUrlMeta(resolvedUrl),
+    };
   };
-  if (resolvedHeadUrl) (describeVersionForLogs as any).pwrHead = resolvedHeadUrl;
-  const { startLogLine, safeUrlForMeta: describedSafeUrlForMeta } =
-    describePwrDownloadForLogs(describeVersionForLogs);
-  const safeUrlForMeta = safeUrlForMetaOverride ?? describedSafeUrlForMeta;
 
   // yes this is global state and yes it will haunt us later
   pwrDownloadsInFlight.set(key, { controller, tempPath: tempPWRPath });
 
+  let lastUrlMeta = extractUrlMeta(String(version.url ?? "").trim());
+
   try {
+    const rawUrl = String(version.url ?? "").trim();
+    const rawHeadUrl =
+      typeof (version as any)?.pwrHead === "string" ? String((version as any).pwrHead).trim() : "";
+
+    const { resolvedUrl, resolvedHeadUrl, resolvedHeaders, safeUrlForMeta, startLogLine, urlMeta } =
+      await resolveDownloadOnce(rawUrl, rawHeadUrl);
+
+    lastUrlMeta = urlMeta;
     logger.info(startLogLine);
 
     // Best-effort: if we have a separate HEAD URL (signed/verified CDN links sometimes do),
@@ -1462,14 +1920,14 @@ const downloadPWR = async (
     }
 
     const wantsParallel =
-      isBaseDownloadMode && getAlternativeParallelPwrConnections() > 1;
+      isAllowedBasePwrUrl(resolvedUrl) && getAlternativeParallelPwrConnections() > 1;
 
     if (wantsParallel) {
       // Probe Range support and total size using a 1-byte range request.
       // If unsupported, fall back to single-stream download.
       try {
         const probeHeaders: Record<string, string> = {
-          ...(extraHeaders ?? {}),
+          ...(resolvedHeaders ?? {}),
           Range: "bytes=0-0",
         };
         const probeRes = await fetch(resolvedUrl, {
@@ -1551,6 +2009,7 @@ const downloadPWR = async (
     }
 
     return tempPWRPath;
+
   } catch (error) {
     // user asked to cancel so we pretend this was always supported
     if (
@@ -1576,13 +2035,26 @@ const downloadPWR = async (
         : null;
     const status = statusMatch ? Number(statusMatch[1]) : undefined;
 
+    const urlMeta = lastUrlMeta;
+
     const { userMessage, meta } = formatErrorWithHints(error, {
       op: `Download PWR (${version.build_name})`,
-      url: safeUrlForMeta,
+      url: undefined,
       filePath: tempPWRPath,
       status: Number.isFinite(status as any) ? status : undefined,
+      urlMeta,
     });
-    logger.error(`Failed to download PWR for version ${version.build_name}`, meta, error);
+
+    // Avoid logging signed URLs (tokens/timestamps). Log structured metadata instead.
+    logger.error(
+      `Failed to download PWR for version ${version.build_name}`,
+      {
+        ...meta,
+        urlHost: urlMeta.host,
+        urlTimestampMs: urlMeta.timestampMs,
+      },
+      error,
+    );
     const wrapped = new Error(userMessage);
     (wrapped as any).cause = error;
     throw wrapped;

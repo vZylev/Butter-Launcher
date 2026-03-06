@@ -2,9 +2,13 @@ import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 
+export type BackgroundType = "none" | "image" | "video";
+
 export type LauncherSettings = {
   playstartupsound: boolean;
   firstRunStartupSoundPending?: boolean;
+  backgroundType?: BackgroundType;
+  backgroundPath?: string;
 };
 
 const DEFAULT_SETTINGS: LauncherSettings = {
@@ -20,6 +24,8 @@ const getSettingsPath = () => {
   return path.join(getSettingsDir(), "settings.json");
 };
 
+const VALID_BG_TYPES: BackgroundType[] = ["none", "image", "video"];
+
 const safeParseSettings = (raw: string): LauncherSettings | null => {
   try {
     const parsed = JSON.parse(raw);
@@ -28,7 +34,14 @@ const safeParseSettings = (raw: string): LauncherSettings | null => {
     if (typeof play !== "boolean") return null;
     const pendingRaw = (parsed as any).firstRunStartupSoundPending;
     const pending = typeof pendingRaw === "boolean" ? pendingRaw : false;
-    return { playstartupsound: play, firstRunStartupSoundPending: pending };
+    const bgTypeRaw = (parsed as any).backgroundType;
+    const backgroundType: BackgroundType =
+      typeof bgTypeRaw === "string" && VALID_BG_TYPES.includes(bgTypeRaw as BackgroundType)
+        ? (bgTypeRaw as BackgroundType)
+        : "none";
+    const bgPathRaw = (parsed as any).backgroundPath;
+    const backgroundPath = typeof bgPathRaw === "string" ? bgPathRaw : "";
+    return { playstartupsound: play, firstRunStartupSoundPending: pending, backgroundType, backgroundPath };
   } catch {
     return null;
   }
@@ -98,6 +111,38 @@ export const markFirstRunStartupSoundPlayed = (): { ok: boolean; settingsPath: s
     const next: LauncherSettings = {
       ...current,
       firstRunStartupSoundPending: false,
+    };
+    writeSettingsAtomic(settingsPath, next);
+    return { ok: true, settingsPath };
+  } catch {
+    return { ok: false, settingsPath };
+  }
+};
+
+export const getBackground = (): { ok: boolean; backgroundType: BackgroundType; backgroundPath: string } => {
+  try {
+    const { settings } = readOrInitLauncherSettings();
+    return {
+      ok: true,
+      backgroundType: settings.backgroundType || "none",
+      backgroundPath: settings.backgroundPath || "",
+    };
+  } catch {
+    return { ok: false, backgroundType: "none", backgroundPath: "" };
+  }
+};
+
+export const setBackground = (
+  backgroundType: BackgroundType,
+  backgroundPath: string,
+): { ok: boolean; settingsPath: string } => {
+  const settingsPath = getSettingsPath();
+  try {
+    const current = readOrInitLauncherSettings().settings;
+    const next: LauncherSettings = {
+      ...current,
+      backgroundType,
+      backgroundPath,
     };
     writeSettingsAtomic(settingsPath, next);
     return { ok: true, settingsPath };

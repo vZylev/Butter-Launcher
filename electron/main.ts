@@ -10,6 +10,7 @@ import {
   dialog,
   session,
   net,
+  protocol,
 } from "electron";
 
 // Main process: where we spawn processes and regrets.
@@ -36,6 +37,7 @@ import {
 } from "./utils/game/install";
 import { checkGameInstallation } from "./utils/game/check";
 import { launchGame } from "./utils/game/launch";
+import { startClientLogTail } from "./utils/game/clientLogTail";
 import {
   connectRPC,
   disconnectRPC,
@@ -79,16 +81,28 @@ import {
   disableOnlinePatch,
   enableOnlinePatch,
   removeOnlinePatch,
+  reconcileOfflineServerJwksPatchForLaunch,
   fixClientToUnpatched,
   getOnlinePatchHealth,
   getOnlinePatchState,
 } from "./utils/game/onlinePatch.ts";
 
+import { customOnlinePatchProvider } from "./utils/dynamicModules/customOnlinePatchProvider";
+import { cleanupUnsupportedPatchArtifactsBestEffort } from "./utils/game/patchCleanup";
+
 import {
   readOrInitLauncherSettings,
   markFirstRunStartupSoundPlayed,
   setPlayStartupSound,
+  getBackground,
+  setBackground,
 } from "./utils/launcherSettings";
+
+import {
+  addRuntimeGameProcess,
+  getActiveRuntimeGameLock,
+  removeRuntimeGameProcess,
+} from "./utils/runtimeGameLock";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -935,8 +949,33 @@ const applySteamDeckModeAcrossInstalled = (
   };
 };
 
+// Register custom protocol scheme before app is ready (Electron requirement).
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "butter-bg",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      bypassCSP: true,
+      stream: true,
+    },
+  },
+]);
+
 app.on("ready", () => {
   app.setAppUserModelId("com.butter.launcher");
+
+  try {
+    const gameDir = getEffectiveDownloadDirectory();
+    if (!customOnlinePatchProvider.isAvailable) {
+      setTimeout(() => {
+        void cleanupUnsupportedPatchArtifactsBestEffort(gameDir).catch(() => null);
+      }, 0);
+    }
+  } catch {
+    // ignore
+  }
   // Launcher updates are handled via version.json (renderer UI prompt).
 
   logger.info(`Butter Launcher is starting...
@@ -947,12 +986,56 @@ app.on("ready", () => {
   `);
 });
 
+ipcMain.handle("runtime-lock:get", async () => {
+  try {
+    const lock = getActiveRuntimeGameLock();
+    return {
+      ok: true,
+      active: !!lock,
+      accountType: lock?.accountType ?? null,
+      games: lock?.games?.length ?? 0,
+    };
+  } catch {
+    return { ok: false, active: false, accountType: null, games: 0 };
+  }
+});
+
 app.on("before-quit", () => {
   // NOTE: don't do async work here without preventDefault, or Windows will quit
   // fast enough that Discord RPC never gets the "clear" packet.
 });
 
 let rpcShutdownStarted = false;
+let matchaQuitOfflineStarted = false;
+let matchaToken: string | null = null;
+
+const shutdownMatchaOffline = async () => {
+  if (matchaQuitOfflineStarted) return;
+  matchaQuitOfflineStarted = true;
+
+  const token = String(matchaToken || "").trim();
+  if (!token) return;
+
+  const controller = new AbortController();
+  const timeoutMs = 1200;
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    await fetch("https://butter.lat/api/matcha/heartbeat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ state: "offline", reason: "app_quit" }),
+      signal: controller.signal,
+    });
+  } catch {
+    // best-effort
+  } finally {
+    clearTimeout(t);
+  }
+};
+
 const shutdownDiscordRpc = async () => {
   if (rpcShutdownStarted) return;
   rpcShutdownStarted = true;
@@ -981,13 +1064,22 @@ app.on("before-quit", (e) => {
   e.preventDefault();
   isQuitting = true;
   void (async () => {
-    await shutdownDiscordRpc();
+    await Promise.all([
+      shutdownDiscordRpc(),
+      shutdownMatchaOffline(),
+    ]);
     app.quit();
   })();
 });
 
 app.on("will-quit", () => {
   stopHostServerProcess("app-will-quit");
+  try {
+    stopClientLogTail?.();
+  } catch {
+    // ignore
+  }
+  stopClientLogTail = null;
   logger.info("Closing Butter Launcher");
 });
 
@@ -1009,6 +1101,7 @@ let isBackgroundMode = false;
 let networkBlockerInstalled = false;
 let isGameRunning = false;
 let runningGameBuildKey: string | null = null;
+let stopClientLogTail: (() => void) | null = null;
 
 const isHostServerRunning = (): boolean => {
   return !!(hostServerProc && !hostServerProc.killed);
@@ -1450,6 +1543,51 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Register custom protocol to serve local background files securely.
+  const { protocol: proto } = session.defaultSession;
+  proto.handle("butter-bg", (req) => {
+    try {
+      // URL format: butter-bg:///C:/path/to/file.mp4
+      const url = new URL(req.url);
+      let filePath = decodeURIComponent(url.pathname);
+      // On Windows, pathname starts with /C:/... — strip the leading slash
+      if (process.platform === "win32" && /^\/[a-zA-Z]:/.test(filePath)) {
+        filePath = filePath.slice(1);
+      }
+      filePath = path.normalize(filePath);
+
+      // Only allow image/video MIME types
+      const ext = path.extname(filePath).toLowerCase();
+      const allowed: Record<string, string> = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+        ".bmp": "image/bmp",
+        ".mp4": "video/mp4",
+        ".webm": "video/webm",
+        ".ogg": "video/ogg",
+        ".mov": "video/quicktime",
+      };
+      const mime = allowed[ext];
+      if (!mime) {
+        return new Response("Forbidden file type", { status: 403 });
+      }
+
+      if (!fs.existsSync(filePath)) {
+        return new Response("Not found", { status: 404 });
+      }
+
+      const data = fs.readFileSync(filePath);
+      return new Response(data, {
+        headers: { "Content-Type": mime },
+      });
+    } catch {
+      return new Response("Error", { status: 500 });
+    }
+  });
+
   installWikiWebviewGuards();
   createWindow();
 
@@ -1484,6 +1622,46 @@ ipcMain.on("toggle-maximize-window", () => {
   if (win.isMaximized()) win.unmaximize();
   else win.maximize();
 });
+ipcMain.on("focus-window", (evt) => {
+  try {
+    const fromSender = BrowserWindow.fromWebContents(evt.sender);
+    const target = fromSender ?? win;
+    if (!target) return;
+    if (target.isMinimized()) target.restore();
+    target.show();
+    target.focus();
+    target.webContents.focus();
+  } catch {
+    // ignore
+  }
+});
+
+ipcMain.handle(
+  "offline-jwks-patch:force",
+  async (e, payload: { gameDir: string; version: GameVersion }) => {
+    try {
+      const gameDir = typeof payload?.gameDir === "string" ? payload.gameDir : "";
+      const version = payload?.version as GameVersion;
+      if (!gameDir || !version || !Number.isFinite((version as any).build_index)) {
+        return { ok: false as const, error: "Invalid payload" };
+      }
+
+      const win = BrowserWindow.fromWebContents(e.sender);
+      const result = await reconcileOfflineServerJwksPatchForLaunch(
+        gameDir,
+        version,
+        "offline",
+        win ?? undefined,
+        "online-patch-progress",
+        { force: true, buildOnly: true },
+      );
+      return { ok: true as const, result };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false as const, error: msg || "Failed" };
+    }
+  },
+);
 ipcMain.on("close-window", () => {
   win?.close();
 });
@@ -1509,6 +1687,15 @@ ipcMain.on("app:cancel-downloads-and-quit", () => {
 });
 
 ipcMain.on("ready", (_, { enableRPC }) => {
+  try {
+    logger.info("Renderer ready", {
+      enableRPC: !!enableRPC,
+      logPath: typeof (logger as any)?.getLogPath === "function" ? (logger as any).getLogPath() : undefined,
+    });
+  } catch {
+    // ignore
+  }
+
   if (enableRPC) {
     connectRPC();
     try {
@@ -1607,6 +1794,29 @@ ipcMain.handle("launcher-settings:startup-sound:first-run-played", async () => {
   }
 });
 
+ipcMain.handle("launcher-settings:background:get", async () => {
+  try {
+    const res = getBackground();
+    return { ok: res.ok, backgroundType: res.backgroundType, backgroundPath: res.backgroundPath, error: null as string | null };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Unknown error";
+    return { ok: false, backgroundType: "none", backgroundPath: "", error: message };
+  }
+});
+
+ipcMain.handle("launcher-settings:background:set", async (_, backgroundType: string, backgroundPath: string) => {
+  try {
+    const validTypes = ["none", "image", "video"] as const;
+    const bgType = validTypes.includes(backgroundType as any) ? (backgroundType as typeof validTypes[number]) : "none";
+    const bgPath = typeof backgroundPath === "string" ? backgroundPath : "";
+    const res = setBackground(bgType, bgPath);
+    return { ok: res.ok, settingsPath: res.settingsPath, error: res.ok ? null : "Failed to write settings" };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Unknown error";
+    return { ok: false, settingsPath: "", error: message };
+  }
+});
+
 ipcMain.handle("fetch:json", async (_, url, ...args) => {
   try {
     const response = await fetch(url, ...args);
@@ -1625,6 +1835,34 @@ ipcMain.handle("fetch:json", async (_, url, ...args) => {
     return JSON.parse(text);
   }
 });
+
+ipcMain.handle("fetch:text", async (_, url, ...args) => {
+  try {
+    const response = await fetch(url, ...args);
+    return await response.text();
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    logger.warn("fetch:text via fetch() failed; falling back to electron.net", {
+      url,
+      error: message,
+    });
+
+    const init = (args?.[0] ?? null) as any;
+    const headers = coercePlainHeaders(init?.headers);
+    const res = await netRequestRaw(String(url), { method: "GET", headers });
+    return res.body.toString("utf8");
+  }
+});
+
+ipcMain.on("matcha:token", (_evt, payload: any) => {
+  try {
+    const t = typeof payload?.token === "string" ? payload.token.trim() : "";
+    matchaToken = t || null;
+  } catch {
+    matchaToken = null;
+  }
+});
+
 ipcMain.handle("fetch:head", async (_, url, ...args) => {
   try {
     const response = await fetch(url, ...args);
@@ -4356,6 +4594,7 @@ ipcMain.handle(
       assetsZipPath?: string | null;
       authMode?: "offline" | "authenticated" | "insecure";
       noAot?: boolean;
+      acceptEarlyPlugins?: boolean;
       ramMinGb?: number | null;
       ramMaxGb?: number | null;
       customJvmArgs?: string | null;
@@ -4520,6 +4759,10 @@ ipcMain.handle(
     const authMode = opts?.authMode;
     if (authMode === "offline" || authMode === "authenticated" || authMode === "insecure") {
       args.push("--auth-mode", authMode);
+    }
+
+    if (opts?.acceptEarlyPlugins) {
+      args.push("--accept-early-plugins");
     }
 
     logger.info("Starting host server", { serverDir, args });
@@ -4796,6 +5039,19 @@ ipcMain.on(
   if (win) {
     const normalized = String(accountType ?? "").trim().toLowerCase();
     const accountKind = normalized ? (normalized === "premium" ? "official" : "alternative") : "official";
+    try {
+      logger.info("Install requested", {
+        accountType: normalized || null,
+        accountKind,
+        gameDir,
+        versionType: version?.type,
+        build_index: version?.build_index,
+        build_name: version?.build_name,
+        isLatest: !!version?.isLatest,
+      });
+    } catch {
+      // ignore
+    }
     void customInstallProvider
       .installGame(gameDir, version, win, accountKind)
       .then((ok) => {
@@ -4924,6 +5180,39 @@ ipcMain.on(
   ) => {
     const win = BrowserWindow.fromWebContents(e.sender);
     if (win) {
+      const normalizeAccountType = (raw: unknown): "premium" | "custom" => {
+        const s = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+        if (!s) return "premium";
+        return s === "premium" ? "premium" : "custom";
+      };
+
+      const desiredAccountType = normalizeAccountType(accountType);
+      try {
+        const existing = getActiveRuntimeGameLock();
+        if (existing && existing.accountType !== desiredAccountType) {
+          try {
+            win.webContents.send("runtime-lock:mismatch", {
+              active: true,
+              accountType: existing.accountType,
+              games: existing.games.length,
+            });
+          } catch {
+            // ignore
+          }
+          return;
+        }
+      } catch {
+        // ignore
+      }
+
+      const sendMatchaPresence = (payload: { event: string; server?: string }) => {
+        try {
+          if (!win.isDestroyed()) win.webContents.send("matcha:presence", payload);
+        } catch {
+          // ignore
+        }
+      };
+
       if (process.platform === "linux" && getSteamDeckModeEnabled()) {
         try {
           const r = applySteamDeckFixForVersion(gameDir, version, true);
@@ -4949,10 +5238,78 @@ ipcMain.on(
         !!forceOfflineAuth,
         accountType ?? null,
         {
-        onGameSpawned: () => {
+        onGameSpawned: (info) => {
           logger.info(`Game spawned: ${version.type} ${version.build_name}`);
           isGameRunning = true;
           runningGameBuildKey = buildKey(version);
+
+          try {
+            const pid = typeof info?.pid === "number" ? info.pid : null;
+            if (pid && pid > 0) {
+              const r = addRuntimeGameProcess({
+                accountType: desiredAccountType,
+                pid,
+                build: {
+                  type: version.type,
+                  build_index: version.build_index,
+                  build_name: version.build_name,
+                },
+              });
+              if (!r.ok) {
+                try {
+                  win.webContents.send("runtime-lock:mismatch", {
+                    active: true,
+                    accountType: r.lock.accountType,
+                    games: r.lock.games.length,
+                  });
+                } catch {
+                  // ignore
+                }
+              } else {
+                try {
+                  win.webContents.send("runtime-lock:changed", {
+                    active: true,
+                    accountType: r.lock.accountType,
+                    games: r.lock.games.length,
+                  });
+                } catch {
+                  // ignore
+                }
+              }
+            }
+          } catch {
+            // ignore
+          }
+
+          // Matcha presence: game opened.
+          sendMatchaPresence({ event: "game_opened" });
+
+          // Experiment: tail the client log and detect direct server connections.
+          try {
+            stopClientLogTail?.();
+          } catch {
+            // ignore
+          }
+          stopClientLogTail = null;
+
+          try {
+            const logsDir = path.join(gameDir, "UserData", "Logs");
+            stopClientLogTail = startClientLogTail({
+              logsDir,
+              label: "client-log",
+              onMultiplayerConnected: (server) => {
+                sendMatchaPresence({ event: "multiplayer_connected", server });
+              },
+              onSingleplayerEntered: () => {
+                sendMatchaPresence({ event: "singleplayer_entered" });
+              },
+              onSessionLeft: () => {
+                sendMatchaPresence({ event: "session_left" });
+              },
+            }).stop;
+          } catch (err) {
+            logger.warn("Failed to start client log tail", err);
+          }
           try {
             setPlayingActivity(version);
           } catch {
@@ -4970,9 +5327,40 @@ ipcMain.on(
             }, 3000);
           }
         },
-        onGameExited: () => {
+        onGameExited: (exitInfo) => {
           isGameRunning = false;
           runningGameBuildKey = null;
+
+          try {
+            const pid = typeof (exitInfo as any)?.pid === "number" ? (exitInfo as any).pid : null;
+            if (pid && pid > 0) {
+              removeRuntimeGameProcess(pid);
+            }
+          } catch {
+            // ignore
+          }
+
+          try {
+            const lock = getActiveRuntimeGameLock();
+            win.webContents.send("runtime-lock:changed", {
+              active: !!lock,
+              accountType: lock?.accountType ?? null,
+              games: lock?.games?.length ?? 0,
+            });
+          } catch {
+            // ignore
+          }
+
+          // Matcha presence: game closed.
+          sendMatchaPresence({ event: "game_closed" });
+
+          try {
+            stopClientLogTail?.();
+          } catch {
+            // ignore
+          }
+          stopClientLogTail = null;
+
           if (backgroundTimeout) {
             clearTimeout(backgroundTimeout);
             backgroundTimeout = null;

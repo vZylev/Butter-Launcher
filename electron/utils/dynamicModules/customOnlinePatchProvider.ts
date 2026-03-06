@@ -26,6 +26,19 @@ export type OnlinePatchHealth = {
 
 export type CustomOnlinePatchProvider = {
   isAvailable: boolean;
+  reconcileOfflineServerJwksPatchForLaunch: (
+    gameDir: string,
+    version: GameVersion,
+    opts: {
+      desired: "original" | "online" | "offline";
+      force?: boolean;
+      buildOnly?: boolean;
+      progress?: {
+        win: BrowserWindow;
+        progressChannel?: "online-patch-progress";
+      };
+    },
+  ) => Promise<"noop" | "applied" | "restored" | "skipped">;
 
   getClientPatchState: (gameDir: string, version: GameVersion) => {
     supported: boolean;
@@ -142,6 +155,9 @@ export type CustomOnlinePatchProvider = {
 
 const stubProvider: CustomOnlinePatchProvider = {
   isAvailable: false,
+
+  reconcileOfflineServerJwksPatchForLaunch: async () => "skipped",
+
   getClientPatchState: () => ({
     supported: false,
     available: false,

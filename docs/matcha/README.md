@@ -65,7 +65,13 @@ Common auth failures:
 7. Send messages:
    - Prefer WebSocket `{ "type": "send", ... }`
    - Fallback HTTP `POST /api/matcha/messages/send`
-8. Send presence heartbeat periodically while the launcher is open (and optionally `offline` on exit): `POST /api/matcha/heartbeat`.
+   - Multiplayer social actions are implemented as special DM commands:
+     - `/invite`
+     - `/request-to-join`
+     - See `http.md` for “Game invites & join requests (DM protocol)” and “Join request actions”.
+8. Presence:
+   - Send a heartbeat periodically while the launcher is open (and optionally `offline` on exit): `POST /api/matcha/heartbeat`.
+   - Send launcher-driven game/session events: `POST /api/matcha/presence/event` (game open/close, singleplayer, multiplayer connected, session left).
 
 ## Practical client notes
 

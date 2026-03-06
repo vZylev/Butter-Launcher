@@ -1,8 +1,10 @@
 import { useUserContext } from "./hooks/userContext";
+import { useGameContext } from "./hooks/gameContext";
 import Launcher from "./components/Launcher";
 import Login from "./components/Login";
 import Loader from "./components/Loader";
 import { useEffect, useRef, useState } from "react";
+import { customAlternativeLoginProvider } from "./utils/dynamicModules/customAlternativeLoginProvider";
 import LauncherUpdateModal, {
   LauncherUpdateInfo,
 } from "./components/LauncherUpdateModal";
@@ -65,6 +67,7 @@ const CRYPT_WARM_AT_MS = 1700;
 const CRYPT_HEART_AT_MS = 3000;
 
 const SUPPORT_TICKET_EASTER_KEY = "supportticket";
+const FORCEPATCH_EASTER_KEY = "forcepatch";
 const SUPPORT_TICKET_POLL_MS = 2500;
 const SUPPORT_TICKET_API_BASE =
   (import.meta as any).env?.VITE_SUPPORT_TICKET_API_BASE || "https://butter.lat";
@@ -194,14 +197,92 @@ type PrimeOriginalStyles = {
 
 export default function App() {
   const { ready, username, setUsername } = useUserContext();
+  const { forceOfflineServerPatchForSelectedBuild } = useGameContext();
   const { t } = useTranslation();
   const [showLoader, setShowLoader] = useState(true);
   const [fade, setFade] = useState(false);
+
+  const allowAlternative = customAlternativeLoginProvider.allowAlternative;
+
+  useEffect(() => {
+    if (!username) return;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const lock = await window.config?.getRuntimeGameLock?.();
+        if (cancelled) return;
+        if (!lock || (lock as any).ok !== true || (lock as any).active !== true) return;
+
+        const lockedType = (lock as any).accountType === "premium" ? "premium" : "custom";
+
+        const raw = (localStorage.getItem("accountType") || "").trim();
+        const storedType = raw === "premium" ? "premium" : raw ? "custom" : "";
+
+        if (!storedType || storedType === lockedType) return;
+
+        // If another instance has a game running under a different account type,
+        // force this instance back to Login so it can't operate under mismatched mode.
+        setUsername(null);
+        try {
+          localStorage.removeItem("accountType");
+        } catch {
+          // ignore
+        }
+        try {
+          window.dispatchEvent(new Event("accountType:changed"));
+        } catch {
+          // ignore
+        }
+      } catch {
+        // ignore
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [username, setUsername]);
 
   const hasValidAccountType = StorageService.hasValidAccountType();
 
   useEffect(() => {
     // Best-effort offline token refresh.
+    if (!username) return;
+
+    // If a user upgrades/downgrades to a build without alternative login support,
+    // don't keep them "stuck" in a non-official mode.
+    try {
+      const raw = (localStorage.getItem("accountType") || "").trim();
+      const normalized = raw === "premium" ? "premium" : raw ? "custom" : "";
+      if (normalized !== "custom") return;
+      if (allowAlternative) return;
+
+      setUsername(null);
+
+      try {
+        localStorage.removeItem("accountType");
+      } catch {
+        // ignore
+      }
+
+      try {
+        localStorage.removeItem("customUUID");
+      } catch {
+        // ignore
+      }
+
+      try {
+        window.dispatchEvent(new Event("accountType:changed"));
+      } catch {
+        // ignore
+      }
+    } catch {
+      // ignore
+    }
+  }, [username, allowAlternative, setUsername]);
+
+  useEffect(() => {
     if (!username) return;
     if (!hasValidAccountType) return;
     if (!window.config?.offlineTokenRefresh) return;
@@ -281,6 +362,30 @@ export default function App() {
   }, [setUsername]);
 
   const appRootRef = useRef<HTMLDivElement | null>(null);
+
+  const [bgType, setBgType] = useState<"none" | "image" | "video">("none");
+  const [bgPath, setBgPath] = useState("");
+
+  useEffect(() => {
+    const loadBg = async () => {
+      try {
+        const res = await window.config.backgroundGet();
+        if (res?.ok) {
+          const rawType = typeof res.backgroundType === "string" ? res.backgroundType : "";
+          const nextType = rawType === "image" || rawType === "video" ? rawType : "none";
+          setBgType(nextType);
+          setBgPath(res.backgroundPath || "");
+        }
+      } catch {
+        // ignore
+      }
+    };
+    void loadBg();
+
+    const onChanged = () => void loadBg();
+    window.addEventListener("background:changed", onChanged);
+    return () => window.removeEventListener("background:changed", onChanged);
+  }, []);
 
   const [magdOpen, setMagdOpen] = useState(false);
   const [magdRunId, setMagdRunId] = useState(0);
@@ -1841,6 +1946,7 @@ export default function App() {
         LUNARKATSU_EASTER_KEY.length,
         PRIMESTO_EASTER_KEY.length,
         SUPPORT_TICKET_EASTER_KEY.length,
+        FORCEPATCH_EASTER_KEY.length,
       );
       if (buffer.length > maxLength) {
         buffer = buffer.slice(buffer.length - maxLength);
@@ -1904,6 +2010,11 @@ export default function App() {
         setSupportTicketPhase("waiting");
         setSupportTicketStatusText("Copy this code and send it to support.");
         setSupportTicketOpen(true);
+      }
+
+      if (buffer.endsWith(FORCEPATCH_EASTER_KEY)) {
+        buffer = "";
+        void forceOfflineServerPatchForSelectedBuild();
       }
     };
 
@@ -2052,6 +2163,45 @@ export default function App() {
         position: "relative",
       }}
     >
+      {/* Custom Background Layer */}
+      {bgType === "image" && bgPath && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 0,
+            backgroundImage: `url("butter-bg:///${bgPath.replace(/\\/g, "/")}")`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+          }}
+        >
+          <div style={{ position: "absolute", inset: 0, background: "rgba(11, 15, 22, 0.55)" }} />
+        </div>
+      )}
+      {bgType === "video" && bgPath && (
+        <div style={{ position: "absolute", inset: 0, zIndex: 0, overflow: "hidden" }}>
+          <video
+            key={bgPath}
+            autoPlay
+            loop
+            muted
+            playsInline
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              minWidth: "100%",
+              minHeight: "100%",
+              transform: "translate(-50%, -50%)",
+              objectFit: "cover",
+            }}
+          >
+            <source src={`butter-bg:///${bgPath.replace(/\\/g, "/")}`} />
+          </video>
+          <div style={{ position: "absolute", inset: 0, background: "rgba(11, 15, 22, 0.45)" }} />
+        </div>
+      )}
       <style>{`
         @keyframes simonSlideUp {
           0% { transform: translate(-50%, 100%); }
@@ -3419,6 +3569,7 @@ export default function App() {
         }
         style={{
           position: "relative",
+          zIndex: 1,
           opacity:
             zyleOpen ||
             (ikyOpen && (ikyPhase === "hex" || ikyPhase === "freeze"))
@@ -3436,7 +3587,7 @@ export default function App() {
               position: "absolute",
               inset: 0,
               zIndex: 10000,
-              pointerEvents: "all",
+              pointerEvents: fade ? "none" : "all",
               opacity: fade ? 0 : 1,
               transition: "opacity 1s",
             }}
@@ -3448,6 +3599,7 @@ export default function App() {
           (ready ? (
             username && hasValidAccountType ? (
               <Launcher
+                hasCustomBg={bgType !== "none"}
                 onLogout={() => {
                   setUsername(null);
                   try { void window.config.premiumLogout?.(); } catch { /* ignore */ }
@@ -3456,7 +3608,7 @@ export default function App() {
                 }}
               />
             ) : (
-              <Login onLogin={(username) => setUsername(username)} />
+              <Login hasCustomBg={bgType !== "none"} onLogin={(username) => setUsername(username)} />
             )
           ) : null)}
       </div>

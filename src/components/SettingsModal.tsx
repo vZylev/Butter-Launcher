@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactCountryFlag from "react-country-flag";
-import { IconFolderOpen, IconChevronRight, IconChevronLeft } from "@tabler/icons-react";
+import { IconFolderOpen, IconChevronRight, IconChevronLeft, IconPhoto, IconVideo, IconX } from "@tabler/icons-react";
 import { useGameContext } from "../hooks/gameContext";
 import ConfirmModal from "./ConfirmModal";
 import { useTranslation } from "react-i18next";
@@ -16,6 +16,8 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
+
+type BackgroundType = "none" | "image" | "video";
 
 const LANGUAGES = {
   en: { name: "English", countryCode: "US" },
@@ -105,6 +107,10 @@ const SettingsModal: React.FC<{
   const [clearingCache, setClearingCache] = useState(false);
   const [defaultGameDir, setDefaultGameDir] = useState<string>("");
 
+  const [bgType, setBgType] = useState<BackgroundType>("none");
+  const [bgPath, setBgPath] = useState("");
+  const [bgSaving, setBgSaving] = useState(false);
+
   const normalizedUUID = useMemo(() => {
     const raw = customUUID.trim();
     if (!raw) return "";
@@ -162,7 +168,19 @@ const SettingsModal: React.FC<{
     if (raw === "premium") setAccountType("premium");
     else if (raw === "custom") setAccountType("custom");
     else setAccountType(null);
-  }, []);
+
+    (async () => {
+      try {
+        const res = await window.config.backgroundGet();
+        if (res.ok) {
+          setBgType(res.backgroundType || "none");
+          setBgPath(res.backgroundPath || "");
+        }
+      } catch {
+        // ignore
+      }
+    })();
+  }, [open]);
 
   useEffect(() => {
     const raw = customUUID.trim();
@@ -282,6 +300,49 @@ const SettingsModal: React.FC<{
   };
 
   const dirPath = gameDir || defaultGameDir || t("settings.downloadDirectory.loading");
+
+  const handlePickBackground = async (type: "image" | "video") => {
+    if (bgSaving) return;
+    const extensions =
+      type === "image"
+        ? ["png", "jpg", "jpeg", "gif", "webp", "bmp"]
+        : ["mp4", "webm", "ogg", "mov"];
+    try {
+      const res = await window.config.pickFile({
+        title: t("settings.background.pickTitle"),
+        extensions,
+      });
+      if (!res.ok || !res.path) return;
+      setBgSaving(true);
+      const saveRes = await window.config.backgroundSet(type, res.path);
+      if (!saveRes.ok) throw new Error(saveRes.error || "Failed");
+      setBgType(type);
+      setBgPath(res.path);
+      window.dispatchEvent(new Event("background:changed"));
+    } catch (e) {
+      console.error("Failed to set background", e);
+      alert("Error #1000");
+    } finally {
+      setBgSaving(false);
+    }
+  };
+
+  const handleClearBackground = async () => {
+    if (bgSaving) return;
+    setBgSaving(true);
+    try {
+      const res = await window.config.backgroundSet("none", "");
+      if (!res.ok) throw new Error(res.error || "Failed");
+      setBgType("none");
+      setBgPath("");
+      window.dispatchEvent(new Event("background:changed"));
+    } catch (e) {
+      console.error("Failed to clear background", e);
+      alert("Error #1000");
+    } finally {
+      setBgSaving(false);
+    }
+  };
 
   return (
     <Box

@@ -14,6 +14,7 @@ import FriendsMenu from "./FriendsMenu";
 import DiscordLogo from "../assets/icons/discord.svg";
 import MatchaIcon from "../assets/icons/matcha_bold.svg";
 import PatreonLogo from "../assets/images/patreon.png";
+import PatchNotesModal from "./PatchNotesModal";
 import DragBar from "./DragBar";
 import ProgressBar from "./ProgressBar";
 import {
@@ -98,6 +99,15 @@ const HYTALE_FEED_URL =
 const HYTALE_FEED_IMAGE_BASE =
   "https://launcher.hytale.com/launcher-feed/release/";
 
+const normalizeExternalUrl = (raw: unknown): string | null => {
+  const s = typeof raw === "string" ? raw.trim() : "";
+  if (!s) return null;
+  if (s.startsWith("http://")) return s.replace(/^http:\/\//i, "https://");
+  if (s.startsWith("https://")) return s;
+  if (s.startsWith("//")) return `https:${s}`;
+  return null;
+};
+
 const normalizeHytaleUrl = (raw: unknown): string | null => {
   const s = typeof raw === "string" ? raw.trim() : "";
   if (!s) return null;
@@ -169,7 +179,7 @@ const NEWS_URL =
   (import.meta as any).env?.VITE_NEWS_URL ||
   "https://updates.butterlauncher.tech/news.json";
 
-const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
+const Launcher: React.FC<{ onLogout?: () => void; hasCustomBg?: boolean }> = ({ onLogout, hasCustomBg }) => {
   const { t } = useTranslation();
   const {
     gameDir,
@@ -275,6 +285,12 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
   const [hytaleFeedError, setHytaleFeedError] = useState<string>("");
   const [hytaleFeedItems, setHytaleFeedItems] = useState<HytaleFeedItem[]>([]);
   const hytaleFeedScrollRef = useRef<HTMLDivElement | null>(null);
+  const [patchNotesUrls, setPatchNotesUrls] = useState<
+    Partial<Record<VersionType, string>>
+  >({});
+  const [patchNotesOpen, setPatchNotesOpen] = useState(false);
+  const [patchNotesUrl, setPatchNotesUrl] = useState<string | null>(null);
+  const [patchNotesChannel, setPatchNotesChannel] = useState<VersionType | null>(null);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [patchConfirmOpen, setPatchConfirmOpen] = useState(false);
   // onlinePatchEnabled, needsFixClient, patchOutdated now from useOnlinePatchHealth hook
@@ -290,6 +306,27 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
   const isPremium = accountType === "premium";
   const restrictVersionsUntilBuild1 = isCustom || isPremium;
 
+  const hasInstalledBaseBelow = (targetBuildIndex: number): boolean => {
+    const target = Number(targetBuildIndex);
+    if (!Number.isFinite(target) || target <= 1) return false;
+    return availableVersions.some(
+      (v) =>
+        !!v.installed &&
+        Number.isFinite(v.build_index) &&
+        v.build_index > 0 &&
+        v.build_index < target,
+    );
+  };
+
+  const isVersionLocked = (v: GameVersion): boolean => {
+    if (!restrictVersionsUntilBuild1) return false;
+    if (v.installed) return false;
+    if (v.build_index === 1) return false;
+    if (v.isLatest) return false;
+    if (hasInstalledBaseBelow(v.build_index)) return false;
+    return true;
+  };
+
   const latestVersion =
     availableVersions.length > 0 ? availableVersions[0] : null;
 
@@ -301,6 +338,45 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
     hasBuild1Installed,
     restrictVersionsUntilBuild1,
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        // Patch notes URLs are controlled by the backend Version Manager.
+        // Fetch via main process to avoid CORS issues.
+        const manifestUrl = `${import.meta.env.VITE_REQUEST_VERSIONS_DETAILS_URL}`;
+        if (!manifestUrl) throw new Error("Missing versions manifest URL");
+
+        const status = await window.ipcRenderer.invoke("fetch:head", manifestUrl);
+        if (status !== 200) throw new Error(`Manifest unavailable (HTTP ${status})`);
+
+        const raw = await window.ipcRenderer.invoke("fetch:json", manifestUrl);
+
+        const releaseUrl = normalizeExternalUrl(
+          raw?.patch_notes?.release?.url ?? raw?.patchNotes?.release?.url,
+        );
+        const preReleaseUrl = normalizeExternalUrl(
+          raw?.patch_notes?.["pre-release"]?.url ??
+            raw?.patchNotes?.["pre-release"]?.url,
+        );
+
+        if (!cancelled) {
+          setPatchNotesUrls({
+            release: releaseUrl ?? undefined,
+            "pre-release": preReleaseUrl ?? undefined,
+          });
+        }
+      } catch {
+        if (!cancelled) setPatchNotesUrls({});
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!offlineMode) return;
@@ -426,6 +502,9 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
   const selectedLabel = selected
     ? selected.build_name?.trim() || `Build-${selected.build_index}`
     : "";
+
+  const selectedPatchNotesUrl =
+    selected && selected.isLatest ? patchNotesUrls[selected.type] : undefined;
 
   const patchAvailable =
     !!selected &&
@@ -608,14 +687,7 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
       return;
     }
 
-    const allowLatestWithoutBuild1 = !!v.isLatest;
-    const locked =
-      restrictVersionsUntilBuild1 &&
-      !hasBuild1Installed &&
-      !v.installed &&
-      v.build_index !== 1 &&
-      !allowLatestWithoutBuild1;
-    if (locked) {
+    if (isVersionLocked(v)) {
       alert(t("launcher.version.requiresBuild1"));
       return;
     }
@@ -640,6 +712,26 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
 
     void (async () => {
       try {
+        try {
+          const lock = await window.config?.getRuntimeGameLock?.();
+          if (lock && (lock as any).ok === true && (lock as any).active === true) {
+            const accountType =
+              (lock as any).accountType === "premium"
+                ? t("runtimeLock.accountType.premium")
+                : t("runtimeLock.accountType.custom");
+            const games = typeof (lock as any).games === "number" ? (lock as any).games : 1;
+            alert(
+              t("runtimeLock.logoutBlocked", {
+                accountType,
+                count: games,
+              }),
+            );
+            return;
+          }
+        } catch {
+          // ignore
+        }
+
         const ok = await onlinePatch.disablePatchAndWait();
         if (!ok) return;
         onLogout();
@@ -658,7 +750,7 @@ const Launcher: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
     <Grid
       h="100vh"
       w="100vw"
-      bg="#121212"
+      bg={hasCustomBg ? "transparent" : "#121212"}
       color="white"
       templateColumns="260px 1fr"
       templateRows="1fr 100px"

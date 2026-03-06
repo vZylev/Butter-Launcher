@@ -69,6 +69,15 @@ type VersionsManifestRoot = {
   latest_release_id: number;
   latest_prerelease_id: number;
   emergency_mode?: boolean;
+  patch_notes?: {
+    release?: { url?: string };
+    "pre-release"?: { url?: string };
+  };
+  // Backward-compatible alias some backends may still emit.
+  patchNotes?: {
+    release?: { url?: string };
+    "pre-release"?: { url?: string };
+  };
   versions: Record<string, VersionManifest>;
   pre_releases: Record<string, VersionManifest>;
 };

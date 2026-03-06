@@ -15,8 +15,9 @@ import {
   Spinner,
 } from "@chakra-ui/react";
 
-const Login: React.FC<{ onLogin: (username: string) => void }> = ({
+const Login: React.FC<{ onLogin: (username: string) => void; hasCustomBg?: boolean }> = ({
   onLogin,
+  hasCustomBg,
 }) => {
   const { t } = useTranslation();
 
@@ -35,6 +36,8 @@ const Login: React.FC<{ onLogin: (username: string) => void }> = ({
     return dn;
   };
 
+  const nickInputRef = useRef<HTMLInputElement | null>(null);
+
   const allowAlternative = customAlternativeLoginProvider.allowAlternative;
   const alternativeLabel = customAlternativeLoginProvider.alternativeLabel;
 
@@ -48,6 +51,9 @@ const Login: React.FC<{ onLogin: (username: string) => void }> = ({
   const [accountType, setAccountType] = useState<AccountType | null>(
     storedAccountType,
   );
+  const [lockedAccountType, setLockedAccountType] = useState<"premium" | "custom" | null>(null);
+  const [lockedGamesCount, setLockedGamesCount] = useState(0);
+  const lockAlertedRef = useRef(false);
   const [premiumError, setPremiumError] = useState<string | null>(null);
   const [premiumWorking, setPremiumWorking] = useState(false);
   const [showPremiumCancel, setShowPremiumCancel] = useState(false);
@@ -98,6 +104,19 @@ const Login: React.FC<{ onLogin: (username: string) => void }> = ({
   }, [premiumWorking]);
 
   const persistAccountType = (next: AccountType) => {
+    if (lockedAccountType && next !== lockedAccountType) {
+      const lockedLabel =
+        lockedAccountType === "premium"
+          ? t("runtimeLock.accountType.premium")
+          : t("runtimeLock.accountType.custom");
+      alert(
+        t("runtimeLock.accountTypeLocked", {
+          count: lockedGamesCount || 1,
+          accountType: lockedLabel,
+        }),
+      );
+      return;
+    }
     StorageService.setAccountType(next);
     setAccountType(next);
   };
@@ -110,6 +129,79 @@ const Login: React.FC<{ onLogin: (username: string) => void }> = ({
       persistAccountType("premium");
     }
   }, [allowAlternative, accountType]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const lock = await window.config?.getRuntimeGameLock?.();
+        if (cancelled) return;
+        if (!lock || (lock as any).ok !== true || (lock as any).active !== true) {
+          setLockedAccountType(null);
+          setLockedGamesCount(0);
+          lockAlertedRef.current = false;
+          return;
+        }
+
+        const type = (lock as any).accountType === "premium" ? "premium" : "custom";
+        const games = typeof (lock as any).games === "number" ? (lock as any).games : 1;
+        setLockedAccountType(type);
+        setLockedGamesCount(games);
+
+        if (!lockAlertedRef.current) {
+          lockAlertedRef.current = true;
+          const label =
+            type === "premium"
+              ? t("runtimeLock.accountType.premium")
+              : t("runtimeLock.accountType.custom");
+          alert(
+            t("runtimeLock.accountTypeLocked", {
+              count: games,
+              accountType: label,
+            }),
+          );
+        }
+
+        // Auto-heal: if user opened a second instance, force the same account type.
+        if (accountType === null || accountType !== type) {
+          persistAccountType(type);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accountType]);
+
+  useEffect(() => {
+    if (accountType !== "custom") return;
+
+    const timer = window.setTimeout(() => {
+      try {
+        window.ipcRenderer?.send("focus-window");
+      } catch {
+        // ignore
+      }
+
+      try {
+        window.focus();
+      } catch {
+        // ignore
+      }
+
+      try {
+        nickInputRef.current?.focus();
+        nickInputRef.current?.select();
+      } catch {
+        // ignore
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [accountType]);
 
   const goBackToAccountType = () => {
     StorageService.remove("accountType");
@@ -213,7 +305,7 @@ const Login: React.FC<{ onLogin: (username: string) => void }> = ({
   };
 
   return (
-    <Box w="100vw" h="100vh" display="flex" bg="black" overflow="hidden">
+    <Box w="100vw" h="100vh" display="flex" bg={hasCustomBg ? "transparent" : "black"} overflow="hidden">
       {/* DragBar overlaid on top */}
       <Box position="fixed" top={0} left={0} w="full" zIndex={50}>
         <DragBar />
@@ -224,7 +316,7 @@ const Login: React.FC<{ onLogin: (username: string) => void }> = ({
         w="380px"
         minW="380px"
         h="full"
-        bg="rgba(10,14,22,0.98)"
+        bg={hasCustomBg ? "rgba(10,14,22,0.80)" : "rgba(10,14,22,0.98)"}
         display="flex"
         flexDir="column"
         alignItems="stretch"
@@ -234,7 +326,7 @@ const Login: React.FC<{ onLogin: (username: string) => void }> = ({
         position="relative"
         borderRight="1px solid"
         borderColor="whiteAlpha.50"
-        backdropFilter="blur(12px)"
+        backdropFilter={hasCustomBg ? "blur(12px)" : undefined}
       >
         {/* Logo */}
         <Box mb={10} display="flex" justifyContent="center">
@@ -344,6 +436,7 @@ const Login: React.FC<{ onLogin: (username: string) => void }> = ({
               </Text>
               <Box as="form" onSubmit={handleSubmit as any} {...({noValidate: true} as any)} display="flex" flexDir="column" gap={2}>
                 <Input
+                  ref={nickInputRef}
                   type="text"
                   placeholder={t("login.nicknamePlaceholder")}
                   value={nick}
@@ -408,7 +501,7 @@ const Login: React.FC<{ onLogin: (username: string) => void }> = ({
       <Box
         flex={1}
         h="full"
-        style={{
+        style={hasCustomBg ? {} : {
           backgroundImage: `url(${butterLoginBg})`,
           backgroundSize: "cover",
           backgroundPosition: "center",

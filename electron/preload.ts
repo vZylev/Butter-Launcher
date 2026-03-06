@@ -100,6 +100,7 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
 });
 
 contextBridge.exposeInMainWorld("config", {
+  getRuntimeGameLock: () => ipcRenderer.invoke("runtime-lock:get"),
   getDefaultGameDirectory: () =>
     ipcRenderer.invoke("get-default-game-directory"),
   getDownloadDirectory: () => ipcRenderer.invoke("download-directory:get"),
@@ -129,6 +130,10 @@ contextBridge.exposeInMainWorld("config", {
   startupSoundMarkFirstRunPlayed: () =>
     ipcRenderer.invoke("launcher-settings:startup-sound:first-run-played"),
 
+  backgroundGet: () => ipcRenderer.invoke("launcher-settings:background:get"),
+  backgroundSet: (backgroundType: string, backgroundPath: string) =>
+    ipcRenderer.invoke("launcher-settings:background:set", backgroundType, backgroundPath),
+
   offlineTokenRefresh: (payload: {
     username: string;
     accountType?: string | null;
@@ -138,6 +143,9 @@ contextBridge.exposeInMainWorld("config", {
   customJwksRefresh: () => ipcRenderer.invoke("custom-jwks:refresh"),
 
   officialJwksRefresh: () => ipcRenderer.invoke("official-jwks:refresh"),
+
+  offlineServerJwksPatchForce: (payload: { gameDir: string; version: GameVersion }) =>
+    ipcRenderer.invoke("offline-jwks-patch:force", payload),
 
   // Premium login (OAuth)
   premiumStatus: () => ipcRenderer.invoke("premium:status"),
@@ -169,6 +177,7 @@ contextBridge.exposeInMainWorld("config", {
       assetsZipPath?: string | null;
       authMode?: "offline" | "authenticated" | "insecure";
       noAot?: boolean;
+      acceptEarlyPlugins?: boolean;
       ramMinGb?: number | null;
       ramMaxGb?: number | null;
       customJvmArgs?: string | null;

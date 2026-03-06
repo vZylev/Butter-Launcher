@@ -73,6 +73,12 @@ Reply-to:
 { "type": "send", "to": "global", "body": "...", "replyTo": "<messageId>" }
 ```
 
+Special DM commands:
+
+- In DMs, `body: "/invite"` and `body: "/request-to-join"` are treated as **commands**.
+- The backend persists a structured message (`kind`/`meta`) instead of plain text.
+- See the HTTP docs section “Game invites & join requests (DM protocol)” for the exact behavior and required presence state.
+
 Constraints match the HTTP endpoint:
 
 - 500 chars max
@@ -111,6 +117,8 @@ Payload:
     "fromAvatarHash": "<sha256 or empty>",
     "toId": null,
     "body": "...",
+    "kind": "text",
+    "meta": {},
     "deleted": false,
     "deletedByAdmin": false,
     "replyToId": null,
@@ -120,6 +128,33 @@ Payload:
   }
 }
 ```
+
+Notes on `kind` / `meta`:
+
+- `kind` is a message category used for richer UI cards (e.g. `game_invite`, `join_request`, `join_accept`).
+- `meta` is an extensible object. Unknown keys may appear.
+- For invite/accept messages, `meta` may include:
+  - `server`: string like `"1.2.3.4:1234"`
+  - `serverHidden`: boolean privacy hint based on the sender’s `hideServerIp` setting
+    - If `true`, clients should consider not displaying the raw IP by default (or require an explicit reveal/copy).
+    - This flag is not a security boundary; treat it as UI guidance.
+
+### type: message_update
+
+The server may **edit** an existing message (same `id`) and broadcast an update event.
+
+This is used for join requests so the original `join_request` message can be marked as resolved (`meta.status = "accepted" | "declined"`) without sending extra “declined” spam.
+
+Payload:
+
+```json
+{ "type": "message_update", "convo": "<convo>", "message": { /* same shape as type: message.message */ } }
+```
+
+Client handling:
+
+- Merge the updated message into local state by `message.id`.
+- If you haven’t loaded that message yet, you may ignore the update (it will be visible when history is fetched).
 
 ### type: message_deleted
 
