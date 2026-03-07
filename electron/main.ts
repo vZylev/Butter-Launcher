@@ -1545,14 +1545,13 @@ app.whenReady().then(() => {
   const { protocol: proto } = session.defaultSession;
   proto.handle("butter-bg", (req) => {
     try {
-      // URL format: butter-bg:///C:/path/to/file.mp4
+      // URL format: butter-bg:///bg?path=<encoded-path>
       const url = new URL(req.url);
-      let filePath = decodeURIComponent(url.pathname);
-      // On Windows, pathname starts with /C:/... — strip the leading slash
-      if (process.platform === "win32" && /^\/[a-zA-Z]:/.test(filePath)) {
-        filePath = filePath.slice(1);
+      const rawPath = url.searchParams.get("path");
+      if (!rawPath) {
+        return new Response("Missing path parameter", { status: 400 });
       }
-      filePath = path.normalize(filePath);
+      let filePath = path.normalize(rawPath);
 
       // Only allow image/video MIME types
       const ext = path.extname(filePath).toLowerCase();

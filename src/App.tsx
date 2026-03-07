@@ -2290,7 +2290,7 @@ export default function App() {
             position: "absolute",
             inset: 0,
             zIndex: 0,
-            backgroundImage: `url("butter-bg:///${bgPath.replace(/\\/g, "/")}?v=${bgKey}")`,
+            backgroundImage: `url("butter-bg:///bg?path=${encodeURIComponent(bgPath)}&v=${bgKey}")`,
             backgroundSize: "cover",
             backgroundPosition: "center",
             backgroundRepeat: "no-repeat",
@@ -2318,7 +2318,7 @@ export default function App() {
               objectFit: "cover",
             }}
           >
-            <source src={`butter-bg:///${bgPath.replace(/\\/g, "/")}`} />
+            <source src={`butter-bg:///bg?path=${encodeURIComponent(bgPath)}`} />
           </video>
           <div style={{ position: "absolute", inset: 0, background: "rgba(11, 15, 22, 0.45)" }} />
         </div>
