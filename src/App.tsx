@@ -442,6 +442,8 @@ export default function App() {
 
   const [bgType, setBgType] = useState<"none" | "image" | "video">("none");
   const [bgPath, setBgPath] = useState("");
+  const [bgKey, setBgKey] = useState(0);
+  const bgVideoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     const loadBg = async () => {
@@ -462,6 +464,23 @@ export default function App() {
     const onChanged = () => void loadBg();
     window.addEventListener("background:changed", onChanged);
     return () => window.removeEventListener("background:changed", onChanged);
+  }, []);
+
+  // When the window restores from background (game closed), Chromium may have
+  // evicted the custom-protocol image or paused the video. Bump a key to force
+  // a fresh render and resume video playback.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        setBgKey((k) => k + 1);
+        // Give the video element a tick to remount, then play.
+        requestAnimationFrame(() => {
+          bgVideoRef.current?.play().catch(() => {});
+        });
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
   const [magdOpen, setMagdOpen] = useState(false);
@@ -2266,11 +2285,12 @@ export default function App() {
       {/* Custom Background Layer */}
       {bgType === "image" && bgPath && (
         <div
+          key={bgKey}
           style={{
             position: "absolute",
             inset: 0,
             zIndex: 0,
-            backgroundImage: `url("butter-bg:///${bgPath.replace(/\\/g, "/")}")`,
+            backgroundImage: `url("butter-bg:///bg?path=${encodeURIComponent(bgPath)}&v=${bgKey}")`,
             backgroundSize: "cover",
             backgroundPosition: "center",
             backgroundRepeat: "no-repeat",
@@ -2282,7 +2302,8 @@ export default function App() {
       {bgType === "video" && bgPath && (
         <div style={{ position: "absolute", inset: 0, zIndex: 0, overflow: "hidden" }}>
           <video
-            key={bgPath}
+            ref={bgVideoRef}
+            key={`${bgPath}-${bgKey}`}
             autoPlay
             loop
             muted
@@ -2297,7 +2318,7 @@ export default function App() {
               objectFit: "cover",
             }}
           >
-            <source src={`butter-bg:///${bgPath.replace(/\\/g, "/")}`} />
+            <source src={`butter-bg:///bg?path=${encodeURIComponent(bgPath)}`} />
           </video>
           <div style={{ position: "absolute", inset: 0, background: "rgba(11, 15, 22, 0.45)" }} />
         </div>
