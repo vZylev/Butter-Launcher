@@ -104,7 +104,7 @@ const SettingsModal: React.FC<{
       await window.config.openFolder(dir);
     } catch (e) {
       console.error("Failed to open game directory", e);
-      alert("Error #1000");
+      alert(t("common.unexpectedError"));
     }
   };
 
@@ -113,7 +113,7 @@ const SettingsModal: React.FC<{
     try {
       const res = await window.config.selectDownloadDirectory();
       if (!res.ok) {
-        alert("Error #1000");
+        alert(t("common.unexpectedError"));
         return;
       }
       if (res.path) {
@@ -121,7 +121,7 @@ const SettingsModal: React.FC<{
       }
     } catch (e) {
       console.error("Failed to select download directory", e);
-      alert("Error #1000");
+      alert(t("common.unexpectedError"));
     } finally {
       setChangingDir(false);
     }
@@ -221,7 +221,7 @@ const SettingsModal: React.FC<{
         }
       } catch (e) {
         console.error("Failed to save startup sound setting", e);
-        alert("Error #1000");
+        alert(t("common.unexpectedError"));
       }
     })();
   };
@@ -284,8 +284,9 @@ const SettingsModal: React.FC<{
         if (seq !== onlinePatchStateSeq.current) return;
         setOnlinePatchEnabledForSelected(false);
       } finally {
-        if (seq !== onlinePatchStateSeq.current) return;
-        setCheckingOnlinePatchState(false);
+        if (seq === onlinePatchStateSeq.current) {
+          setCheckingOnlinePatchState(false);
+        }
       }
     })();
   }, [open, gameDir, selected]);
@@ -333,7 +334,7 @@ const SettingsModal: React.FC<{
       console.error("Failed to toggle SteamDeck mode", e);
       setSteamDeckStatus(t("settings.steamDeck.failed"));
       setSteamDeckMode(prev);
-      alert("Error #1000");
+      alert(t("common.unexpectedError"));
     } finally {
       setSteamDeckWorking(false);
     }
@@ -357,7 +358,7 @@ const SettingsModal: React.FC<{
       }
     } catch (e) {
       console.error("Failed to clear install cache", e);
-      alert("Error #1000");
+      alert(t("common.unexpectedError"));
     } finally {
       setClearingCache(false);
     }
@@ -383,7 +384,7 @@ const SettingsModal: React.FC<{
       window.dispatchEvent(new Event("background:changed"));
     } catch (e) {
       console.error("Failed to set background", e);
-      alert("Error #1000");
+      alert(t("common.unexpectedError"));
     } finally {
       setBgSaving(false);
     }
@@ -400,7 +401,7 @@ const SettingsModal: React.FC<{
       window.dispatchEvent(new Event("background:changed"));
     } catch (e) {
       console.error("Failed to clear background", e);
-      alert("Error #1000");
+      alert(t("common.unexpectedError"));
     } finally {
       setBgSaving(false);
     }
