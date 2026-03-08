@@ -6,6 +6,7 @@ export type SanitizeTextOptions = {
 
 const stripControlChars = (s: string): string =>
   // Keep \t, \n, \r. Strip other C0 controls + DEL.
+  // eslint-disable-next-line no-control-regex
   s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
 
 const clamp = (s: string, maxLength?: number): string => {

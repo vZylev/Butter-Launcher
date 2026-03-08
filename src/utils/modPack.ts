@@ -27,7 +27,7 @@ const bytesToBase64 = (bytes: Uint8Array): string => {
   const chunkSize = 0x8000;
   for (let i = 0; i < bytes.length; i += chunkSize) {
     const chunk = bytes.subarray(i, i + chunkSize);
-    binary += String.fromCharCode(...chunk);
+    binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
   }
   return btoa(binary);
 };
@@ -91,7 +91,7 @@ export const decodeModPack = async (text: string): Promise<ModPackV1> => {
   const gunzipped = await tryGunzip(bytes);
   const decoded = new TextDecoder().decode(gunzipped ?? bytes);
 
-  let parsed: any;
+  let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(decoded);
   } catch {
@@ -101,8 +101,9 @@ export const decodeModPack = async (text: string): Promise<ModPackV1> => {
   // Minimal structural validation
   if (!parsed || typeof parsed !== "object") throw new Error("invalid_object");
   if (parsed.v !== 1) throw new Error("unsupported_version");
-  if (!parsed.profile || typeof parsed.profile !== "object") throw new Error("invalid_profile");
-  if (typeof parsed.profile.name !== "string" || !parsed.profile.name.trim()) throw new Error("invalid_profile_name");
+  const profile = parsed.profile as Record<string, unknown>;
+  if (!profile || typeof profile !== "object") throw new Error("invalid_profile");
+  if (typeof profile.name !== "string" || !profile.name.trim()) throw new Error("invalid_profile_name");
   if (!Array.isArray(parsed.mods)) throw new Error("invalid_mods");
 
   return parsed as ModPackV1;
