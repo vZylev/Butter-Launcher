@@ -12,6 +12,11 @@ type Message = {
   time: number;
 };
 
+type WsEvent =
+  | { type: "users"; users: string[] }
+  | ({ type: "message" } & Message)
+  | { type: "typing"; from: string };
+
 export default function Chat({
   user,
   onClose,
@@ -33,7 +38,11 @@ export default function Chat({
     const storageKey = `butter-chat-${user}-${currentChat}`;
     const saved = localStorage.getItem(storageKey);
     if (saved) {
-      setMessages(JSON.parse(saved));
+      try {
+        setMessages(JSON.parse(saved));
+      } catch {
+        setMessages([]);
+      }
     } else {
       setMessages([]);
     }
@@ -54,7 +63,12 @@ export default function Chat({
     };
 
     ws.current.onmessage = (e) => {
-      const data = JSON.parse(e.data);
+      let data: WsEvent;
+      try {
+        data = JSON.parse(e.data) as WsEvent;
+      } catch {
+        return;
+      }
 
       if (data.type === "users") {
         setOnlineUsers(data.users.filter((u: string) => u !== user));
@@ -70,8 +84,12 @@ export default function Chat({
           setMessages((p) => [...p, data]);
         } else {
           const backgroundKey = `butter-chat-${user}-${data.to === "global" ? "global" : data.from}`;
-          const existing = JSON.parse(localStorage.getItem(backgroundKey) || "[]");
-          localStorage.setItem(backgroundKey, JSON.stringify([...existing, data]));
+          try {
+            const existing = JSON.parse(localStorage.getItem(backgroundKey) || "[]");
+            localStorage.setItem(backgroundKey, JSON.stringify([...existing, data]));
+          } catch {
+            localStorage.setItem(backgroundKey, JSON.stringify([data]));
+          }
         }
       }
 
