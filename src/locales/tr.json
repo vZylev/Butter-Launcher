@@ -1,0 +1,627 @@
+{
+  "common": {
+    "close": "Kapat",
+    "cancel": "İptal Et",
+    "confirm": "Onayla",
+    "remove": "Kaldır",
+    "minimize": "Küçült",
+    "maximize": "Büyüt",
+    "reconnect": "Yeniden Bağlan",
+    "retryConnection": "Bağlantıyı tekrar dene",
+    "back": "Geri",
+    "search": "Ara",
+    "folder": "Klasör",
+    "sortBy": "Sıralama ölçütü",
+    "open": "Aç",
+    "loading": "Yükleniyor...",
+    "refresh": "Yenile",
+    "delete": "Sil",
+    "toggle": "Değiştir",
+    "enable": "Etkinleştir",
+    "disable": "Devre Dışı Bırak",
+    "save": "Kaydet",
+    "apply": "Uygula",
+    "selectAll": "Tümünü seç",
+    "selectNone": "Hiçbirini seçme",
+    "loadMore": "Daha fazla yükle",
+    "working": "Çalışıyor...",
+    "enabled": "Etkin",
+    "disabled": "Devre dışı",
+    "clear": "Temizle",
+    "send": "Gönder"
+  },
+  "supportTicket": {
+    "devAssistSoon": "Bir geliştirici kısa süre içinde size yardımcı olacaktır.",
+    "invalidOrExpired": "Geçersiz veya süresi dolmuş bilet.",
+    "collectLogsFailed": "Yerel günlükler toplanamadı.",
+    "connectFailed": "Desteğe bağlanılamadı.",
+    "copyFailed": "Otomatik olarak kopyalanamadı. Kodu seçin ve manuel olarak kopyalayın."
+  },
+  "login": {
+    "accountTypePrompt": "Hesap türünüzü seçin",
+    "premium": "Premium",
+    "noPremium": "Premiumsuz",
+    "premiumPrompt": "Devam etmek için Hytale hesabınızla giriş yapın",
+    "premiumLogin": "Hytale ile Giriş Yap",
+    "prompt": "Devam etmek için kullanıcı adınızı girin",
+    "nicknamePlaceholder": "Kullanıcı Adı",
+    "characters": "{{current}}/{{max}} karakter",
+    "enter": "Giriş",
+    "errors": {
+      "empty": "Kullanıcı adınızı girin",
+      "minLength": "Kullanıcı adı en az {{min}} karakter uzunluğunda olmalıdır",
+      "maxLength": "Kullanıcı adı en fazla {{max}} karakter uzunluğunda olmalıdır"
+    }
+  },
+  "splash": {
+    "title": "Butter Launcher",
+    "logoAlt": "Butter Launcher",
+    "initializing": "Başlatılıyor",
+    "preparing": "Oturumunuz hazırlanıyor"
+  },
+  "launcher": {
+    "offlineMode": "Çevrimdışı Mod",
+    "errors": {
+      "emergencyMode": "Başlatıcı acil durum modunda. Daha fazla bilgi için Discord'u kontrol edin."
+    },
+    "buttons": {
+      "wiki": "Wiki",
+      "chat": "Sohbet",
+      "friends": "Arkadaşlar",
+      "servers": "Sunucular",
+      "hostServer": "Sunucu Kur",
+      "mods": "Mods",
+      "settings": "Ayarlar"
+    },
+    "news": {
+      "loading": "Yükleniyor...",
+      "showMore": "Daha fazla göster",
+      "openLink": "Bağlantıyı aç",
+      "openImage": "Resmi aç"
+    },
+    "updates": {
+      "dismissForNow": "Şimdilik güncelleme",
+      "available": "Yeni güncelleme mevcut.",
+      "fixClient": "İstemciyi Onar",
+      "fixClientTooltip": "Yamalanmamış istemciyi geri yükle",
+      "update": "Güncelle",
+      "install": "Yükle",
+      "installFull": "Yükle",
+      "installFullTooltip": "Yükle (tam indirme)",
+      "smartInstall": "Akıllı Yükleme",
+      "smartInstallChecking": "Akıllı Güncelleme kontrol ediliyor...",
+      "smartInstallTooltip": "Akıllı Yükleme (farklılık yaması)",
+      "play": "Oyna",
+      "running": "Oyun Çalışıyor"
+    },
+    "onlinePatch": {
+      "label": "Çevrimiçi Yama",
+      "titleEnable": "Çevrimiçi Yama",
+      "titleDisable": "Çevrimiçi yamayı devre dışı bırak",
+      "titleUpdate": "Çevrimiçi yamayı güncelle",
+      "btnEnable": "Çevrimiçi Yama",
+      "btnDisable": "Yamayı Devre Dışı Bırak",
+      "btnUpdate": "Yamayı Güncelle",
+      "notesNone": "Bu sürüm için yama notu bulunmuyor.",
+      "confirmTitle": "Çevrimiçi Yama",
+      "confirmCancel": "Yamama",
+      "confirmApply": "Yamala"
+    },
+    "hytaleFeed": {
+      "title": "Hytale Haberleri",
+      "toggleShow": "Hytale haberlerini göster",
+      "toggleHide": "Hytale haberlerini gizle",
+      "statusLoading": "Yükleniyor...",
+      "statusError": "Hata",
+      "statusScroll": "Kaydır →",
+      "open": "Aç"
+    },
+    "version": {
+      "label": "Sürüm",
+      "select": "Bir sürüm seçin",
+      "selectBuild": "Yapı seçin",
+      "release": "Sürüm",
+      "preRelease": "Ön Sürüm",
+      "latest": "En Yeni",
+      "show": "Sürümleri göster",
+      "hide": "Sürümleri gizle",
+      "noInstalledBuilds": "Yüklü yapı bulunamadı.",
+      "delete": "{{name}} sürümünü sil",
+      "deleteTitle": "Sürümü Sil",
+      "deleteConfirm": "{{name}} sürümünü silmek istediğinizden emin misiniz?",
+      "cannotDeleteRunning": "Çalışan yapıyı silemezsiniz. Önce oyunu kapatın.",
+      "requiresBuild1": "Diğer sürümleri indirmeden önce Build-1'i yüklemelisiniz.",
+      "manualInstallRequired": "Manuel olarak kurulması gerekiyor.",
+      "invalidBuild1Folder": "Seçilen klasör Build-1 gibi görünmüyor. Eksik: {{missing}}. Client, Server ve assets.zip içeren klasörü seçin."
+    }
+  },
+  "serversModal": {
+    "title": "SUNUCULAR",
+    "comingSoon": "Yakında",
+    "description": "Bu menü topluluk sunucularını listeleyecek, favorileri kaydetmenize ve hızlıca bağlanmanıza izin verecek.",
+    "placeholder": "Sadece yer tutucu arayüz — sunucu mantığı henüz bağlanmadı.",
+    "warning": {
+      "title": "Sunucu Kur",
+      "versionLine": "Sunucu, başlatıcıda şu anda seçili olan sürümü kullanarak başlayacaktır: {{version}}.",
+      "dedicated": "Özel bir sunucu tercih ederim",
+      "confirm": "Anladım, devam et"
+    },
+    "panel": {
+      "authMode": {
+        "label": "Yetki Modu",
+        "offline": "Çevrimdışı",
+        "authenticated": "Kimlik Doğrulamalı",
+        "insecure": "Güvensiz"
+      },
+      "advanced": {
+        "toggle": "Gelişmiş Seçenekler",
+        "ram": "RAM",
+        "min": "Min",
+        "max": "Maks",
+        "customAssets": "Özel Varlıklar",
+        "universe": "Evren",
+        "mods": "Mods",
+        "chooseFile": ".zip seç",
+        "chooseFolder": "Seç"
+      },
+      "actions": {
+        "showConsole": "Konsolu Göster",
+        "startServer": "Sunucuyu Başlat",
+        "stopServer": "Sunucuyu Durdur"
+      }
+    },
+    "console": {
+      "title": "Sunucu Konsolu",
+      "commandPlaceholder": "Bir komut yazın ve Enter'a basın..."
+    },
+    "sections": {
+      "recommended": "Önerilen",
+      "servers": "Sunucular"
+    },
+    "filters": {
+      "all": "Tümü",
+      "premium": "Ücretli Üyelik",
+      "noPremium": "Ücretsiz Üyelik"
+    },
+    "actions": {
+      "copyIp": "IP Kopyala"
+    },
+    "labels": {
+      "ip": "IP",
+      "description": "Açıklama",
+      "details": "Detaylar"
+    },
+    "errors": {
+      "missingUrls": "Sunucu listeleri yapılandırılmamış.",
+      "loadFailed": "Sunucu listeleri yüklenemedi."
+    },
+    "empty": {
+      "noRecommended": "Önerilen sunucu yok.",
+      "noServers": "Sunucu yok.",
+      "noDescription": "Açıklama yok.",
+      "noDetails": "Ek detay yok."
+    },
+    "feedback": {
+      "ipCopied": "IP kopyalandı"
+    },
+    "notes": {
+      "clickToLearn": "Daha fazla bilgi edinmek için bir sunucuya tıklayın!",
+      "addYourServer": "Kendi sunucunuzu eklemek mi istiyorsunuz? Discord'a katılın ve talepte bulunun!"
+    }
+  },
+  "friendsMenu": {
+    "brand": "Matcha!",
+    "title": {
+      "loggedOut": "Matcha!",
+      "loggedIn": "Matcha! — {{handle}}"
+    },
+    "intro": {
+      "headline": "Matcha!",
+      "subtitle": "Sadece bir mesajlaşma uygulamasından daha fazlası—Matcha!, tüm Butter Launcher deneyiminizi güçlendiren sosyal motorunuzdur.",
+      "feature1": "Anlık Sohbet ve DM",
+      "feature2": "Arkadaşlıklar ve Partiler",
+      "feature3": "Kesintisiz Lobi Davetleri",
+      "cta": "Daha hızlı bağlanın. Birlikte oynayın.",
+      "powered": "Matcha! tarafından desteklenmektedir",
+      "acceptTermsPrefix": "Kayıt olarak şunları kabul etmiş sayılırsınız:",
+      "acceptTermsLink": "Şartlar ve Koşullar"
+    },
+    "profile": {
+      "open": "Profili aç",
+      "title": "PROFİL",
+      "loadFailed": "Profiliniz yüklenemedi.",
+      "username": "Kullanıcı Adı",
+      "usernameCopied": "Kopyalandı!",
+      "createdAt": "Oluşturulma",
+      "totalMessages": "Toplam gönderilen mesaj",
+      "dndTitle": "Rahatsız Etmeyin",
+      "dndHint": "DM bildirim seslerini kapatır"
+    },
+    "unread": {
+      "badgeTitle": "Okunmamış mesajlar",
+      "separator": "- okunmamış -"
+    },
+    "terms": {
+      "title": "Matcha! Sistemi — Hizmet Şartları",
+      "lastUpdated": "Son Güncelleme: 17-02-2026",
+      "body": "Önsöz\nButter Launcher deneyiminizi güçlendiren sosyal altyapı Matcha!'ya hoş geldiniz. Bir hesap oluşturarak, platforma erişerek veya iletişim hizmetlerimizi kullanarak, aşağıdaki Hizmet Şartlarını (\"Şartlar\") okuduğunuzu, anladığınızı ve bunlara bağlı kalmayı kayıtsız şartsız kabul ettiğinizi beyan edersiniz.\n\n1. Hesap Güvenliği ve Kayıt\n1.1. Hesap Kimliği\nKullanıcı profiliniz, bir kullanıcı adı ve sayısal bir ayırt edici (örneğin, Kullanıcı#0000) ile benzersiz bir şekilde tanımlanır. Hesabınızın tek yetkili kullanıcısı olduğunuzu ve kimlik bilgileriniz altında gerçekleşen tüm faaliyetlerden, eylemlerden ve iletişimlerden tamamen sorumlu olduğunuzu kabul edersiniz.\n\n1.2. Kimlik Bilgilerinin Korunması\nMatcha!, verilerinizi korumak için endüstri standardı şifreleme protokolleri kullansa da, giriş bilgilerinizin gizliliğini korumaktan siz sorumlusunuz. Matcha!, parolanızı güvence altına almamanızdan kaynaklanan yetkisiz erişimlerden doğan hiçbir kayıp veya hasar için sorumluluk kabul etmez.\n\n1.3. Kayıt Kısıtlamaları\nHizmet bütünlüğünü sağlamak ve kötüye kullanımı önlemek amacıyla, hesap oluşturma işlemi 24 saatlik bir süre içinde IP adresi başına bir (1) yeni hesapla kesinlikle sınırlandırılmıştır. VPN, proxy veya IP yanıltma kullanımı dahil ancak bunlarla sınırlı olmamak üzere bu kısıtlamayı aşmaya yönelik her türlü girişim, bu Şartların ihlali sayılır ve kalıcı yasaklanma ile sonuçlanabilir.\n\n2. Kullanıcı Davranışı ve Uygun Kullanım\n2.1. Otomatik İçerik Filtreleme\nPlatform, topluluk standartlarını korumak için otomatik filtreleme sistemleri kullanır. Bu filtreleri kasıtlı olarak atlatmaya yönelik her türlü girişim (örneğin, özel karakterler veya yanlış yazım kullanımı yoluyla) kesinlikle yasaktır ve derhal idari işlemle sonuçlanacaktır.\n\n2.2. Anti-Spam ve Otomasyon\nHizmet kesintisini önlemek için mesaj gönderiminde katı hız sınırları uyguluyoruz. Sohbet hizmetini otomatikleştirmek veya \"flood\" yapmak için botların, makroların, scriptlerin veya herhangi bir üçüncü taraf yazılımın kullanımı yasaktır.\n\n2.3. Yasaklı İçerik\nŞu konularda sıfır tolerans politikası izliyoruz:\n\nNefret söylemi ve ayrımcı dil.\n\nŞiddet veya zarar verme tehditleri.\n\nDoxing (özel veya tanımlayıcı bilgilerin izinsiz yayınlanması).\n\nHer türlü taciz veya zorbalık.\n\n3. Veri Gizliliği ve İşleme\n3.1. Mesaj Saklama\nHizmeti kullanarak, iletişimlerinizin (Genel Sohbet ve Doğrudan Mesajlar dahil) sunucularımızda işlenmesine ve saklanmasına izin vermiş olursunuz. Bu veri saklama, kullanıcı oturumları arasında mesaj geçmişi senkronizasyonunu kolaylaştırmak için gereklidir.\n\n3.2. Bağlantı Günlüğü\nGüvenlik, denetim ve denetleme amaçları doğrultusunda, kayıt sırasında kullanılan IP adresi ve en son bağlantınızla ilişkili IP adresi dahil olmak üzere belirli bağlantı verilerini kaydettiğimizi kabul edersiniz.\n\n4. Sorumluluğun Sınırlandırılması ve Feragatname\nLÜTFEN BU BÖLÜMÜ DİKKATLİCE OKUYUN.\n\n4.1. Kullanıcı Etkileşimleri\nMatcha! ve yöneticileri yalnızca bir iletişim kanalı görevi görür. Kullanıcılar arasındaki anlaşmazlıklardan, çatışmalardan veya sözleşmelerden sorumlu değiliz ve bunlar arasında hakemlik yapmayız. Diğer hesap sahipleriyle olan etkileşimlerinizde tüm sorumluluk size aittir.\n\n4.2. Üçüncü Taraf İçeriği\nGenel Sohbet veya Doğrudan Mesajlar içinde kullanıcılar tarafından paylaşılan harici bağlantılar, dosyalar veya medya ile ilgili tüm sorumluluğu reddediyoruz. Üçüncü taraf içeriğine erişim tamamen sizin sorumluluğunuzdadır.\n\n4.3. Zararların Sınırlandırılması\nYasaların izin verdiği en geniş ölçüde, Matcha!'nın yaratıcıları, operatörleri ve bağlı kuruluşları, hizmeti kullanmanızdan kaynaklanan doğrudan, dolaylı, arızi, özel veya sonuçsal zararlardan sorumlu olmayacaktır. Buna, sınırlama olmaksızın, manevi tazminat, veri kaybı veya diğer kullanıcıların hileli eylemlerinden kaynaklanan zararlar dahildir.\n\n4.4. \"Olduğu Gibi\" Hizmet\nPlatform, \"OLDUĞU GİBİ\" ve \"MÜMKÜN OLDUĞU SÜRECE\" esasına göre, herhangi bir garanti verilmeksizin sunulmaktadır. Kesintisiz hizmet garantisi vermiyoruz ve teknik arızalar, bakım veya sunucu yeniden başlatmalarından kaynaklanan veri kayıplarından veya mesaj iletim hatalarından sorumlu değiliz.\n\n5. Denetleme ve Fesih\nSistem Yöneticileri, yegane takdir yetkisine bağlı olarak ve önceden bildirimde bulunmaksızın şu hakları saklı tutar:\n\nUygunsuz bulunan veya bu Şartları ihlal eden içeriği kaldırmak veya gizlemek.\n\nSaldırgan olan veya topluluk standartlarını ihlal eden kullanıcı adlarını tek taraflı olarak değiştirmek.\n\nBu Şartları ihlal ettiği veya topluluğun güvenliğini tehdit ettiği tespit edilen herhangi bir hesabı askıya almak, kısıtlamak veya kalıcı olarak kapatmak."
+    },
+    "friendsHeader": "ARKADAŞLAR ({{online}}/{{total}} Çevrimiçi)",
+    "friends": "Arkadaşlar",
+    "globalChat": "Genel Sohbet",
+    "logout": "Çıkış Yap",
+    "copy": "Kopyala",
+    "continue": "Devam Et",
+    "signIn": "Giriş yap",
+    "create": "Oluştur",
+    "createAccount": "Hesap oluştur",
+    "you": "Siz",
+    "devs": "Geliştiriciler",
+    "deleted": "Mesaj silindi.",
+    "deletedByAdmin": "Mesaj bir yönetici tarafından silindi.",
+    "scrollUp": "Eski mesajları yüklemek için yukarı kaydırın.",
+    "refreshing": "Yenileniyor…",
+    "searchFriends": "Ara",
+    "friendsList": "Arkadaşlar",
+    "friendsListCounts": "Arkadaşlar - {{online}} bağlı ({{total}} toplam)",
+    "noFriendsFound": "Arkadaş bulunamadı.",
+    "requests": "İstekler",
+    "received": "Gelen",
+    "sent": "Giden",
+    "requestsIncoming": "Gelen ({{count}})",
+    "requestsOutgoing": "Giden ({{count}})",
+    "none": "Yok.",
+    "accept": "Kabul Et",
+    "reject": "Reddet",
+    "cancel": "İptal Et",
+    "addFriend": "Arkadaş ekle",
+    "sendRequest": "İstek gönder",
+    "backToFriends": "Geri",
+    "status": {
+      "online": "Çevrimiçi",
+      "offline": "Çevrimdışı",
+      "inGame": "Oyunda",
+      "multiplayer": "Çok Oyunculu",
+      "singleplayer": "Tek Oyunculu"
+    },
+    "ctx": {
+      "sendMessage": "Mesaj gönder",
+      "removeFriend": "Arkadaşı çıkar"
+    },
+    "proof": {
+      "uniqueId": "Anahtar",
+      "yourHandle": "Kullanıcı adınız",
+      "saveHandleHint": "Gelecekteki girişler için bunu kaydedin.",
+      "uniqueIdHint": "Bu B-Matcha Güvenli Anahtarını kopyalayın ve saklayın (BM: ile başlar). Sadece bir kez gösterilir ve destek talepleri (hesap silme, yeniden adlandırma veya şifre sıfırlama) için hesap sahipliğini kanıtlamak için gereklidir. Resmi Butter/Matcha desteği dışında kimseyle paylaşmayın."
+    },
+    "register": {
+      "handleHint": "Tam kullanıcı adınız (# ile birlikte) hesap oluşturulduktan sonra gösterilecektir."
+    },
+    "placeholders": {
+      "username": "Kullanıcı Adı",
+      "handle": "Kullanıcı#0000",
+      "password": "Şifre",
+      "passwordRepeat": "Şifreyi tekrarla",
+      "globalMessage": "Herkese yaz…",
+      "dmMessage": "Bir mesaj yaz…"
+    },
+    "msgMenu": {
+      "sentAt": "Gönderildi",
+      "reply": "Yanıtla",
+      "copy": "Kopyala",
+      "delete": "Mesajı sil",
+      "report": "Bildir"
+    },
+    "reply": {
+      "replyingTo": "Yanıtlanan",
+      "cancel": "İptal Et",
+      "to": "Şuna yanıt ver"
+    },
+    "report": {
+      "title": "Bildir",
+      "reporting": "Bildirilen",
+      "category": "Kategori",
+      "reason": "Sebep",
+      "pick": "Seç…",
+      "submit": "Gönder",
+      "otherPlaceholder": "Ne olduğunu açıklayın…",
+      "cats": {
+        "security_violence": "Güvenlik ve şiddet",
+        "offensive": "Davranış ve uygunsuz içerik",
+        "spam_quality": "Sohbet kalitesi ve spam",
+        "other": "Diğer"
+      },
+      "reasons": {
+        "threats_violence": "Tehditler veya şiddet",
+        "bullying": "Zorbalık veya taciz",
+        "doxxing": "Doxxing / kişisel bilgiler",
+        "hate_speech": "Nefret söylemi",
+        "sexual_nsfw": "Cinsel içerik / NSFW",
+        "spam_ads": "Spam / istenmeyen reklam",
+        "phishing": "Oltalama / dolandırıcılık"
+      },
+      "descriptions": {
+        "threats_violence": "Tehditler, şiddete teşvik veya kendinize ya da başkalarına fiziksel zarar verilmesini teşvik eden içerik.",
+        "bullying": "Bir kullanıcıya yönelik taciz, yıldırma, aşağılama veya tekrarlanan kişisel saldırılar.",
+        "doxxing": "İzin almadan kişisel bilgilerin paylaşılması (adres, telefon, hesaplar, özel fotoğraflar vb.).",
+        "hate_speech": "Irk, etnik köken, din, milliyet, cinsel yönelim, cinsiyet, engellilik veya diğer özellikleri hedef alan saldırgan veya ayrımcı içerik.",
+        "sexual_nsfw": "Açık cinsel içerik, istenmeyen cinsel yaklaşımlar veya NSFW materyalleri.",
+        "spam_ads": "Tekrarlayan mesajlar, flood, istenmeyen reklamlar veya ilgisiz bağlantılar.",
+        "phishing": "Hesapları/şifreleri çalma girişimleri, kötü amaçlı bağlantılar veya taklit/dolandırıcılık."
+      }
+    },
+    "errors": {
+      "selectFriendToChat": "Sohbet etmek için bir arkadaş seçin.",
+      "removeFriendFailed": "Arkadaş çıkarma başarısız oldu",
+      "deleteFailed": "Silme başarısız oldu",
+      "reportFailed": "Bildirme başarısız oldu",
+      "reportMissingCategory": "Bir kategori seçin.",
+      "reportMissingReason": "Bir sebep seçin.",
+      "reportMissingDetails": "Lütfen sebebi açıklayın.",
+      "banned": "Hesap yasaklandı. Sebep: {{reason}}. Bitiş: {{until}}. Kalan: {{remaining}}.",
+      "bannedReasonFallback": "Sebep belirtilmedi"
+    }
+  },
+  "hostServerModal": {
+    "title": "SUNUCU KUR",
+    "comingSoon": "Yakında",
+    "description": "Bu menü, bir sunucuyu yapılandırmanıza ve kurmanıza yardımcı olacaktır (port, mods, sürüm ve başlatma/durdurma kontrolleri).",
+    "placeholder": "Sadece yer tutucu arayüz — sunucu kurma mantığı henüz bağlanmadı.",
+    "warning": {
+      "title": "Sunucu Kur",
+      "versionLine": "Sunucu, başlatıcıda şu anda seçili olan sürümü kullanarak başlayacaktır: {{version}}.",
+      "dedicated": "Özel bir sunucu tercih ederim",
+      "confirm": "Anladım, devam et",
+      "folderSyncTitle": "Sunucu klasörü değiştirilsin mi?",
+      "folderSyncMessage": "Unutmayın: yeni bir {{target}} klasörü yüklemek, mevcut olanın yerine geçecektir."
+    },
+    "errors": {
+      "buildNotInstalled": "Yerel bir sunucu kurmadan önce seçili yapıyı yüklemelisiniz.\nSeçilen: {{version}}",
+      "java25Required": "Bir sunucu kurmak için Java 25 gereklidir. Şunu öneriyoruz: Adoptium (Temurin): https://adoptium.net/temurin/releases",
+      "javaTooOld": "Java sürümünüz {{found}}. Sunucu kurmak için Java 25 gereklidir. Şunu öneriyoruz: Adoptium (Temurin): https://adoptium.net/temurin/releases",
+      "customAssetsMissing": "Özel Varlıklar için bir .zip dosyası seçin veya Özel Varlıkları devre dışı bırakın.",
+      "assetsZipMissing": "Seçilen varlıklar .zip dosyası mevcut değil: {{path}}",
+      "folderSyncRunning": "Universe/Mods/Erken Eklentileri değiştirmeden önce sunucuyu durdurun.",
+      "folderSyncFailed": "Seçilen klasör sunucuya kopyalanamadı.",
+      "folderSourceMissing": "Seçilen klasör mevcut değil: {{path}}",
+      "ramMissing": "RAM etkin olduğunda her iki RAM değerini de (Min ve Maks) ayarlayın.",
+      "ramInvalid": "RAM değerleri pozitif sayılar olmalıdır.",
+      "ramRange": "Maks RAM, Min RAM'den az olamaz.",
+      "serverStartFailed": "Sunucu başlatılamadı.",
+      "serverStopFailed": "Sunucu durdurulamadı.",
+      "serverNotRunning": "Sunucu çalışmıyor.",
+      "commandFailed": "Komut sunucuya gönderilemedi."
+    },
+    "panel": {
+      "authMode": {
+        "label": "Yetki Modu",
+        "offline": "Çevrimdışı",
+        "authenticated": "Kimlik Doğrulamalı",
+        "insecure": "Güvensiz"
+      },
+      "advanced": {
+        "toggle": "Gelişmiş Seçenekler",
+        "ram": "RAM",
+        "min": "Min",
+        "max": "Maks",
+        "noAot": "AOT kullanma",
+        "customAssets": "Özel Varlıklar",
+        "universe": "Evren",
+        "mods": "Mods",
+        "earlyPlugins": "Erken Eklentiler",
+        "chooseFile": ".zip seç",
+        "chooseFolder": "Seç"
+      },
+      "actions": {
+        "showConsole": "Konsolu Göster",
+        "startServer": "Sunucuyu Başlat",
+        "stopServer": "Sunucuyu Durdur"
+      }
+    },
+    "console": {
+      "title": "Sunucu Konsolu",
+      "commandPlaceholder": "Bir komut yazın ve Enter'a basın..."
+    },
+    "localHost": {
+      "section": "Yerel Kurulum",
+      "button": "Yerel Kurulum",
+      "note": "Not: Başkalarının katılabilmesi için yönlendiricinizde port yönlendirme yapılması ve bilgisayarınızın açık tutulması gerekir; alternatif olarak, diğer kullanıcıların oynamasına izin vermek için Radmin/Hamachi veya benzeri uygulamalar gerekecektir."
+    },
+    "proHosting": {
+      "section": "HyCloud Sunucu Hizmeti",
+      "button": "7/24 sunucunuzu kurun, satın alın veya oluşturun"
+    }
+  },
+  "modsModal": {
+    "title": "Mods",
+    "tabs": {
+      "discover": "Keşfet",
+      "installed": "Yüklü",
+      "profiles": "Profiller"
+    },
+    "searchPlaceholder": "Mods ara...",
+    "openModsFolder": "Mods Klasörünü Aç",
+    "noModsFound": "Mods bulunamadı.",
+    "installedMods": "Yüklü Mods",
+    "noInstalledModsFound": "Yüklü mods bulunamadı.",
+    "profileMods": "Profil Mods",
+    "noInstalledModsToSelect": "Seçilecek yüklü mods yok.",
+    "sort": {
+      "relevance": "İlgi",
+      "popularity": "Popülerlik",
+      "latestUpdate": "Son güncelleme",
+      "creationDate": "Oluşturulma tarihi",
+      "totalDownloads": "Toplam indirme",
+      "az": "A-Z"
+    },
+    "details": {
+      "loadingDetails": "Detaylar yükleniyor...",
+      "downloads": "{{value}} indirme",
+      "created": "{{date}} tarihinde oluşturuldu",
+      "updated": "{{date}} tarihinde güncellendi",
+      "updatedShort": "Güncellendi: {{date}}",
+      "description": "Açıklama",
+      "loadingDescription": "Açıklama yükleniyor...",
+      "noDescription": "Açıklama yok.",
+      "files": "Dosyalar",
+      "loadingFiles": "Dosyalar yükleniyor...",
+      "noFilesReturned": "Dosya bulunamadı.",
+      "selectModForDetails": "Detayları görüntülemek için bir mod seçin.",
+      "installThisFile": "Bu dosyayı yükle",
+      "results": "{{value}} sonuç",
+      "loaded": "{{loaded}} yüklendi",
+      "loadedOf": "{{loaded}} / {{total}} yüklendi"
+    },
+    "status": {
+      "installing": "Yükleniyor...",
+      "downloading": "İndiriliyor...",
+      "downloadingPct": "İndiriliyor... %{{pct}}",
+      "downloadingKb": "İndiriliyor... {{kb}} KB",
+      "loading": "Yükleniyor...",
+      "saving": "Kaydediliyor...",
+      "unknownError": "Bilinmeyen hata"
+    },
+    "releaseType": {
+      "stable": "Kararlı",
+      "beta": "Beta",
+      "alpha": "Alfa"
+    },
+    "installed": {
+      "enableAll": "Tümünü Etkinleştir",
+      "disableAll": "Tümünü Devre Dışı Bırak",
+      "openFolder": "Klasörü Aç"
+    },
+    "profiles": {
+      "title": "Profiller",
+      "namePlaceholder": "Profil adı...",
+      "noProfilesYet": "Henüz profil yok.",
+      "selectedCount": "Seçilen: {{count}}",
+      "currentlyEnabled": "Şu anda etkin",
+      "currentlyDisabled": "Şu anda devre dışı",
+      "notInstalled": "Yüklü değil",
+      "install": "Yükle",
+      "tip": "İpucu: bir profili kaydedin, ardından uygulayın.",
+      "share": {
+        "title": "Mod paketini paylaş",
+        "export": "Dışa Aktar",
+        "copy": "Kodu kopyala",
+        "import": "Panodan içe aktar",
+        "codePlaceholder": "BLMP: kodunuz burada görünecek...",
+        "exportReady": "Kod oluşturuldu. Şimdi kopyalayabilirsiniz.",
+        "copied": "Panoya kopyalandı.",
+        "invalidFormat": "Geçersiz biçim. Panonuzda bir BLMP: kodu bekleniyor.",
+        "importFailed": "İçe aktarma başarısız oldu.",
+        "importSomeFailed": "Bazı mods indirilemedi ({{count}}).",
+        "previewTitle": "Mod paketini içe aktar",
+        "previewSummary": "\"{{name}}\" profilini ({{count}} mods) içe aktarmak üzeresiniz. Oyun sürümü: {{gameVersion}}",
+        "previewMods": "Mods ({{count}}):",
+        "previewNoMods": "Bu pakette mods yok.",
+        "continue": "Devam Et",
+        "importing": "İçe aktarılıyor {{current}}/{{total}}: {{name}}",
+        "importingPct": "İçe aktarılıyor {{current}}/{{total}}: {{name}} (%{{pct}})",
+        "importDone": "İçe aktarma tamamlandı. \"{{profile}}\" profili {{count}} mods ile oluşturuldu.",
+        "importDoneManual": "İçe aktarma tamamlandı. \"{{profile}}\" profili {{count}} mods ile oluşturuldu. Manuel mods: {{manual}}.",
+        "integrityTitle": "Bütünlük uyarısı",
+        "integrityMismatch": "\"{{name}}\" için indirilen dosya beklenen hash değeriyle eşleşmiyor.",
+        "integrityExpected": "Beklenen: {{hash}}",
+        "integrityGot": "Alınan: {{hash}}"
+      }
+    },
+    "actions": {
+      "install": "Yükle",
+      "installed": "Yüklendi",
+      "update": "Güncelle"
+    },
+    "countMods": "{{count}} mods"
+  },
+  "progress": {
+    "phases": {
+      "pwrDownload": "İndiriliyor...",
+      "patching": "Ayıklanıyor...",
+      "onlinePatch": "Çevrimiçi Sistem Yamalanıyor",
+      "fixDownload": "Düzeltme İndiriliyor...",
+      "fixExtract": "Düzeltme Yamalanıyor...",
+      "jreDownload": "JRE İndiriliyor...",
+      "jreExtract": "JRE Ayıklanıyor..."
+    }
+  },
+  "launcherUpdate": {
+    "title": "Güncelleme mevcut",
+    "description": "Butter Launcher'ın yeni bir sürümü mevcut.",
+    "subtitleCurrent": "Mevcut: v{{version}}",
+    "subtitleLatest": "En Yeni: v{{version}}",
+    "released": "Yayınlanma: {{date}}",
+    "whatsNew": "Yenilikler",
+    "noChangelog": "Değişiklik günlüğü sağlanmadı.",
+    "dontRemindAgain": "Bir daha hatırlatma",
+    "notNow": "Şimdi değil",
+    "update": "Güncelle"
+  },
+  "settings": {
+    "title": "SİSTEM AYARLARI",
+    "teamName": "Butter Launcher Ekibi",
+    "madeBy": "Yapan",
+    "language": {
+      "label": "Dil",
+      "english": "İngilizce",
+      "spanish": "İspanyolca"
+    },
+    "gameDirectory": {
+      "label": "Oyun Dizini",
+      "openFolder": "Klasörü Aç"
+    },
+    "downloadDirectory": {
+      "label": "İndirme Dizini",
+      "change": "Değiştir",
+      "selecting": "Seçiliyor...",
+      "loading": "(yükleniyor...)"
+    },
+    "customUUID": {
+      "label": "Özel UUID",
+      "placeholder": "Boş bırakılırsa otomatik oluşturulur",
+      "usesAuto": "Otomatik UUID oluşturma kullanır",
+      "invalid": "Geçersiz UUID biçimi",
+      "saved": "Kaydedildi: {{uuid}}"
+    },
+    "discordRPC": "Discord RPC",
+    "startupSound": "Başlangıç sesi",
+    "steamDeck": {
+      "label": "SteamDeck modu",
+      "applying": "Düzeltme uygulanıyor...",
+      "restoring": "Geri yükleniyor...",
+      "failed": "Başarısız oldu. Günlükleri kontrol edin.",
+      "linuxOnly": "Sadece Linux/Steam Deck",
+      "hintLinux": "Paketlenmiş libzstd.so dosyasını sistem libzstd.so.1 ile değiştirir",
+      "hintNonLinux": "Sadece Linux/Steam Deck üzerinde kullanılabilir",
+      "tooltipLinux": "libzstd.so'yu sistem sürümüne sembolik bağlayarak glibc 2.41+ çökmesini düzeltir"
+    },
+    "onlinePatch": {
+      "label": "Çevrimiçi Yama",
+      "removeButton": "Mevcut çevrimiçi yamayı kaldır",
+      "description": "Orijinal istemciyi/sunucuyu geri yükler ve yama kalıntılarını siler.",
+      "title": "Çevrimiçi Yamayı Kaldır",
+      "confirm": "\"{{version}}\" sürümünden Çevrimiçi Yamayı kaldırmak istediğinizden emin misiniz?\n\nBu, orijinal istemciyi/sunucuyu geri yükleyecek ve yamalı kalıntıları silecektir.",
+      "confirmFallback": "Seçilen sürümden Çevrimiçi Yamayı kaldırmak istediğinizden emin misiniz?",
+      "requireGameDir": "Önce oyun klasörünü seçin",
+      "requireVersion": "Önce bir sürüm seçin",
+      "requireInstalled": "Önce seçilen sürümü yükleyin",
+      "requireGameClosed": "Önce oyunu kapatın",
+      "checkingState": "Yama durumu kontrol ediliyor...",
+      "requireEnabled": "Bu yapıda kaldırılacak çevrimiçi yama yok",
+      "hintEnableToRemove": "Kaldırmak için çevrimiçi yamayı etkinleştirin.",
+      "hintCloseGame": "Çevrimiçi yamayı kaldırmak için oyunu kapatın.",
+      "inProgress": "İşlem devam ediyor"
+    },
+    "credits": {
+      "label": "Emeği Geçenler",
+      "onlineFix": "Çevrimiçi Düzeltme",
+      "systemLauncher": "Sistem Başlatıcı",
+      "designLauncher": "Tasarım Başlatıcı"
+    },
+    "updates": {
+      "check": "GÜNCELLEMELERİ KONTROL ET",
+      "checking": "KONTROL EDİLİYOR..."
+    },
+    "logout": "ÇIKIŞ YAP"
+  }
+}

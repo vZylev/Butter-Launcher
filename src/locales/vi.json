@@ -1,0 +1,385 @@
+{
+  "common": {
+    "startupSound": "Звук при запуске",
+    "close": "Закрыть",
+    "cancel": "Отменить",
+    "confirm": "Подтвердить",
+    "remove": "Удалить",
+    "minimize": "Свернуть",
+    "maximize": "Развернуть",
+    "reconnect": "Войти заново",
+    "retryConnection": "Повторить попытку подключения",
+    "back": "Назад",
+    "search": "Поиск",
+    "folder": "Папка",
+    "sortBy": "Отсортировать",
+    "open": "Открыть",
+    "loading": "Загрузка...",
+    "refresh": "Обновить",
+    "delete": "Удалить",
+    "toggle": "Переключить",
+    "enable": "Включить",
+    "disable": "Выключить",
+    "save": "Сохранить",
+    "apply": "Применить",
+    "selectAll": "Выбрать всё",
+    "selectNone": "Снять выделение",
+    "loadMore": "Загрузить ещё",
+    "working": "Обработка...",
+    "enabled": "Включено",
+    "disabled": "Выключено",
+    "clear": "Очистить",
+    "send": "Отправить"
+  },
+  "login": {
+    "prompt": "Введите ваш никнейм, чтобы продолжить",
+    "nicknamePlaceholder": "Никнейм",
+    "characters": "{{current}}/{{max}} символов",
+    "enter": "Войти",
+    "errors": {
+      "empty": "Введите ваш никнейм",
+      "minLength": "Никнейм должен содержать минимум {{min}} символа",
+      "maxLength": "Никнейм должен содержать максимум {{max}} символов"
+    }
+  },
+  "splash": {
+    "title": "Butter Launcher",
+    "logoAlt": "Butter Launcher",
+    "initializing": "Инициализация",
+    "preparing": "Подготовка вашей сессии"
+  },
+  "launcher": {
+    "offlineMode": "Оффлайн режим",
+    "buttons": {
+      "wiki": "Вики",
+      "chat": "Чат",
+      "servers": "Сервера",
+      "hostServer": "Создать сервер",
+      "mods": "Моды",
+      "settings": "Настройки"
+    },
+    "news": {
+      "loading": "Загрузка...",
+      "showMore": "Показать больше",
+      "openLink": "Открыть ссылку",
+      "openImage": "Открыть изображение"
+    },
+    "updates": {
+      "dismissForNow": "Не обновлять версию сейчас",
+      "available": "Доступно новое обновление.",
+      "fixClient": "Восстановить клиент",
+      "fixClientTooltip": "Восстановить клиент без патчей",
+      "update": "Обновить",
+      "install": "Установить",
+      "installFull": "Установить",
+      "installFullTooltip": "Установить (Полная загрузка)",
+      "smartInstall": "Умная установка",
+      "smartInstallChecking": "Проверяем умную установку...",
+      "smartInstallTooltip": "Умная установка (Другой путь)",
+      "play": "Играть",
+      "running": "Игра запущена"
+    },
+    "onlinePatch": {
+      "label": "Онлайн патч",
+      "titleEnable": "Онлайн патч",
+      "titleDisable": "Отключить онлайн патч",
+      "titleUpdate": "Обновить онлайн патч",
+      "btnEnable": "Онлайн патч",
+      "btnDisable": "Выключить патч",
+      "btnUpdate": "Обновить патч",
+      "notesNone": "Нету доступных патчей для данной сборки.",
+      "confirmTitle": "Онлайн патч",
+      "confirmCancel": "Отменить патч",
+      "confirmApply": "Патч"
+    },
+    "hytaleFeed": {
+      "title": "Новости Hytale",
+      "toggleShow": "Показывать новости Hytale",
+      "toggleHide": "Скрыть новости Hytale",
+      "statusLoading": "Загрузка...",
+      "statusError": "Ошибка",
+      "statusScroll": "Листайте →",
+      "open": "Открыть"
+    },
+    "version": {
+      "label": "Версия",
+      "select": "Выбрать версию",
+      "selectBuild": "Выбрать сборку",
+      "release": "Релиз",
+      "preRelease": "Пре-релиз",
+      "latest": "Последняя",
+      "show": "Показать версии",
+      "hide": "Скрыть версии",
+      "noInstalledBuilds": "Установленных сборок не найдено.",
+      "delete": "Удалить {{name}}",
+      "deleteTitle": "Удалить версию",
+      "deleteConfirm": "Вы уверены что хотите удалить {{name}}?",
+      "cannotDeleteRunning": "Удалить запущенную сборку невозможно. Сначала закройте игру."
+    }
+  },
+  "serversModal": {
+    "title": "СЕРВЕРА",
+    "sections": {
+      "recommended": "Рекомендуемые",
+      "servers": "Сервера"
+    },
+    "filters": {
+      "all": "Все",
+      "premium": "Премиум",
+      "standard": "Без премиума"
+    },
+    "actions": {
+      "copyIp": "Копировать IP"
+    },
+    "labels": {
+      "ip": "IP",
+      "description": "Описание",
+      "details": "Подробности"
+    },
+    "errors": {
+      "missingUrls": "Списки серверов не настроены.",
+      "loadFailed": "Не удалось загрузить списки серверов."
+    },
+    "empty": {
+      "noRecommended": "Нет рекомендуемых серверов.",
+      "noServers": "Серверов нет.",
+      "noDescription": "Нет описания.",
+      "noDetails": "Нет дополнительных подробностей."
+    },
+    "feedback": {
+      "ipCopied": "IP скопирован"
+    },
+    "notes": {
+      "clickToLearn": "Нажмите на сервер, чтобы узнать о нем больше!",
+      "addYourServer": "Хотите добавить свой сервер? Зайдите в Discord и оставьте заявку!"
+    }
+  },
+  "hostServerModal": {
+    "title": "СОЗДАТЬ СЕРВЕР",
+    "comingSoon": "Скоро будет",
+    "description": "Это меню поможет вам настроить и запустить сервер (порт, моды, версия и управление запуском/остановкой).",
+    "placeholder": "Только интерфейс — логика хостинга пока не реализована.",
+    "warning": {
+      "title": "Создание сервера",
+      "versionLine": "Сервер будет запущен на версии, выбранной в лаунчере: {{version}}.",
+      "dedicated": "Я предпочитаю выделенный сервер",
+      "confirm": "Понятно, продолжить"
+    },
+    "errors": {
+      "buildNotInstalled": "Вы должны установить выбранную сборку перед созданием локального сервера.\nВыбрано: {{version}}",
+      "java25Required": "Для работы сервера требуется Java 25. Рекомендуем Adoptium (Temurin): https://adoptium.net/temurin/releases",
+      "javaTooOld": "Ваша версия Java: {{found}}. Требуется Java 25. Рекомендуем Adoptium (Temurin): https://adoptium.net/temurin/releases",
+      "ramMissing": "Настройте оба значения RAM (Мин и Макс), когда использование RAM включено.",
+      "ramInvalid": "Значения RAM должны быть положительными числами.",
+      "ramRange": "Максимальное значение RAM не может быть меньше минимального.",
+      "serverStartFailed": "Не удалось запустить сервер.",
+      "serverStopFailed": "Не удалось остановить сервер.",
+      "serverNotRunning": "Сервер не запущен.",
+      "commandFailed": "Не удалось отправить команду на сервер."
+    },
+    "panel": {
+      "authMode": {
+        "label": "Режим авторизации",
+        "offline": "Оффлайн",
+        "authenticated": "Авторизованный",
+        "insecure": "Небезопасный"
+      },
+      "advanced": {
+        "toggle": "Расширенные настройки",
+        "ram": "ОЗУ (RAM)",
+        "min": "Мин",
+        "max": "Макс",
+        "noAot": "Не использовать AOT",
+        "customAssets": "Свои ассеты",
+        "universe": "Вселенная",
+        "mods": "Моды",
+        "earlyPlugins": "Ранние плагины",
+        "chooseFile": "Выбрать .zip",
+        "chooseFolder": "Выбрать"
+      },
+      "actions": {
+        "showConsole": "Показать консоль",
+        "startServer": "Запустить сервер",
+        "stopServer": "Остановить сервер"
+      }
+    },
+    "console": {
+      "title": "Консоль сервера",
+      "commandPlaceholder": "Введите команду и нажмите Enter..."
+    },
+    "localHost": {
+      "section": "Локальный хост",
+      "button": "Локальный хост",
+      "note": "Примечание: Требуется проброс портов на роутере; в противном случае потребуется использование Radmin/Hamachi или аналогичных программ."
+    },
+    "proHosting": {
+      "section": "HyCloud Hosting",
+      "button": "Хости, покупай или создай свой сервер 24/7"
+    }
+  },
+  "modsModal": {
+    "title": "Моды",
+    "tabs": {
+      "discover": "Обзор",
+      "installed": "Установлено",
+      "profiles": "Профили"
+    },
+    "searchPlaceholder": "Найти моды...",
+    "openModsFolder": "Открыть папку Mods",
+    "noModsFound": "Моды не найдены.",
+    "installedMods": "Установленные моды",
+    "noInstalledModsFound": "Установленных модов не найдено.",
+    "profileMods": "Моды профиля",
+    "noInstalledModsToSelect": "Нет установленных модов для выбора.",
+    "sort": {
+      "relevance": "Релевантность",
+      "popularity": "Популярность",
+      "latestUpdate": "Последнее обновление",
+      "creationDate": "Дата создания",
+      "totalDownloads": "Всего загрузок",
+      "az": "А-Я"
+    },
+    "details": {
+      "loadingDetails": "Загрузка подробностей...",
+      "downloads": "{{value}} скачиваний",
+      "created": "Создано {{date}}",
+      "updated": "Обновлено {{date}}",
+      "updatedShort": "Обновлено {{date}}",
+      "description": "Описание",
+      "loadingDescription": "Загрузка описания...",
+      "noDescription": "Нет описания.",
+      "files": "Файлы",
+      "loadingFiles": "Загрузка файлов...",
+      "noFilesReturned": "Файлы не найдены.",
+      "selectModForDetails": "Выберите мод, чтобы просмотреть подробности.",
+      "installThisFile": "Установить этот файл",
+      "results": "{{value}} результатов",
+      "loaded": "{{loaded}} загружено",
+      "loadedOf": "{{loaded}} / {{total}} загрузок"
+    },
+    "status": {
+      "installing": "Установка...",
+      "downloading": "Скачивание...",
+      "downloadingPct": "Скачивание... {{pct}}%",
+      "downloadingKb": "Скачивание... {{kb}} KB",
+      "loading": "Загрузка...",
+      "saving": "Сохранение...",
+      "unknownError": "Неизвестная ошибка"
+    },
+    "releaseType": {
+      "stable": "Стабильный",
+      "beta": "Бета",
+      "alpha": "Альфа"
+    },
+    "installed": {
+      "enableAll": "Включить все",
+      "disableAll": "Выключить все",
+      "openFolder": "Открыть Папку"
+    },
+    "profiles": {
+      "title": "Профили",
+      "namePlaceholder": "Имя профиля...",
+      "noProfilesYet": "Профилей пока нету.",
+      "selectedCount": "Выбрано: {{count}}",
+      "currentlyEnabled": "Сейчас включен",
+      "currentlyDisabled": "Сейчас выключен",
+      "tip": "Совет: сохраните профиль, а затем примените его."
+    },
+    "actions": {
+      "install": "Установить",
+      "installed": "Установлен",
+      "update": "Обновить"
+    },
+    "countMods": "{{count}} модов"
+  },
+  "progress": {
+    "phases": {
+      "pwrDownload": "Загрузка...",
+      "patching": "Извлечение...",
+      "onlinePatch": "Патчинг Онлайн Системы",
+      "fixDownload": "Загрузка Фикса...",
+      "fixExtract": "Установка Фикса...",
+      "jreDownload": "Загрузка JRE...",
+      "jreExtract": "Извлечение JRE..."
+    }
+  },
+  "launcherUpdate": {
+    "title": "Доступно обновление",
+    "description": "Доступна новая версия Butter Launcher.",
+    "subtitleCurrent": "Текущая: v{{version}}",
+    "subtitleLatest": "Последняя: v{{version}}",
+    "released": "Релиз: {{date}}",
+    "whatsNew": "Что нового",
+    "noChangelog": "Список изменений не предоставлен.",
+    "dontRemindAgain": "Больше не напоминать",
+    "notNow": "Не сейчас",
+    "update": "Обновить"
+  },
+  "settings": {
+    "title": "СИСТЕМНЫЕ НАСТРОЙКИ",
+    "language": {
+      "label": "Язык",
+      "english": "Английский",
+      "spanish": "Испанский"
+    },
+    "teamName": "Butter Launcher Team",
+    "madeBy": "Автор:",
+    "gameDirectory": {
+      "label": "Игровая директория",
+      "openFolder": "Открыть папку"
+    },
+    "downloadDirectory": {
+      "label": "Папка загрузок",
+      "change": "Изменить",
+      "selecting": "Выбрать...",
+      "loading": "(загрузка...)"
+    },
+    "customUUID": {
+      "label": "Свой UUID",
+      "placeholder": "Автоматически создаётся, если пусто",
+      "usesAuto": "Используется автоматическая генерация UUID",
+      "invalid": "Неправильный UUID формат",
+      "saved": "Сохранён: {{uuid}}"
+    },
+    "discordRPC": "Отображение игры в Discord",
+    "steamDeck": {
+      "label": "Режим SteamDeck",
+      "applying": "Применяю фикс...",
+      "restoring": "Восстанавливаю...",
+      "failed": "Сбой. Проверьте логи.",
+      "linuxOnly": "Только для Linux/Steam Deck",
+      "hintLinux": "Заменяет встроенную libzstd.so на системную libzstd.so.1",
+      "hintNonLinux": "Доступно только для Linux/Steam Deck",
+      "tooltipLinux": "Исправляет glibc 2.41+ сбой путем замены libzstd.so на системную версию"
+    },
+    "onlinePatch": {
+      "label": "Онлайн патч",
+      "removeButton": "Удалить текущий онлайн патч",
+      "description": "Восстанавливает клиент/сервер и удаляет пропатченные файлы.",
+      "title": "Удалить онлайн патч",
+      "confirm": "Вы уверены, что хотите удалить Онлайн-патч из \"{{version}}\"?\n\nЭто восстановит клиент/сервер и удалит пропатченные файлы.",
+      "confirmFallback": "Вы уверены, что хотите удалить онлайн патч из выбранной версии?",
+      "requireGameDir": "Сначала выберите папку с игрой",
+      "requireVersion": "Сначала выберите версию",
+      "requireInstalled": "Сначала установите выбранную версию",
+      "requireGameClosed": "Сначала закройте игру",
+      "inProgress": "Операция в процессе",
+      "checkingState": "Проверка состояния патча...",
+      "requireEnabled": "В этой сборке нет онлайн патча для удаления",
+      "hintEnableToRemove": "Включите онлайн патч, чтобы удалить его.",
+      "hintCloseGame": "Закройте игру, чтобы удалить онлайн патч."
+    },
+    "credits": {
+      "label": "Титры",
+      "onlineFix": "Онлайн фикс",
+      "systemLauncher": "Системный лаунчер",
+      "designLauncher": "Дизайн лаунчера",
+      "language": "Язык"
+    },
+    "updates": {
+      "check": "ПРОВЕРИТЬ НАЛИЧИЕ ОБНОВЛЕНИЙ",
+      "checking": "ПРОВЕРКА..."
+    },
+    "logout": "ВЫХОД"
+  }
+}

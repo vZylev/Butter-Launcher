@@ -16,6 +16,8 @@ const LANGUAGES = {
   de: { name: "Deutsch", flag: "🇩🇪" },
   sk: { name: "Slovak", flag: "🇸🇰"},
   uk: { name: "Українська", flag: "🇺🇦"},
+  vn: { name: "Tiếng việt", flag: "🇻🇳"},
+  tr: { name: "Türkçe", flag: "🇹🇷"},
   ar: { name: "العربية", flag: "🇸🇦" },
 
 } as const;
