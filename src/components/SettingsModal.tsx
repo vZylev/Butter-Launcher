@@ -19,6 +19,7 @@ const LANGUAGES = {
   vn: { name: "Tiếng việt", flag: "🇻🇳"},
   tr: { name: "Türkçe", flag: "🇹🇷"},
   ar: { name: "العربية", flag: "🇸🇦" },
+  gr: { name: "placeholder", flag: "gr"},
 
 } as const;
 

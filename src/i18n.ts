@@ -13,6 +13,7 @@ import sk from "./locales/sk.json";
 import uk from "./locales/uk.json";
 import vn from "./locales/vn.json";
 import tr from "./locales/tr.json";
+import gr from "./locales/gr.json";
 
 const STORAGE_KEY = "butter:language";
 
@@ -30,7 +31,8 @@ const normalizeLang = (lang: string | null | undefined) => {
     base === "sk" ||
     base === "uk" ||
     base === "vn" ||
-    base === "tr"
+    base === "tr" ||
+    base === "gr"
   )
     return base;
   return null;
@@ -70,6 +72,7 @@ void i18n
       uk: { translation: uk },
       vn: { translation: vn },
       tr: { translation: tr },
+      gr: { translation: gr},
     },
     lng: getInitialLanguage(),
     fallbackLng: "en",
